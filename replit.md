@@ -110,24 +110,44 @@ In the sidebar, you can adjust:
 - **Indices**: SPY, QQQ, DIA
 - **Commodities**: GLD, SLV, USO
 
-## Data Source
+## Data Sources
 
-### Alpha Vantage (Exclusive Data Provider)
+### Dual Provider System (Toggle Between Sources)
+The application now supports **both Yahoo Finance and Alpha Vantage** with seamless switching via sidebar toggle.
+
+#### Yahoo Finance (Default)
+- **Provider**: Yahoo Finance (yfinance library)
+- **Advantages**: 
+  - Unlimited API calls
+  - No API key required
+  - Stable and reliable
+- **Limitations**:
+  - 15-minute delay for free tier
+  - No real-time data
+  - No news sentiment analysis
+- **Intervals Supported**: 1m, 5m, 15m, 30m, 60m, 1h, 1d, 1wk
+- **Best for**: Development, testing, backtesting, unlimited analysis
+
+#### Alpha Vantage (Real-time)
 - **Provider**: Alpha Vantage API
-- **Real-time**: Live data with API key
-- **News Intelligence**: Real-time news sentiment analysis
-- **Features**:
+- **Advantages**:
   - Real-time stock quotes
-  - Intraday data (1min, 5min, 15min, 30min, 60min)
-  - Daily and weekly historical data
   - News sentiment analysis (last 24 hours)
   - Combined price + news signals
   - Confidence scoring
-- **API Limits**: Free tier allows 25 requests/day, 5 requests/minute
+- **Limitations**:
+  - 25 API calls/day (free tier)
+  - 5 requests/minute rate limit
+  - Requires ALPHA_VANTAGE_API_KEY
 - **Intervals Supported**: 1m, 5m, 15m, 30m, 45m (mapped to 60m), 1h, 1d, 1wk (mapped to daily)
 - **Best for**: Real-time trading, news-driven strategies, sentiment analysis
 
-**Note**: Yahoo Finance has been completely removed. All data now comes from Alpha Vantage for consistency and real-time capabilities.
+### How to Switch Data Sources
+1. In the sidebar, find the **"Data Source"** section
+2. Select either **"Yahoo Finance"** or **"Alpha Vantage"**
+3. The active source badge appears in the main content area
+4. Cache automatically clears when switching sources
+5. All features work identically regardless of source
 
 ## Performance Notes
 - First analysis may take 10-20 seconds
