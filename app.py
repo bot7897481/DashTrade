@@ -123,8 +123,8 @@ def main():
                                  ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"],
                                  index=5)
             interval = st.selectbox("Interval",
-                                   ["1m", "5m", "15m", "30m", "1h", "1d", "1wk"],
-                                   index=5)
+                                   ["1m", "5m", "15m", "30m", "45m", "1h", "1d", "1wk"],
+                                   index=6)
             
             # Technical settings
             st.subheader("🔧 Technical Settings")
@@ -196,6 +196,8 @@ def main():
     if st.session_state.get('switch_to_analysis'):
         mode = "Single Stock Analysis"
         symbol = st.session_state.get('symbol', 'AAPL')
+        period = '3mo'
+        interval = '1d'
         fetch_button = True
         st.session_state['switch_to_analysis'] = False
     
@@ -287,6 +289,7 @@ def main():
     
     elif mode == "Portfolio Dashboard":
         st.subheader("💼 Portfolio Dashboard")
+        st.info("📡 **Data Source:** Yahoo Finance (15-min delay for free tier) | **Analysis:** Last 5 days, 1-day interval")
         
         watchlist = WatchlistDB.get_all_stocks()
         
@@ -500,8 +503,8 @@ def main():
         with col2:
             comparison_period = st.selectbox(
                 "Analysis Period",
-                ["1mo", "3mo", "6mo", "1y", "2y"],
-                index=1
+                ["1d", "7d", "1mo", "3mo", "6mo", "1y", "2y"],
+                index=3
             )
             
             benchmark_stock = st.selectbox(
