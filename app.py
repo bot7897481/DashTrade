@@ -17,6 +17,7 @@ from technical_analyzer import TechnicalAnalyzer
 from database import WatchlistDB, AlertsDB, PreferencesDB
 from comparison_analyzer import ComparisonAnalyzer
 from backtester import Backtester, BacktestResults
+from strategy_builder import CustomStrategy, StrategyCondition, StrategyTemplates, StrategyBuilder
 
 # Page configuration
 st.set_page_config(
@@ -105,7 +106,7 @@ def main():
         st.markdown("---")
         
         # Mode selection
-        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting"], index=0)
+        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder"], index=0)
         
         st.markdown("---")
         
@@ -832,6 +833,279 @@ def main():
                         )
                     else:
                         st.info("No completed trades in this backtest")
+    
+    elif mode == "Strategy Builder":
+        st.subheader("🔧 Custom Strategy Builder")
+        st.caption("Build your own trading strategy by combining technical indicators")
+        
+        if 'custom_strategy' not in st.session_state:
+            st.session_state.custom_strategy = CustomStrategy(name="My Strategy")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            strategy_name = st.text_input("Strategy Name", value=st.session_state.custom_strategy.name)
+            st.session_state.custom_strategy.name = strategy_name
+        
+        with col2:
+            load_template = st.selectbox("Load Template", 
+                                        ["None"] + [t.name for t in StrategyTemplates.get_all_templates()])
+            
+            if load_template != "None":
+                templates = {t.name: t for t in StrategyTemplates.get_all_templates()}
+                st.session_state.custom_strategy = templates[load_template]
+                st.rerun()
+        
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 Long Entry", "📉 Short Entry", "🚪 Exit Rules", "🧪 Test Strategy"])
+        
+        with tab1:
+            st.markdown("### Long Entry Conditions")
+            st.caption("All conditions must be met (AND logic) or any condition (OR logic)")
+            
+            long_logic = st.radio("Logic", ["AND", "OR"], 
+                                 index=0 if st.session_state.custom_strategy.long_logic == 'AND' else 1,
+                                 key="long_logic_radio")
+            st.session_state.custom_strategy.long_logic = long_logic
+            
+            num_long_conditions = st.number_input("Number of conditions", 1, 10, 
+                                                 len(st.session_state.custom_strategy.long_conditions) or 1,
+                                                 key="num_long")
+            
+            long_conditions = []
+            
+            for i in range(int(num_long_conditions)):
+                st.markdown(f"**Condition {i+1}**")
+                
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                
+                with col1:
+                    indicator = st.selectbox(f"Indicator", 
+                                           StrategyBuilder.get_indicator_list(),
+                                           key=f"long_ind_{i}")
+                
+                ind_type = StrategyBuilder.get_indicator_type(indicator)
+                
+                with col2:
+                    if ind_type == 'boolean':
+                        operator = st.selectbox(f"Op", ['=='], key=f"long_op_{i}")
+                    else:
+                        operator = st.selectbox(f"Op", ['>', '<', '>=', '<=', '==', '!='], 
+                                              key=f"long_op_{i}")
+                
+                with col3:
+                    compare_to = st.selectbox("Compare to", ["Value", "Indicator"], key=f"long_cmp_{i}")
+                
+                with col4:
+                    if compare_to == "Value":
+                        if ind_type == 'boolean':
+                            value = st.selectbox("Value", [True, False], key=f"long_val_{i}")
+                            indicator2 = None
+                        elif ind_type == 'string':
+                            value = st.selectbox("Value", ['bullish', 'bearish', 'neutral'], 
+                                               key=f"long_val_{i}")
+                            indicator2 = None
+                        else:
+                            value = st.number_input("Value", value=0.0, key=f"long_val_{i}")
+                            indicator2 = None
+                    else:
+                        indicator2 = st.selectbox("Indicator", 
+                                                StrategyBuilder.get_indicator_list(),
+                                                key=f"long_ind2_{i}")
+                        value = 0
+                
+                long_conditions.append(StrategyCondition(indicator, operator, value, indicator2))
+            
+            st.session_state.custom_strategy.long_conditions = long_conditions
+        
+        with tab2:
+            st.markdown("### Short Entry Conditions")
+            
+            short_logic = st.radio("Logic", ["AND", "OR"], 
+                                  index=0 if st.session_state.custom_strategy.short_logic == 'AND' else 1,
+                                  key="short_logic_radio")
+            st.session_state.custom_strategy.short_logic = short_logic
+            
+            num_short_conditions = st.number_input("Number of conditions", 0, 10, 
+                                                  len(st.session_state.custom_strategy.short_conditions),
+                                                  key="num_short")
+            
+            short_conditions = []
+            
+            for i in range(int(num_short_conditions)):
+                st.markdown(f"**Condition {i+1}**")
+                
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                
+                with col1:
+                    indicator = st.selectbox(f"Indicator", 
+                                           StrategyBuilder.get_indicator_list(),
+                                           key=f"short_ind_{i}")
+                
+                ind_type = StrategyBuilder.get_indicator_type(indicator)
+                
+                with col2:
+                    if ind_type == 'boolean':
+                        operator = st.selectbox(f"Op", ['=='], key=f"short_op_{i}")
+                    else:
+                        operator = st.selectbox(f"Op", ['>', '<', '>=', '<=', '==', '!='], 
+                                              key=f"short_op_{i}")
+                
+                with col3:
+                    compare_to = st.selectbox("Compare to", ["Value", "Indicator"], key=f"short_cmp_{i}")
+                
+                with col4:
+                    if compare_to == "Value":
+                        if ind_type == 'boolean':
+                            value = st.selectbox("Value", [True, False], key=f"short_val_{i}")
+                            indicator2 = None
+                        elif ind_type == 'string':
+                            value = st.selectbox("Value", ['bullish', 'bearish', 'neutral'], 
+                                               key=f"short_val_{i}")
+                            indicator2 = None
+                        else:
+                            value = st.number_input("Value", value=0.0, key=f"short_val_{i}")
+                            indicator2 = None
+                    else:
+                        indicator2 = st.selectbox("Indicator", 
+                                                StrategyBuilder.get_indicator_list(),
+                                                key=f"short_ind2_{i}")
+                        value = 0
+                
+                short_conditions.append(StrategyCondition(indicator, operator, value, indicator2))
+            
+            st.session_state.custom_strategy.short_conditions = short_conditions
+        
+        with tab3:
+            st.markdown("### Exit Conditions")
+            
+            exit_logic = st.radio("Logic", ["AND", "OR"], 
+                                 index=0 if st.session_state.custom_strategy.exit_logic == 'AND' else 1,
+                                 key="exit_logic_radio")
+            st.session_state.custom_strategy.exit_logic = exit_logic
+            
+            num_exit_conditions = st.number_input("Number of conditions", 0, 10, 
+                                                 len(st.session_state.custom_strategy.exit_conditions),
+                                                 key="num_exit")
+            
+            exit_conditions = []
+            
+            for i in range(int(num_exit_conditions)):
+                st.markdown(f"**Condition {i+1}**")
+                
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                
+                with col1:
+                    indicator = st.selectbox(f"Indicator", 
+                                           StrategyBuilder.get_indicator_list(),
+                                           key=f"exit_ind_{i}")
+                
+                ind_type = StrategyBuilder.get_indicator_type(indicator)
+                
+                with col2:
+                    if ind_type == 'boolean':
+                        operator = st.selectbox(f"Op", ['=='], key=f"exit_op_{i}")
+                    else:
+                        operator = st.selectbox(f"Op", ['>', '<', '>=', '<=', '==', '!='], 
+                                              key=f"exit_op_{i}")
+                
+                with col3:
+                    compare_to = st.selectbox("Compare to", ["Value", "Indicator"], key=f"exit_cmp_{i}")
+                
+                with col4:
+                    if compare_to == "Value":
+                        if ind_type == 'boolean':
+                            value = st.selectbox("Value", [True, False], key=f"exit_val_{i}")
+                            indicator2 = None
+                        elif ind_type == 'string':
+                            value = st.selectbox("Value", ['bullish', 'bearish', 'neutral'], 
+                                               key=f"exit_val_{i}")
+                            indicator2 = None
+                        else:
+                            value = st.number_input("Value", value=0.0, key=f"exit_val_{i}")
+                            indicator2 = None
+                    else:
+                        indicator2 = st.selectbox("Indicator", 
+                                                StrategyBuilder.get_indicator_list(),
+                                                key=f"exit_ind2_{i}")
+                        value = 0
+                
+                exit_conditions.append(StrategyCondition(indicator, operator, value, indicator2))
+            
+            st.session_state.custom_strategy.exit_conditions = exit_conditions
+        
+        with tab4:
+            st.markdown("### Test Your Strategy")
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                test_symbol = st.text_input("Test Symbol", value="AAPL").upper()
+            
+            with col2:
+                test_period = st.selectbox("Period", ["6mo", "1y", "2y"], index=1)
+            
+            if st.button("🧪 Test Strategy", type="primary"):
+                if not st.session_state.custom_strategy.long_conditions:
+                    st.error("Please add at least one long entry condition")
+                else:
+                    with st.spinner(f"Testing strategy on {test_symbol}..."):
+                        df, error = fetch_stock_data(test_symbol, test_period, '1d')
+                        
+                        if error or df is None:
+                            st.error("Error fetching data")
+                        else:
+                            analyzer = TechnicalAnalyzer(df)
+                            analyzer.calculate_emas()
+                            analyzer.calculate_ma_cloud()
+                            analyzer.calculate_qqe()
+                            analyzer.calculate_vwap()
+                            
+                            df_signals = st.session_state.custom_strategy.generate_signals(analyzer.df)
+                            
+                            backtester = Backtester(df_signals, initial_capital=10000.0)
+                            
+                            def custom_entry(row):
+                                if st.session_state.custom_strategy.should_enter_long(row):
+                                    return 'long'
+                                elif st.session_state.custom_strategy.should_enter_short(row):
+                                    return 'short'
+                                return None
+                            
+                            def custom_exit(row, trade):
+                                return st.session_state.custom_strategy.should_exit(row)
+                            
+                            results = backtester.run_custom_strategy(custom_entry, custom_exit)
+                            
+                            st.success(f"✅ Test complete! Total trades: {results.total_trades()}")
+                            
+                            col1, col2, col3, col4 = st.columns(4)
+                            
+                            total_return = ((results.final_capital - results.initial_capital) / results.initial_capital) * 100
+                            
+                            col1.metric("Total Return", f"{total_return:+.2f}%")
+                            col2.metric("Win Rate", f"{results.win_rate():.1f}%")
+                            col3.metric("Total Trades", results.total_trades())
+                            col4.metric("Profit Factor", f"{results.profit_factor():.2f}")
+                            
+                            if not results.equity_curve.empty:
+                                fig = go.Figure()
+                                
+                                fig.add_trace(go.Scatter(
+                                    x=results.equity_curve.index,
+                                    y=results.equity_curve.values,
+                                    name='Equity',
+                                    line=dict(color='blue', width=2)
+                                ))
+                                
+                                fig.update_layout(
+                                    title=f"{strategy_name} - Equity Curve",
+                                    xaxis_title="Date",
+                                    yaxis_title="Portfolio Value ($)",
+                                    height=400,
+                                    template='plotly_white'
+                                )
+                                
+                                st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
     main()
