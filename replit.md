@@ -189,12 +189,17 @@ All major requested features have been implemented:
 - Relative strength rankings
 
 ### 13. **Backtesting Framework** ✅
-- Complete historical performance analysis
+- Complete historical performance analysis with interval selection
+- **Intraday backtesting**: 5m, 15m, 30m, 45m, 1h, 1d intervals
+- **Smart period recommendations**: Automatically suggests appropriate periods based on selected interval
 - Multiple pre-built strategies (QQE, Trend Following, Combined)
+- **Dual data source support**: Works with both Yahoo Finance and Alpha Vantage
+- **Long AND Short trading**: Captures all signals, including same-bar reversals
 - Win rate, profit factor, max drawdown tracking
-- Equity curve visualization
-- Detailed trade log with entry/exit prices
+- Equity curve visualization with drawdown chart
+- Detailed trade log with entry/exit prices for both long and short positions
 - Customizable initial capital and position sizing
+- Stop loss and take profit configuration
 
 ### 14. **Custom Strategy Builder** ✅
 - Visual strategy builder with no-code interface
