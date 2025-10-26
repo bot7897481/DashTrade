@@ -1084,13 +1084,46 @@ def main():
     elif mode == "Backtesting":
         st.subheader("🔬 Strategy Backtesting")
         
-        col1, col2 = st.columns([2, 1])
+        col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
             bt_symbol = st.text_input("Stock Symbol for Backtest", value="AAPL").upper()
         
         with col2:
-            bt_period = st.selectbox("Historical Period", ["1d", "7d", "1mo", "3mo", "6mo", "1y", "2y", "5y"], index=5)
+            bt_interval = st.selectbox(
+                "Interval",
+                ["5m", "15m", "30m", "45m", "1h", "1d"],
+                index=5,
+                help="Shorter intervals = more signals, longer data needed"
+            )
+        
+        with col3:
+            # Smart period recommendations based on interval
+            if bt_interval == "5m":
+                period_options = ["1d", "5d"]
+                default_idx = 0
+            elif bt_interval == "15m":
+                period_options = ["1d", "5d", "1mo"]
+                default_idx = 1
+            elif bt_interval == "30m":
+                period_options = ["5d", "1mo", "3mo"]
+                default_idx = 1
+            elif bt_interval == "45m":
+                period_options = ["5d", "1mo", "3mo"]
+                default_idx = 1
+            elif bt_interval == "1h":
+                period_options = ["1mo", "3mo", "6mo"]
+                default_idx = 1
+            else:  # 1d
+                period_options = ["1mo", "3mo", "6mo", "1y", "2y", "5y"]
+                default_idx = 3
+            
+            bt_period = st.selectbox(
+                "Period",
+                period_options,
+                index=default_idx,
+                help="Historical data to analyze"
+            )
         
         st.markdown("### Backtest Parameters")
         
@@ -1112,9 +1145,16 @@ def main():
         
         strategy_type = st.radio("Strategy", ["QQE Signals", "EMA Crossover", "MA Cloud Trend"], horizontal=True)
         
+        # Show info about selected interval
+        if bt_interval in ["5m", "15m", "30m", "45m"]:
+            st.info(f"📊 **Intraday Backtesting**: Testing {bt_interval} signals over {bt_period}. More signals = more realistic results!")
+        
+        # Get data source from session state
+        source_key = "yahoo" if st.session_state.get('data_source', 'Yahoo Finance') == "Yahoo Finance" else "alpha_vantage"
+        
         if st.button("🚀 Run Backtest", type="primary"):
-            with st.spinner(f"Running backtest for {bt_symbol}..."):
-                df, error = fetch_stock_data(bt_symbol, bt_period, '1d')
+            with st.spinner(f"Running backtest for {bt_symbol} on {bt_interval} interval..."):
+                df, error = fetch_stock_data(bt_symbol, bt_period, bt_interval, source_key)
                 
                 if error or df is None or len(df) < 50:
                     st.error("❌ Error fetching data or insufficient data for backtesting")
