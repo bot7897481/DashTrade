@@ -4,7 +4,7 @@
 Comprehensive stock trading signal application built with Streamlit and Python. This dashboard transforms your PinScript technical analysis into an advanced Python application with 100% technical analysis coverage.
 
 ## Last Updated
-October 26, 2025
+October 26, 2025 - Added Alpha Vantage integration with news sentiment analysis
 
 ## Features Implemented
 
@@ -110,10 +110,27 @@ In the sidebar, you can adjust:
 - **Indices**: SPY, QQQ, DIA
 - **Commodities**: GLD, SLV, USO
 
-## Data Source
+## Data Sources
+
+### Primary: Yahoo Finance
 - **Provider**: Yahoo Finance (yfinance library)
 - **Real-time**: 15-minute delay for free tier
 - **History**: Up to 5 years available
+- **Best for**: Historical analysis, backtesting, daily trading
+
+### Alternative: Alpha Vantage ⭐ NEW
+- **Provider**: Alpha Vantage API
+- **Real-time**: Live data with API key
+- **News Intelligence**: Real-time news sentiment analysis
+- **Features**:
+  - Real-time stock quotes
+  - Intraday data (1min, 5min, 15min, 30min, 60min)
+  - Daily historical data
+  - News sentiment analysis (last 24 hours)
+  - Combined price + news signals
+  - Confidence scoring
+- **API Limits**: Free tier allows 25 requests/day, 5 requests/minute
+- **Best for**: Real-time trading, news-driven strategies, sentiment analysis
 
 ## Performance Notes
 - First analysis may take 10-20 seconds
@@ -182,6 +199,19 @@ All major requested features have been implemented:
 - Alert lifecycle tracking (created, triggered, timestamp)
 - Real-time alert evaluation against live market data
 
+### 16. **News Sentiment Analysis** ⭐ NEW
+- Real-time news sentiment using Alpha Vantage News Intelligence API
+- Sentiment scoring for individual stocks (-1 to +1 scale)
+- Combined price + news signals for stronger conviction
+- Confidence scoring based on sentiment strength and relevance
+- Top news articles display with:
+  - Sentiment labels (Bullish/Bearish/Neutral)
+  - Relevance scores
+  - Source attribution
+  - Direct links to articles
+- Analyzes last 24 hours of news coverage
+- Supports news-driven long/short signal generation
+
 ## Future Enhancements
 - Email/SMS notifications for triggered alerts
 - Advanced chart pattern recognition (Fibonacci retracements, harmonic patterns)
@@ -198,6 +228,10 @@ yfinance
 plotly==6.3.1
 ta==0.11.0
 scipy
+matplotlib
+requests
+psycopg2-binary
+sqlalchemy
 ```
 
 ## Known Issues

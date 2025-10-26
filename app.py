@@ -19,6 +19,7 @@ from comparison_analyzer import ComparisonAnalyzer
 from backtester import Backtester, BacktestResults
 from strategy_builder import CustomStrategy, StrategyCondition, StrategyTemplates, StrategyBuilder
 from alert_system import AlertMonitor
+from alpha_vantage_data import AlphaVantageProvider, fetch_alpha_vantage_data
 
 # Page configuration
 st.set_page_config(
@@ -66,8 +67,11 @@ st.markdown("""
 
 # Helper functions (reusing from original app.py)
 @st.cache_data(ttl=300)
-def fetch_stock_data(symbol: str, period: str, interval: str):
-    """Fetch stock data from Yahoo Finance"""
+def fetch_stock_data(symbol: str, period: str, interval: str, use_alpha_vantage: bool = False):
+    """Fetch stock data from Yahoo Finance or Alpha Vantage"""
+    if use_alpha_vantage:
+        return fetch_alpha_vantage_data(symbol, interval, period)
+    
     try:
         ticker = yf.Ticker(symbol)
         df = ticker.history(period=period, interval=interval)
@@ -113,6 +117,14 @@ def main():
         
         if mode == "Single Stock Analysis":
             st.title("⚙️ Analysis Settings")
+            
+            # Data source selection
+            st.subheader("📡 Data Source")
+            data_source = st.radio("Select Data Provider", 
+                                  ["Yahoo Finance (Free, 15-min delay)", 
+                                   "Alpha Vantage (Real-time, API key required)"],
+                                  index=0)
+            use_alpha_vantage = "Alpha Vantage" in data_source
             
             # Stock symbol input
             symbol = st.text_input("Stock Symbol", value="AAPL").upper()
@@ -207,7 +219,7 @@ def main():
         if fetch_button or 'analysis_results' in st.session_state:
             if fetch_button:
                 with st.spinner(f"Fetching data for {symbol}..."):
-                    df, error = fetch_stock_data(symbol, period, interval)
+                    df, error = fetch_stock_data(symbol, period, interval, use_alpha_vantage)
                     
                     if error:
                         st.error(f"❌ Error fetching data: {error}")
@@ -283,6 +295,48 @@ def main():
                 st.success("🟢 **QQE LONG SIGNAL** - Momentum turning bullish")
             elif latest.get('qqe_short', False):
                 st.error("🔴 **QQE SHORT SIGNAL** - Momentum turning bearish")
+            
+            # News Sentiment Analysis (if using Alpha Vantage)
+            if use_alpha_vantage:
+                st.markdown("---")
+                st.subheader("📰 News Sentiment Analysis")
+                
+                with st.spinner(f"Analyzing news sentiment for {symbol}..."):
+                    try:
+                        av_provider = AlphaVantageProvider()
+                        combined_signal = av_provider.get_combined_signal(symbol)
+                        
+                        if 'error' not in combined_signal:
+                            col1, col2, col3, col4 = st.columns(4)
+                            
+                            col1.metric("News Signal", combined_signal['news_signal'],
+                                       help="Based on recent news sentiment")
+                            col2.metric("Combined Signal", combined_signal['combined_signal'],
+                                       help="Price + News combined")
+                            col3.metric("Confidence", f"{combined_signal['confidence']*100:.0f}%",
+                                       help="Signal strength confidence")
+                            col4.metric("News Articles", combined_signal['article_count'],
+                                       help="Number of articles analyzed")
+                            
+                            sentiment_score = combined_signal['news_sentiment_score']
+                            if sentiment_score > 0.15:
+                                st.success(f"📈 **Bullish News Sentiment** ({sentiment_score:.2f}) - Positive media coverage")
+                            elif sentiment_score < -0.15:
+                                st.error(f"📉 **Bearish News Sentiment** ({sentiment_score:.2f}) - Negative media coverage")
+                            else:
+                                st.info(f"⚖️ **Neutral News Sentiment** ({sentiment_score:.2f}) - Mixed or neutral coverage")
+                            
+                            if combined_signal['top_articles']:
+                                with st.expander("📄 Top Recent News Articles"):
+                                    for article in combined_signal['top_articles']:
+                                        sentiment_emoji = "📈" if article['sentiment_score'] > 0.15 else ("📉" if article['sentiment_score'] < -0.15 else "⚖️")
+                                        st.markdown(f"**{sentiment_emoji} {article['title']}**")
+                                        st.caption(f"Source: {article['source']} | Sentiment: {article['sentiment_label']} ({article['sentiment_score']:.2f}) | Relevance: {article['relevance']:.2f}")
+                                        if article.get('url'):
+                                            st.markdown(f"[Read article]({article['url']})")
+                                        st.markdown("---")
+                    except Exception as e:
+                        st.warning(f"⚠️ News sentiment analysis unavailable: {str(e)}")
         
         else:
             st.info("👈 Enter a stock symbol and click 'Fetch & Analyze' to get started!")
