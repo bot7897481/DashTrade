@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple
 from scipy.stats import pearsonr
-import yfinance as yf
+from alpha_vantage_data import fetch_alpha_vantage_data
 
 class ComparisonAnalyzer:
     """Analyze correlations and relative performance across multiple stocks"""
@@ -27,15 +27,14 @@ class ComparisonAnalyzer:
         self.returns_data = {}
         
     def fetch_all_data(self) -> bool:
-        """Fetch data for all symbols"""
+        """Fetch data for all symbols using Alpha Vantage"""
         try:
             for symbol in self.symbols:
-                ticker = yf.Ticker(symbol)
-                df = ticker.history(period=self.period, interval=self.interval)
+                df, error = fetch_alpha_vantage_data(symbol, interval=self.interval, period=self.period)
                 
-                if not df.empty:
-                    self.price_data[symbol] = df['Close']
-                    self.returns_data[symbol] = df['Close'].pct_change()
+                if df is not None and not df.empty:
+                    self.price_data[symbol] = df['close']
+                    self.returns_data[symbol] = df['close'].pct_change()
             
             return len(self.price_data) > 0
         except Exception as e:

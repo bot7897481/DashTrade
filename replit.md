@@ -110,27 +110,24 @@ In the sidebar, you can adjust:
 - **Indices**: SPY, QQQ, DIA
 - **Commodities**: GLD, SLV, USO
 
-## Data Sources
+## Data Source
 
-### Primary: Yahoo Finance
-- **Provider**: Yahoo Finance (yfinance library)
-- **Real-time**: 15-minute delay for free tier
-- **History**: Up to 5 years available
-- **Best for**: Historical analysis, backtesting, daily trading
-
-### Alternative: Alpha Vantage ⭐ NEW
+### Alpha Vantage (Exclusive Data Provider)
 - **Provider**: Alpha Vantage API
 - **Real-time**: Live data with API key
 - **News Intelligence**: Real-time news sentiment analysis
 - **Features**:
   - Real-time stock quotes
   - Intraday data (1min, 5min, 15min, 30min, 60min)
-  - Daily historical data
+  - Daily and weekly historical data
   - News sentiment analysis (last 24 hours)
   - Combined price + news signals
   - Confidence scoring
 - **API Limits**: Free tier allows 25 requests/day, 5 requests/minute
+- **Intervals Supported**: 1m, 5m, 15m, 30m, 45m (mapped to 60m), 1h, 1d, 1wk (mapped to daily)
 - **Best for**: Real-time trading, news-driven strategies, sentiment analysis
+
+**Note**: Yahoo Finance has been completely removed. All data now comes from Alpha Vantage for consistency and real-time capabilities.
 
 ## Performance Notes
 - First analysis may take 10-20 seconds
