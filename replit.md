@@ -209,6 +209,39 @@ All major requested features have been implemented:
 - Analyzes last 24 hours of news coverage
 - Supports news-driven long/short signal generation
 
+### 17. **Signal Activity Dashboard** ⭐ NEW
+- Real-time signal counting for LONG and SHORT signals
+- Multi-timeframe analysis:
+  - Past 1 hour signal counts
+  - Past 4 hours signal counts
+  - Past 24 hours signal counts
+- Current signal status display with:
+  - Signal type (LONG/SHORT)
+  - Time elapsed since signal
+  - Price at signal
+  - Signal strength (STRONG/NORMAL)
+- Detailed signal timeline table showing:
+  - Exact timestamp
+  - Time ago (e.g., "23 minutes ago")
+  - Signal type
+  - Price at signal
+  - Indicator source
+  - Strength classification
+
+### 18. **Visual Signal Markers (TradingView-style)** ⭐ NEW
+- Interactive candlestick chart with text annotations
+- Green "Long" labels for buy signals
+- Red "Short" labels for sell signals
+- Direct signal markers on price candles
+- Includes:
+  - 5 EMAs (9, 20, 50, 100, 200)
+  - MA Cloud visualization
+  - VWAP with bands
+  - Volume bars
+  - QQE trend subplot
+- Fully interactive with zoom and pan
+- Professional dark theme
+
 ## Future Enhancements
 - Email/SMS notifications for triggered alerts
 - Advanced chart pattern recognition (Fibonacci retracements, harmonic patterns)
