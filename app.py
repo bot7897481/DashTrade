@@ -711,7 +711,7 @@ def main():
             bt_symbol = st.text_input("Stock Symbol for Backtest", value="AAPL").upper()
         
         with col2:
-            bt_period = st.selectbox("Historical Period", ["6mo", "1y", "2y", "5y"], index=1)
+            bt_period = st.selectbox("Historical Period", ["1d", "7d", "1mo", "3mo", "6mo", "1y", "2y", "5y"], index=5)
         
         st.markdown("### Backtest Parameters")
         
@@ -854,7 +854,10 @@ def main():
                             yaxis_title="Portfolio Value ($)",
                             hovermode='x unified',
                             height=500,
-                            template='plotly_white'
+                            template='plotly_white',
+                            xaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray'),
+                            yaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray', tickformat='$,.0f'),
+                            showlegend=True
                         )
                         
                         st.plotly_chart(fig, use_container_width=True)
@@ -892,8 +895,8 @@ def main():
                         for trade in results.trades:
                             if not trade.is_open():
                                 trade_data.append({
-                                    'Entry Date': trade.entry_date.strftime('%Y-%m-%d'),
-                                    'Exit Date': trade.exit_date.strftime('%Y-%m-%d'),
+                                    'Entry Date': trade.entry_date.strftime('%Y-%m-%d %H:%M'),
+                                    'Exit Date': trade.exit_date.strftime('%Y-%m-%d %H:%M'),
                                     'Type': trade.position_type.upper(),
                                     'Entry Price': f"${trade.entry_price:.2f}",
                                     'Exit Price': f"${trade.exit_price:.2f}",
