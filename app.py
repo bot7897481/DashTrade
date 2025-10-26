@@ -15,6 +15,7 @@ warnings.filterwarnings('ignore')
 
 from technical_analyzer import TechnicalAnalyzer
 from database import WatchlistDB, AlertsDB, PreferencesDB
+from comparison_analyzer import ComparisonAnalyzer
 
 # Page configuration
 st.set_page_config(
@@ -103,7 +104,7 @@ def main():
         st.markdown("---")
         
         # Mode selection
-        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard"], index=0)
+        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison"], index=0)
         
         st.markdown("---")
         
@@ -281,7 +282,7 @@ def main():
         else:
             st.info("👈 Enter a stock symbol and click 'Fetch & Analyze' to get started!")
     
-    else:  # Portfolio Dashboard
+    elif mode == "Portfolio Dashboard":
         st.subheader("💼 Portfolio Dashboard")
         
         watchlist = WatchlistDB.get_all_stocks()
@@ -389,6 +390,231 @@ def main():
             
             if long_signals == 0 and short_signals == 0:
                 st.info("No active signals across your portfolio")
+    
+    elif mode == "Multi-Stock Comparison":
+        st.subheader("📊 Multi-Stock Comparison")
+        
+        watchlist = WatchlistDB.get_all_stocks()
+        
+        if len(watchlist) < 2:
+            st.info("📋 Add at least 2 stocks to your watchlist to use the comparison feature.")
+            return
+        
+        # Stock selection
+        st.markdown("### Select Stocks to Compare")
+        
+        available_symbols = [stock['symbol'] for stock in watchlist]
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            selected_stocks = st.multiselect(
+                "Choose stocks to compare (2-10 stocks recommended)",
+                options=available_symbols,
+                default=available_symbols[:min(5, len(available_symbols))]
+            )
+        
+        with col2:
+            comparison_period = st.selectbox(
+                "Analysis Period",
+                ["1mo", "3mo", "6mo", "1y", "2y"],
+                index=1
+            )
+            
+            benchmark_stock = st.selectbox(
+                "Benchmark",
+                selected_stocks if selected_stocks else available_symbols,
+                index=0
+            ) if selected_stocks else None
+        
+        if not selected_stocks or len(selected_stocks) < 2:
+            st.warning("⚠️ Please select at least 2 stocks to compare")
+            return
+        
+        if st.button("🔍 Run Comparison Analysis", type="primary"):
+            with st.spinner("Fetching and analyzing stocks..."):
+                # Create comparison analyzer
+                analyzer = ComparisonAnalyzer(selected_stocks, period=comparison_period, interval='1d')
+                
+                if not analyzer.fetch_all_data():
+                    st.error("Failed to fetch data for selected stocks")
+                    return
+                
+                # Tabs for different analysis views
+                tab1, tab2, tab3, tab4 = st.tabs([
+                    "📈 Price Comparison",
+                    "📊 Performance Metrics",
+                    "🔗 Correlation Analysis",
+                    "💪 Relative Strength"
+                ])
+                
+                with tab1:
+                    st.markdown("### Normalized Price Chart")
+                    st.caption("All stocks normalized to 100 at the start of the period")
+                    
+                    normalized_prices = analyzer.get_normalized_prices()
+                    
+                    fig = go.Figure()
+                    
+                    for symbol in normalized_prices.columns:
+                        fig.add_trace(go.Scatter(
+                            x=normalized_prices.index,
+                            y=normalized_prices[symbol],
+                            name=symbol,
+                            mode='lines',
+                            line=dict(width=2)
+                        ))
+                    
+                    fig.update_layout(
+                        title="Normalized Price Performance",
+                        xaxis_title="Date",
+                        yaxis_title="Normalized Price (Base=100)",
+                        hovermode='x unified',
+                        height=500,
+                        template='plotly_white'
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with tab2:
+                    st.markdown("### Performance Metrics")
+                    
+                    metrics_df = analyzer.get_performance_metrics()
+                    
+                    # Display metrics
+                    st.dataframe(
+                        metrics_df.style.format({
+                            'Total Return (%)': '{:.2f}%',
+                            'Volatility (%)': '{:.2f}%',
+                            'Sharpe Ratio': '{:.3f}',
+                            'Max Drawdown (%)': '{:.2f}%',
+                            'Current Price': '${:.2f}',
+                            'Period High': '${:.2f}',
+                            'Period Low': '${:.2f}'
+                        }).background_gradient(subset=['Total Return (%)'], cmap='RdYlGn', vmin=-20, vmax=20),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # Best/Worst performers
+                    st.markdown("### 🏆 Top Performers")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    sorted_by_return = metrics_df.sort_values('Total Return (%)', ascending=False)
+                    sorted_by_sharpe = metrics_df.sort_values('Sharpe Ratio', ascending=False)
+                    sorted_by_volatility = metrics_df.sort_values('Volatility (%)')
+                    
+                    with col1:
+                        st.success(f"**Best Return**: {sorted_by_return.iloc[0]['Symbol']}")
+                        st.write(f"{sorted_by_return.iloc[0]['Total Return (%)']:.2f}%")
+                    
+                    with col2:
+                        st.success(f"**Best Sharpe**: {sorted_by_sharpe.iloc[0]['Symbol']}")
+                        st.write(f"{sorted_by_sharpe.iloc[0]['Sharpe Ratio']:.3f}")
+                    
+                    with col3:
+                        st.info(f"**Lowest Volatility**: {sorted_by_volatility.iloc[0]['Symbol']}")
+                        st.write(f"{sorted_by_volatility.iloc[0]['Volatility (%)']:.2f}%")
+                
+                with tab3:
+                    st.markdown("### Correlation Matrix")
+                    st.caption("Shows how stocks move together (1 = perfect correlation, -1 = perfect inverse)")
+                    
+                    corr_matrix = analyzer.calculate_correlation_matrix()
+                    
+                    if not corr_matrix.empty:
+                        # Heatmap
+                        fig = go.Figure(data=go.Heatmap(
+                            z=corr_matrix.values,
+                            x=corr_matrix.columns,
+                            y=corr_matrix.columns,
+                            colorscale='RdBu',
+                            zmid=0,
+                            zmin=-1,
+                            zmax=1,
+                            text=corr_matrix.values,
+                            texttemplate='%{text:.2f}',
+                            textfont={"size": 10},
+                            colorbar=dict(title="Correlation")
+                        ))
+                        
+                        fig.update_layout(
+                            title="Stock Correlation Heatmap",
+                            height=500,
+                            template='plotly_white'
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Highly correlated pairs
+                        st.markdown("### 🔗 Highly Correlated Pairs")
+                        
+                        corr_pairs = analyzer.find_correlated_pairs(threshold=0.6)
+                        
+                        if corr_pairs:
+                            for stock1, stock2, corr in corr_pairs[:5]:
+                                color = "green" if corr > 0 else "red"
+                                st.markdown(f"**{stock1}** ↔ **{stock2}**: :{color}[{corr:.3f}]")
+                        else:
+                            st.info("No highly correlated pairs found (threshold: 0.6)")
+                    else:
+                        st.warning("Unable to calculate correlation matrix")
+                
+                with tab4:
+                    st.markdown("### Relative Strength Analysis")
+                    st.caption(f"Performance relative to benchmark: {benchmark_stock}")
+                    
+                    # Get relative strength
+                    rel_strength = analyzer.calculate_relative_strength(benchmark=benchmark_stock)
+                    
+                    if rel_strength:
+                        # Create bar chart
+                        symbols = list(rel_strength.keys())
+                        values = list(rel_strength.values())
+                        
+                        colors = ['green' if v > 100 else 'red' for v in values]
+                        
+                        fig = go.Figure(data=[
+                            go.Bar(
+                                x=symbols,
+                                y=values,
+                                marker_color=colors,
+                                text=[f"{v:.1f}" for v in values],
+                                textposition='auto',
+                            )
+                        ])
+                        
+                        fig.add_hline(y=100, line_dash="dash", line_color="gray", 
+                                     annotation_text="Benchmark (100)")
+                        
+                        fig.update_layout(
+                            title=f"Relative Strength vs {benchmark_stock}",
+                            xaxis_title="Stock",
+                            yaxis_title="Relative Strength Index",
+                            height=400,
+                            template='plotly_white'
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Rankings
+                        st.markdown("### 📊 Strength Rankings")
+                        
+                        rankings = analyzer.get_sector_strength_ranking()
+                        
+                        if not rankings.empty:
+                            st.dataframe(
+                                rankings.style.format({
+                                    'Strength Score': '{:.2f}',
+                                    'Total Return %': '{:.2f}%',
+                                    'Recent Return %': '{:.2f}%',
+                                    'Momentum': '{:.2f}%',
+                                    'From High %': '{:.2f}%'
+                                }).background_gradient(subset=['Strength Score'], cmap='RdYlGn'),
+                                use_container_width=True,
+                                hide_index=True
+                            )
 
 if __name__ == "__main__":
     main()
