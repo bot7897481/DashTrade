@@ -286,14 +286,27 @@ class Backtester:
             has_long_signal = row.get(long_signal_col, False)
             has_short_signal = row.get(short_signal_col, False)
             
-            if has_long_signal and len(self.open_trades) == 0:
-                self.enter_long(date, close_price)
+            # Handle long signals
+            if has_long_signal:
+                # Exit any short positions if exit_on_opposite is enabled
+                if exit_on_opposite and self.open_trades:
+                    for trade in list(self.open_trades):
+                        if trade.position_type == 'short':
+                            self.exit_trade(trade, date, close_price, 'opposite_signal')
+                # Enter long if no open trades
+                elif len(self.open_trades) == 0:
+                    self.enter_long(date, close_price)
             
+            # Handle short signals
             elif has_short_signal:
+                # Exit any long positions if exit_on_opposite is enabled
                 if exit_on_opposite and self.open_trades:
                     for trade in list(self.open_trades):
                         if trade.position_type == 'long':
                             self.exit_trade(trade, date, close_price, 'opposite_signal')
+                # Enter short if no open trades
+                elif len(self.open_trades) == 0:
+                    self.enter_short(date, close_price)
             
             self.equity = self.calculate_equity(close_price)
             self.equity_curve.append(self.equity)
