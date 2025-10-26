@@ -16,6 +16,7 @@ warnings.filterwarnings('ignore')
 from technical_analyzer import TechnicalAnalyzer
 from database import WatchlistDB, AlertsDB, PreferencesDB
 from comparison_analyzer import ComparisonAnalyzer
+from backtester import Backtester, BacktestResults
 
 # Page configuration
 st.set_page_config(
@@ -104,7 +105,7 @@ def main():
         st.markdown("---")
         
         # Mode selection
-        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison"], index=0)
+        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting"], index=0)
         
         st.markdown("---")
         
@@ -615,6 +616,222 @@ def main():
                                 use_container_width=True,
                                 hide_index=True
                             )
+    
+    elif mode == "Backtesting":
+        st.subheader("🔬 Strategy Backtesting")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            bt_symbol = st.text_input("Stock Symbol for Backtest", value="AAPL").upper()
+        
+        with col2:
+            bt_period = st.selectbox("Historical Period", ["6mo", "1y", "2y", "5y"], index=1)
+        
+        st.markdown("### Backtest Parameters")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            initial_capital = st.number_input("Initial Capital ($)", value=10000.0, step=1000.0)
+            position_size = st.slider("Position Size (%)", 5, 50, 10)
+        
+        with col2:
+            use_stop_loss = st.checkbox("Use Stop Loss", value=True)
+            stop_loss_pct = st.slider("Stop Loss (%)", 1.0, 10.0, 2.0, 0.5) if use_stop_loss else 2.0
+        
+        with col3:
+            use_take_profit = st.checkbox("Use Take Profit", value=False)
+            take_profit_pct = st.slider("Take Profit (%)", 2.0, 20.0, 5.0, 0.5) if use_take_profit else 5.0
+        
+        st.markdown("### Strategy Selection")
+        
+        strategy_type = st.radio("Strategy", ["QQE Signals", "EMA Crossover", "MA Cloud Trend"], horizontal=True)
+        
+        if st.button("🚀 Run Backtest", type="primary"):
+            with st.spinner(f"Running backtest for {bt_symbol}..."):
+                df, error = fetch_stock_data(bt_symbol, bt_period, '1d')
+                
+                if error or df is None or len(df) < 50:
+                    st.error("❌ Error fetching data or insufficient data for backtesting")
+                    return
+                
+                analyzer = TechnicalAnalyzer(df)
+                analyzer.calculate_emas()
+                analyzer.calculate_ma_cloud()
+                analyzer.calculate_qqe()
+                
+                backtester = Backtester(
+                    analyzer.df,
+                    initial_capital=initial_capital,
+                    position_size_pct=position_size,
+                    use_stop_loss=use_stop_loss,
+                    stop_loss_pct=stop_loss_pct,
+                    use_take_profit=use_take_profit,
+                    take_profit_pct=take_profit_pct
+                )
+                
+                if strategy_type == "QQE Signals":
+                    results = backtester.run_simple_strategy(
+                        long_signal_col='qqe_long',
+                        short_signal_col='qqe_short',
+                        exit_on_opposite=True
+                    )
+                elif strategy_type == "EMA Crossover":
+                    def ema_entry(row):
+                        if 'ema_20' in row and 'ema_50' in row:
+                            if row['ema_20'] > row['ema_50']:
+                                return 'long'
+                        return None
+                    
+                    def ema_exit(row, trade):
+                        if 'ema_20' in row and 'ema_50' in row:
+                            if trade.position_type == 'long' and row['ema_20'] < row['ema_50']:
+                                return True
+                        return False
+                    
+                    results = backtester.run_custom_strategy(ema_entry, ema_exit)
+                else:
+                    def cloud_entry(row):
+                        if row.get('ma_cloud_trend') == 'bullish':
+                            return 'long'
+                        return None
+                    
+                    def cloud_exit(row, trade):
+                        if trade.position_type == 'long' and row.get('ma_cloud_trend') == 'bearish':
+                            return True
+                        return False
+                    
+                    results = backtester.run_custom_strategy(cloud_entry, cloud_exit)
+                
+                st.success(f"✅ Backtest complete! Total trades: {results.total_trades()}")
+                
+                tab1, tab2, tab3 = st.tabs(["📊 Performance", "💰 Equity Curve", "📝 Trade Log"])
+                
+                with tab1:
+                    st.markdown("### Performance Summary")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    total_return = ((results.final_capital - results.initial_capital) / results.initial_capital) * 100
+                    
+                    col1.metric("Initial Capital", f"${results.initial_capital:,.2f}")
+                    col2.metric("Final Capital", f"${results.final_capital:,.2f}", 
+                               f"{total_return:+.2f}%")
+                    col3.metric("Total Return", f"{total_return:+.2f}%")
+                    col4.metric("Total Trades", results.total_trades())
+                    
+                    st.markdown("---")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    col1.metric("Win Rate", f"{results.win_rate():.1f}%")
+                    col2.metric("Profit Factor", f"{results.profit_factor():.2f}")
+                    col3.metric("Max Drawdown", f"{results.max_drawdown():.2f}%")
+                    col4.metric("Sharpe Ratio", f"{results.sharpe_ratio():.2f}")
+                    
+                    st.markdown("---")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    col1.metric("Winning Trades", results.winning_trades())
+                    col2.metric("Losing Trades", results.losing_trades())
+                    col3.metric("Avg Trade Duration", f"{results.average_trade_duration():.1f} days")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    col1.metric("Average Win", f"${results.average_win():,.2f}")
+                    col2.metric("Average Loss", f"${results.average_loss():,.2f}")
+                    col3.metric("Total P&L", f"${results.total_pnl():,.2f}")
+                
+                with tab2:
+                    st.markdown("### Equity Curve")
+                    
+                    if not results.equity_curve.empty:
+                        fig = go.Figure()
+                        
+                        fig.add_trace(go.Scatter(
+                            x=results.equity_curve.index,
+                            y=results.equity_curve.values,
+                            name='Portfolio Value',
+                            line=dict(color='blue', width=2),
+                            fill='tozeroy',
+                            fillcolor='rgba(0,100,255,0.1)'
+                        ))
+                        
+                        fig.add_hline(y=initial_capital, line_dash="dash", 
+                                     line_color="gray", 
+                                     annotation_text="Initial Capital")
+                        
+                        fig.update_layout(
+                            title="Portfolio Equity Over Time",
+                            xaxis_title="Date",
+                            yaxis_title="Portfolio Value ($)",
+                            hovermode='x unified',
+                            height=500,
+                            template='plotly_white'
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        drawdown = (results.equity_curve - results.equity_curve.expanding().max()) / results.equity_curve.expanding().max() * 100
+                        
+                        fig2 = go.Figure()
+                        
+                        fig2.add_trace(go.Scatter(
+                            x=drawdown.index,
+                            y=drawdown.values,
+                            name='Drawdown',
+                            line=dict(color='red', width=2),
+                            fill='tozeroy',
+                            fillcolor='rgba(255,0,0,0.1)'
+                        ))
+                        
+                        fig2.update_layout(
+                            title="Drawdown Over Time",
+                            xaxis_title="Date",
+                            yaxis_title="Drawdown (%)",
+                            hovermode='x unified',
+                            height=300,
+                            template='plotly_white'
+                        )
+                        
+                        st.plotly_chart(fig2, use_container_width=True)
+                
+                with tab3:
+                    st.markdown("### Trade Log")
+                    
+                    if results.total_trades() > 0:
+                        trade_data = []
+                        
+                        for trade in results.trades:
+                            if not trade.is_open():
+                                trade_data.append({
+                                    'Entry Date': trade.entry_date.strftime('%Y-%m-%d'),
+                                    'Exit Date': trade.exit_date.strftime('%Y-%m-%d'),
+                                    'Type': trade.position_type.upper(),
+                                    'Entry Price': f"${trade.entry_price:.2f}",
+                                    'Exit Price': f"${trade.exit_price:.2f}",
+                                    'Shares': trade.shares,
+                                    'P&L': f"${trade.pnl():.2f}",
+                                    'P&L %': f"{trade.pnl_percent():.2f}%",
+                                    'Duration': f"{trade.duration_days()} days",
+                                    'Exit Reason': trade.exit_reason
+                                })
+                        
+                        trade_df = pd.DataFrame(trade_data)
+                        
+                        st.dataframe(trade_df, use_container_width=True, hide_index=True)
+                        
+                        csv = trade_df.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Trade Log (CSV)",
+                            data=csv,
+                            file_name=f"{bt_symbol}_backtest_trades.csv",
+                            mime="text/csv"
+                        )
+                    else:
+                        st.info("No completed trades in this backtest")
 
 if __name__ == "__main__":
     main()
