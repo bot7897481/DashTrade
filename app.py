@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 import warnings
 warnings.filterwarnings('ignore')
+import yfinance as yf
 
 from technical_analyzer import TechnicalAnalyzer
 from database import WatchlistDB, AlertsDB, PreferencesDB
@@ -66,20 +67,49 @@ st.markdown("""
 
 # Helper functions
 @st.cache_data(ttl=300)
-def fetch_stock_data(symbol: str, period: str, interval: str):
-    """Fetch stock data from Alpha Vantage"""
-    return fetch_alpha_vantage_data(symbol, interval, period)
-
-def get_stock_info(symbol: str):
-    """Get stock name from Alpha Vantage quote"""
+def fetch_yahoo_data(symbol: str, period: str, interval: str):
+    """Fetch stock data from Yahoo Finance"""
     try:
-        provider = AlphaVantageProvider()
-        quote = provider.get_quote(symbol)
-        if quote:
-            return quote['symbol']
-        return symbol
-    except:
-        return symbol
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period=period, interval=interval)
+        
+        if df.empty:
+            return None, f"No data found for {symbol}"
+        
+        # Ensure column names are lowercase
+        df.columns = [col.lower() for col in df.columns]
+        df = df[['open', 'high', 'low', 'close', 'volume']]
+        
+        return df, None
+    except Exception as e:
+        return None, str(e)
+
+@st.cache_data(ttl=300)
+def fetch_stock_data(symbol: str, period: str, interval: str, source: str = "yahoo"):
+    """Unified data fetcher - routes to Yahoo Finance or Alpha Vantage based on selection"""
+    if source == "yahoo":
+        return fetch_yahoo_data(symbol, period, interval)
+    else:  # alpha_vantage
+        return fetch_alpha_vantage_data(symbol, interval, period)
+
+def get_stock_info(symbol: str, source: str = "yahoo"):
+    """Get stock name from selected data source"""
+    if source == "yahoo":
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            return info.get('longName', symbol)
+        except:
+            return symbol
+    else:  # alpha_vantage
+        try:
+            provider = AlphaVantageProvider()
+            quote = provider.get_quote(symbol)
+            if quote:
+                return quote['symbol']
+            return symbol
+        except:
+            return symbol
 
 def create_candlestick_chart_with_signals(df, symbol: str):
     """Create candlestick chart with signal annotations like TradingView"""
@@ -240,6 +270,32 @@ def main():
         st.title("📈 NovAlgo")
         st.markdown("---")
         
+        # Data Source Selection
+        st.subheader("🔌 Data Source")
+        data_source = st.radio(
+            "Select Provider",
+            ["Yahoo Finance", "Alpha Vantage"],
+            index=0,
+            help="Yahoo Finance: Unlimited usage, 15-min delay | Alpha Vantage: Real-time, 25 calls/day limit"
+        )
+        
+        # Store in session state
+        if 'data_source' not in st.session_state or st.session_state.data_source != data_source:
+            st.session_state.data_source = data_source
+            # Clear cache when switching sources
+            if data_source != st.session_state.get('previous_source'):
+                st.cache_data.clear()
+                st.session_state.previous_source = data_source
+        
+        # Display source info
+        source_key = "yahoo" if data_source == "Yahoo Finance" else "alpha_vantage"
+        if source_key == "yahoo":
+            st.info("📊 **Yahoo Finance** - Unlimited usage, 15-min delay for free tier")
+        else:
+            st.warning("⚡ **Alpha Vantage** - Real-time data, 25 API calls/day limit")
+        
+        st.markdown("---")
+        
         # Mode selection
         mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"], index=0)
         
@@ -279,7 +335,7 @@ def main():
             
             # Add to watchlist button
             if st.button("➕ Add to Watchlist", use_container_width=True):
-                stock_name = get_stock_info(symbol)
+                stock_name = get_stock_info(symbol, source_key)
                 if WatchlistDB.add_stock(symbol, stock_name):
                     st.success(f"Added {symbol} to watchlist!")
                     st.rerun()
@@ -338,11 +394,20 @@ def main():
     
     # Main content
     if mode == "Single Stock Analysis":
+        # Display active data source badge
+        source_key = "yahoo" if st.session_state.data_source == "Yahoo Finance" else "alpha_vantage"
+        if source_key == "yahoo":
+            st.success(f"📊 **Data Source:** Yahoo Finance (Unlimited)")
+        else:
+            st.warning(f"⚡ **Data Source:** Alpha Vantage (Real-time, 25 calls/day)")
+        
+        st.markdown("---")
+        
         # Run single stock analysis (same as original app)
         if fetch_button or 'analysis_results' in st.session_state:
             if fetch_button:
-                with st.spinner(f"Fetching data for {symbol}..."):
-                    df, error = fetch_stock_data(symbol, period, interval)
+                with st.spinner(f"Fetching data for {symbol} from {st.session_state.data_source}..."):
+                    df, error = fetch_stock_data(symbol, period, interval, source_key)
                     
                     if error:
                         st.error(f"❌ Error fetching data: {error}")
