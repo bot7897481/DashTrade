@@ -81,6 +81,150 @@ def get_stock_info(symbol: str):
     except:
         return symbol
 
+def create_candlestick_chart_with_signals(df, symbol: str):
+    """Create candlestick chart with signal annotations like TradingView"""
+    
+    fig = make_subplots(
+        rows=3, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
+        row_heights=[0.6, 0.2, 0.2],
+        subplot_titles=('Price & Indicators', 'Volume', 'QQE Trend')
+    )
+    
+    # Candlesticks
+    fig.add_trace(
+        go.Candlestick(
+            x=df.index,
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name='Price',
+            increasing_line_color='#00c853',
+            decreasing_line_color='#ff1744'
+        ),
+        row=1, col=1
+    )
+    
+    # EMAs
+    ema_colors = {'ema_9': '#FFD700', 'ema_20': '#FF4500', 'ema_50': '#FFA500', 
+                  'ema_100': '#00FA9A', 'ema_200': '#FFFFFF'}
+    for ema, color in ema_colors.items():
+        if ema in df.columns:
+            fig.add_trace(
+                go.Scatter(x=df.index, y=df[ema], name=ema.upper(), 
+                          line=dict(color=color, width=1.5)),
+                row=1, col=1
+            )
+    
+    # MA Cloud
+    if 'ma_cloud_short' in df.columns and 'ma_cloud_long' in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df['ma_cloud_short'], name='Cloud Short',
+                      line=dict(color='#00c853', width=1), showlegend=False),
+            row=1, col=1
+        )
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df['ma_cloud_long'], name='Cloud Long',
+                      line=dict(color='#ff1744', width=1), 
+                      fill='tonexty', fillcolor='rgba(0, 200, 83, 0.2)'),
+            row=1, col=1
+        )
+    
+    # VWAP
+    if 'vwap' in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df['vwap'], name='VWAP',
+                      line=dict(color='#2962FF', width=2, dash='dash')),
+            row=1, col=1
+        )
+    
+    # QQE LONG Signals with text annotations (like TradingView)
+    if 'qqe_long' in df.columns:
+        long_signals = df[df['qqe_long'] == True]
+        if not long_signals.empty:
+            for idx in long_signals.index:
+                fig.add_annotation(
+                    x=idx,
+                    y=long_signals.loc[idx, 'low'] * 0.995,
+                    text="Long",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor="#00c853",
+                    arrowsize=1.5,
+                    arrowwidth=2,
+                    ax=0,
+                    ay=30,
+                    font=dict(size=10, color="white"),
+                    bgcolor="#00c853",
+                    bordercolor="#00c853",
+                    borderwidth=2,
+                    borderpad=3,
+                    opacity=0.9,
+                    row=1, col=1
+                )
+    
+    # QQE SHORT Signals with text annotations (like TradingView)
+    if 'qqe_short' in df.columns:
+        short_signals = df[df['qqe_short'] == True]
+        if not short_signals.empty:
+            for idx in short_signals.index:
+                fig.add_annotation(
+                    x=idx,
+                    y=short_signals.loc[idx, 'high'] * 1.005,
+                    text="Short",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor="#ff1744",
+                    arrowsize=1.5,
+                    arrowwidth=2,
+                    ax=0,
+                    ay=-30,
+                    font=dict(size=10, color="white"),
+                    bgcolor="#ff1744",
+                    bordercolor="#ff1744",
+                    borderwidth=2,
+                    borderpad=3,
+                    opacity=0.9,
+                    row=1, col=1
+                )
+    
+    # Volume
+    colors = ['red' if df['close'].iloc[i] < df['open'].iloc[i] else 'green' 
+              for i in range(len(df))]
+    fig.add_trace(
+        go.Bar(x=df.index, y=df['volume'], name='Volume',
+               marker_color=colors, showlegend=False),
+        row=2, col=1
+    )
+    
+    # QQE Trend
+    if 'qqe_trend' in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df['qqe_trend'], name='QQE Trend',
+                      line=dict(color='purple', width=2),
+                      fill='tozeroy'),
+            row=3, col=1
+        )
+    
+    # Layout
+    fig.update_layout(
+        title=f"{symbol} - Technical Analysis with Signal Markers",
+        xaxis_rangeslider_visible=False,
+        height=900,
+        template='plotly_dark',
+        hovermode='x unified',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
+    fig.update_xaxes(title_text="Date", row=3, col=1)
+    fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    fig.update_yaxes(title_text="Trend", row=3, col=1)
+    
+    return fig
+
 # Main App
 def main():
     # Header
@@ -275,6 +419,92 @@ def main():
             elif latest.get('qqe_short', False):
                 st.error("🔴 **QQE SHORT SIGNAL** - Momentum turning bearish")
             
+            # Signal Activity Dashboard
+            st.markdown("---")
+            st.subheader("⚡ Signal Activity Dashboard")
+            
+            analyzer = results['analyzer']
+            
+            # Get signal counts for different periods
+            signals_1h = analyzer.count_signals_by_period(hours_back=1)
+            signals_4h = analyzer.count_signals_by_period(hours_back=4)
+            signals_24h = analyzer.count_signals_by_period(hours_back=24)
+            
+            # Display signal counts in columns
+            activity_cols = st.columns([2, 2, 2, 3])
+            
+            with activity_cols[0]:
+                st.markdown("### 🟢 LONG Signals")
+                st.metric("Past 1 Hour", signals_1h['long_count'])
+                st.metric("Past 4 Hours", signals_4h['long_count'])
+                st.metric("Past 24 Hours", signals_24h['long_count'])
+            
+            with activity_cols[1]:
+                st.markdown("### 🔴 SHORT Signals")
+                st.metric("Past 1 Hour", signals_1h['short_count'])
+                st.metric("Past 4 Hours", signals_4h['short_count'])
+                st.metric("Past 24 Hours", signals_24h['short_count'])
+            
+            with activity_cols[2]:
+                st.markdown("### 📊 Total Activity")
+                st.metric("Past 1 Hour", signals_1h['total_signals'])
+                st.metric("Past 4 Hours", signals_4h['total_signals'])
+                st.metric("Past 24 Hours", signals_24h['total_signals'])
+            
+            with activity_cols[3]:
+                st.markdown("### ⚡ Current Signal")
+                latest_signal = signals_24h['latest_signal']
+                if latest_signal:
+                    signal_type = latest_signal['type']
+                    signal_time = latest_signal['timestamp']
+                    signal_price = latest_signal['price']
+                    
+                    # Calculate how long ago
+                    time_diff = df.index[-1] - signal_time
+                    hours_ago = time_diff.total_seconds() / 3600
+                    
+                    if hours_ago < 1:
+                        time_str = f"{int(hours_ago * 60)} minutes ago"
+                    elif hours_ago < 24:
+                        time_str = f"{int(hours_ago)} hours ago"
+                    else:
+                        time_str = f"{int(hours_ago / 24)} days ago"
+                    
+                    signal_color = "🟢" if signal_type == "LONG" else "🔴"
+                    st.markdown(f"#### {signal_color} **{signal_type}**")
+                    st.write(f"**{time_str}**")
+                    st.write(f"Price: ${signal_price:.2f}")
+                    st.write(f"Strength: {latest_signal['strength'].upper()}")
+                else:
+                    st.info("No recent signals")
+            
+            # Signal Timeline Table
+            if signals_24h['signals']:
+                with st.expander(f"📋 Detailed Signal Timeline (Last 24 Hours) - {len(signals_24h['signals'])} signals"):
+                    timeline_data = []
+                    for sig in reversed(signals_24h['signals']):  # Most recent first
+                        time_diff = df.index[-1] - sig['timestamp']
+                        hours_ago = time_diff.total_seconds() / 3600
+                        
+                        if hours_ago < 1:
+                            time_ago = f"{int(hours_ago * 60)}m ago"
+                        elif hours_ago < 24:
+                            time_ago = f"{int(hours_ago)}h ago"
+                        else:
+                            time_ago = f"{int(hours_ago / 24)}d ago"
+                        
+                        timeline_data.append({
+                            'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                            'Time Ago': time_ago,
+                            'Signal': sig['type'],
+                            'Price': f"${sig['price']:.2f}",
+                            'Indicator': sig['indicator'],
+                            'Strength': sig['strength'].upper()
+                        })
+                    
+                    timeline_df = pd.DataFrame(timeline_data)
+                    st.dataframe(timeline_df, use_container_width=True, hide_index=True)
+            
             # News Sentiment Analysis
             st.markdown("---")
             st.subheader("📰 News Sentiment Analysis")
@@ -315,6 +545,55 @@ def main():
                                     st.markdown("---")
                 except Exception as e:
                     st.warning(f"⚠️ News sentiment analysis unavailable: {str(e)}")
+            
+            # Tabs for detailed analysis
+            st.markdown("---")
+            st.subheader("📊 Detailed Analysis")
+            
+            tab1, tab2 = st.tabs(["📈 Interactive Chart", "📋 Summary"])
+            
+            with tab1:
+                st.markdown("### Price Chart with Signal Markers")
+                st.caption("Green 'Long' and Red 'Short' labels show QQE trading signals")
+                
+                # Create and display chart with signal annotations
+                chart_fig = create_candlestick_chart_with_signals(df, results['symbol'])
+                st.plotly_chart(chart_fig, use_container_width=True)
+            
+            with tab2:
+                st.markdown("### Analysis Summary")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### Trend Analysis")
+                    trend_status = latest.get('ma_cloud_trend', 'unknown')
+                    if trend_status == 'bullish':
+                        st.success("📈 **Bullish Trend** - Price above MA Cloud")
+                    elif trend_status == 'bearish':
+                        st.error("📉 **Bearish Trend** - Price below MA Cloud")
+                    else:
+                        st.info("⚪ **Neutral Trend** - Unclear direction")
+                    
+                    # EMA positions
+                    if 'ema_20' in latest and 'ema_50' in latest:
+                        if latest['ema_20'] > latest['ema_50']:
+                            st.success("✅ EMA 20 > EMA 50 (Bullish)")
+                        else:
+                            st.error("⚠️ EMA 20 < EMA 50 (Bearish)")
+                
+                with col2:
+                    st.markdown("#### Signal Summary")
+                    st.metric("Total Signals (24h)", signals_24h['total_signals'])
+                    st.metric("Long Signals (24h)", signals_24h['long_count'])
+                    st.metric("Short Signals (24h)", signals_24h['short_count'])
+                    
+                    if signals_24h['latest_signal']:
+                        signal_type = signals_24h['latest_signal']['type']
+                        if signal_type == 'LONG':
+                            st.success(f"Most Recent: {signal_type}")
+                        else:
+                            st.error(f"Most Recent: {signal_type}")
         
         else:
             st.info("👈 Enter a stock symbol and click 'Fetch & Analyze' to get started!")

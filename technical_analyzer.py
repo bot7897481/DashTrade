@@ -155,6 +155,77 @@ class TechnicalAnalyzer:
         
         return self.df
     
+    def get_signal_history(self) -> List[Dict]:
+        """
+        Extract all LONG/SHORT signals with timestamps and prices
+        Returns a list of signal events for visualization and counting
+        """
+        signals = []
+        
+        # Extract QQE signals
+        for idx in self.df.index:
+            row = self.df.loc[idx]
+            
+            if row.get('qqe_long', False):
+                signals.append({
+                    'timestamp': idx,
+                    'type': 'LONG',
+                    'price': row['close'],
+                    'indicator': 'QQE',
+                    'strength': 'strong' if row.get('ma_cloud_trend') == 'bullish' else 'normal'
+                })
+            
+            if row.get('qqe_short', False):
+                signals.append({
+                    'timestamp': idx,
+                    'type': 'SHORT',
+                    'price': row['close'],
+                    'indicator': 'QQE',
+                    'strength': 'strong' if row.get('ma_cloud_trend') == 'bearish' else 'normal'
+                })
+        
+        return sorted(signals, key=lambda x: x['timestamp'])
+    
+    def count_signals_by_period(self, hours_back: int = 24) -> Dict:
+        """
+        Count LONG and SHORT signals within the specified time period
+        
+        Args:
+            hours_back: Number of hours to look back from the latest data point
+            
+        Returns:
+            Dict with long_count, short_count, and signal details
+        """
+        signals = self.get_signal_history()
+        
+        if not signals:
+            return {
+                'long_count': 0,
+                'short_count': 0,
+                'signals': [],
+                'latest_signal': None
+            }
+        
+        # Get the latest timestamp in the data
+        latest_time = self.df.index[-1]
+        cutoff_time = latest_time - timedelta(hours=hours_back)
+        
+        # Filter signals within the time period
+        recent_signals = [s for s in signals if s['timestamp'] >= cutoff_time]
+        
+        long_count = sum(1 for s in recent_signals if s['type'] == 'LONG')
+        short_count = sum(1 for s in recent_signals if s['type'] == 'SHORT')
+        
+        latest_signal = signals[-1] if signals else None
+        
+        return {
+            'long_count': long_count,
+            'short_count': short_count,
+            'signals': recent_signals,
+            'latest_signal': latest_signal,
+            'total_signals': len(recent_signals)
+        }
+    
     # ============================================================
     # PART 3: VWAP (From PineScript)
     # ============================================================
