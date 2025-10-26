@@ -895,8 +895,11 @@ def main():
         
         if st.button("🔍 Run Comparison Analysis", type="primary"):
             with st.spinner("Fetching and analyzing stocks..."):
-                # Create comparison analyzer
-                analyzer = ComparisonAnalyzer(selected_stocks, period=comparison_period, interval='1d')
+                # Get data source from session state
+                source_key = "yahoo" if st.session_state.get('data_source', 'Yahoo Finance') == "Yahoo Finance" else "alpha_vantage"
+                
+                # Create comparison analyzer with data source
+                analyzer = ComparisonAnalyzer(selected_stocks, period=comparison_period, interval='1d', data_source=source_key)
                 
                 if not analyzer.fetch_all_data():
                     st.error("Failed to fetch data for selected stocks")

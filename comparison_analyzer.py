@@ -7,11 +7,12 @@ import numpy as np
 from typing import List, Dict, Tuple
 from scipy.stats import pearsonr
 from alpha_vantage_data import fetch_alpha_vantage_data
+import yfinance as yf
 
 class ComparisonAnalyzer:
     """Analyze correlations and relative performance across multiple stocks"""
     
-    def __init__(self, symbols: List[str], period: str = '3mo', interval: str = '1d'):
+    def __init__(self, symbols: List[str], period: str = '3mo', interval: str = '1d', data_source: str = 'yahoo'):
         """
         Initialize comparison analyzer
         
@@ -19,18 +20,47 @@ class ComparisonAnalyzer:
             symbols: List of stock symbols to compare
             period: Historical period for comparison
             interval: Data interval
+            data_source: 'yahoo' or 'alpha_vantage'
         """
         self.symbols = symbols
         self.period = period
         self.interval = interval
+        self.data_source = data_source
         self.price_data = {}
         self.returns_data = {}
+    
+    def _fetch_yahoo_data(self, symbol: str) -> pd.DataFrame:
+        """Fetch data from Yahoo Finance"""
+        try:
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(period=self.period, interval=self.interval)
+            if df.empty:
+                return None
+            df.columns = [col.lower() for col in df.columns]
+            return df
+        except Exception as e:
+            print(f"Error fetching {symbol} from Yahoo: {e}")
+            return None
+    
+    def _fetch_alpha_vantage_data(self, symbol: str) -> pd.DataFrame:
+        """Fetch data from Alpha Vantage"""
+        try:
+            df, error = fetch_alpha_vantage_data(symbol, interval=self.interval, period=self.period)
+            if error or df is None:
+                return None
+            return df
+        except Exception as e:
+            print(f"Error fetching {symbol} from Alpha Vantage: {e}")
+            return None
         
     def fetch_all_data(self) -> bool:
-        """Fetch data for all symbols using Alpha Vantage"""
+        """Fetch data for all symbols using selected data source"""
         try:
             for symbol in self.symbols:
-                df, error = fetch_alpha_vantage_data(symbol, interval=self.interval, period=self.period)
+                if self.data_source == 'yahoo':
+                    df = self._fetch_yahoo_data(symbol)
+                else:
+                    df = self._fetch_alpha_vantage_data(symbol)
                 
                 if df is not None and not df.empty:
                     self.price_data[symbol] = df['close']
