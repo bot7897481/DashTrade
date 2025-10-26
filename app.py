@@ -18,6 +18,7 @@ from database import WatchlistDB, AlertsDB, PreferencesDB
 from comparison_analyzer import ComparisonAnalyzer
 from backtester import Backtester, BacktestResults
 from strategy_builder import CustomStrategy, StrategyCondition, StrategyTemplates, StrategyBuilder
+from alert_system import AlertMonitor
 
 # Page configuration
 st.set_page_config(
@@ -106,7 +107,7 @@ def main():
         st.markdown("---")
         
         # Mode selection
-        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder"], index=0)
+        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"], index=0)
         
         st.markdown("---")
         
@@ -392,6 +393,86 @@ def main():
             
             if long_signals == 0 and short_signals == 0:
                 st.info("No active signals across your portfolio")
+            
+            # Alert Monitoring - check database-configured alerts
+            st.markdown("### 🔔 Alert Status")
+            
+            triggered_alerts = []
+            
+            for stock in watchlist:
+                stock_alerts = AlertsDB.get_active_alerts(stock['symbol'])
+                
+                if stock_alerts:
+                    df, error = fetch_stock_data(stock['symbol'], '5d', '1d')
+                    
+                    if df is not None and len(df) >= 20:
+                        try:
+                            analyzer = TechnicalAnalyzer(df)
+                            analyzer.calculate_emas()
+                            analyzer.calculate_ma_cloud()
+                            analyzer.calculate_qqe()
+                            
+                            latest = analyzer.df.iloc[-1]
+                            
+                            prev = analyzer.df.iloc[-2] if len(analyzer.df) > 1 else latest
+                            
+                            for db_alert in stock_alerts:
+                                alert_type = db_alert['alert_type']
+                                triggered = False
+                                
+                                if alert_type == 'qqe_long_signal' and latest.get('qqe_long', False):
+                                    triggered = True
+                                elif alert_type == 'qqe_short_signal' and latest.get('qqe_short', False):
+                                    triggered = True
+                                elif alert_type == 'trend_change_bullish' and latest.get('ma_cloud_trend') == 'bullish':
+                                    triggered = True
+                                elif alert_type == 'trend_change_bearish' and latest.get('ma_cloud_trend') == 'bearish':
+                                    triggered = True
+                                elif alert_type == 'ema_crossover' and 'ema_20' in latest and 'ema_50' in latest:
+                                    if latest['ema_20'] > latest['ema_50'] and prev.get('ema_20', 0) <= prev.get('ema_50', 0):
+                                        triggered = True
+                                elif alert_type == 'ema_crossunder' and 'ema_20' in latest and 'ema_50' in latest:
+                                    if latest['ema_20'] < latest['ema_50'] and prev.get('ema_20', 0) >= prev.get('ema_50', 0):
+                                        triggered = True
+                                elif ':' in alert_type:
+                                    parts = alert_type.split(':')
+                                    price_alert_type = parts[0]
+                                    price_level = float(parts[1])
+                                    current_price = latest['close']
+                                    prev_price = prev['close']
+                                    
+                                    if price_alert_type == 'price_above' and current_price > price_level:
+                                        triggered = True
+                                    elif price_alert_type == 'price_below' and current_price < price_level:
+                                        triggered = True
+                                    elif price_alert_type == 'price_crosses_above' and prev_price <= price_level and current_price > price_level:
+                                        triggered = True
+                                    elif price_alert_type == 'price_crosses_below' and prev_price >= price_level and current_price < price_level:
+                                        triggered = True
+                                
+                                if triggered:
+                                    triggered_alerts.append({
+                                        'symbol': stock['symbol'],
+                                        'type': alert_type,
+                                        'condition': db_alert['condition_text'],
+                                        'id': db_alert['id']
+                                    })
+                                    
+                                    if not db_alert['triggered_at']:
+                                        AlertsDB.trigger_alert(db_alert['id'])
+                        except:
+                            pass
+            
+            if triggered_alerts:
+                st.warning(f"🔔 {len(triggered_alerts)} alert(s) triggered!")
+                for alert in triggered_alerts:
+                    st.info(f"**{alert['symbol']}** - {alert['condition']}")
+            else:
+                active_count = len(AlertsDB.get_active_alerts())
+                if active_count > 0:
+                    st.success(f"✅ {active_count} active alert(s) - No triggers")
+                else:
+                    st.info("No alerts configured. Go to Alert Manager to create alerts.")
     
     elif mode == "Multi-Stock Comparison":
         st.subheader("📊 Multi-Stock Comparison")
@@ -1106,6 +1187,135 @@ def main():
                                 )
                                 
                                 st.plotly_chart(fig, use_container_width=True)
+    
+    elif mode == "Alert Manager":
+        st.subheader("🔔 Alert Manager")
+        st.caption("Create and manage custom alerts for your watchlist")
+        
+        watchlist = WatchlistDB.get_all_stocks()
+        
+        if not watchlist:
+            st.warning("📋 No stocks in watchlist. Add stocks first to create alerts.")
+            return
+        
+        tab1, tab2 = st.tabs(["➕ Create Alert", "📋 Manage Alerts"])
+        
+        with tab1:
+            st.markdown("### Create New Alert")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                alert_symbol = st.selectbox("Stock Symbol", 
+                                           [stock['symbol'] for stock in watchlist])
+            
+            with col2:
+                alert_category = st.selectbox("Alert Type", 
+                                            ["Indicator Signal", "Trend Change", "Price Level", "EMA Crossover"])
+            
+            if alert_category == "Indicator Signal":
+                signal_type = st.selectbox("Signal", 
+                                          ["QQE Long Signal", "QQE Short Signal"])
+                
+                if st.button("Create Alert", type="primary"):
+                    alert_type = 'qqe_long_signal' if signal_type == "QQE Long Signal" else 'qqe_short_signal'
+                    condition_text = f"{signal_type} on {alert_symbol}"
+                    
+                    if AlertsDB.add_alert(alert_symbol, alert_type, condition_text):
+                        st.success(f"✅ Alert created for {alert_symbol}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to create alert")
+            
+            elif alert_category == "Trend Change":
+                trend_direction = st.selectbox("Direction", ["Bullish", "Bearish"])
+                
+                if st.button("Create Alert", type="primary"):
+                    alert_type = 'trend_change_bullish' if trend_direction == "Bullish" else 'trend_change_bearish'
+                    condition_text = f"Trend changes to {trend_direction} on {alert_symbol}"
+                    
+                    if AlertsDB.add_alert(alert_symbol, alert_type, condition_text):
+                        st.success(f"✅ Alert created for {alert_symbol}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to create alert")
+            
+            elif alert_category == "Price Level":
+                price_level = st.number_input("Price Level ($)", min_value=0.0, value=100.0, step=0.01)
+                price_condition = st.selectbox("Condition", ["Above", "Below", "Crosses Above", "Crosses Below"])
+                
+                if st.button("Create Alert", type="primary"):
+                    alert_type_map = {
+                        "Above": "price_above",
+                        "Below": "price_below",
+                        "Crosses Above": "price_crosses_above",
+                        "Crosses Below": "price_crosses_below"
+                    }
+                    alert_type = alert_type_map[price_condition]
+                    condition_text = f"Price {price_condition.lower()} ${price_level:.2f} on {alert_symbol}"
+                    
+                    if AlertsDB.add_alert(alert_symbol, f"{alert_type}:{price_level}", condition_text):
+                        st.success(f"✅ Alert created for {alert_symbol}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to create alert")
+            
+            elif alert_category == "EMA Crossover":
+                cross_direction = st.selectbox("Crossover Type", ["EMA 20 crosses above EMA 50", "EMA 20 crosses below EMA 50"])
+                
+                if st.button("Create Alert", type="primary"):
+                    alert_type = 'ema_crossover' if 'above' in cross_direction else 'ema_crossunder'
+                    condition_text = f"{cross_direction} on {alert_symbol}"
+                    
+                    if AlertsDB.add_alert(alert_symbol, alert_type, condition_text):
+                        st.success(f"✅ Alert created for {alert_symbol}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to create alert")
+        
+        with tab2:
+            st.markdown("### Active Alerts")
+            
+            all_alerts = AlertsDB.get_active_alerts()
+            
+            if all_alerts:
+                alert_data = []
+                
+                for alert in all_alerts:
+                    alert_data.append({
+                        'ID': alert['id'],
+                        'Symbol': alert['symbol'],
+                        'Type': alert['alert_type'],
+                        'Condition': alert['condition_text'],
+                        'Created': alert['created_at'].strftime('%Y-%m-%d %H:%M') if alert['created_at'] else 'N/A',
+                        'Triggered': 'Yes' if alert['triggered_at'] else 'No'
+                    })
+                
+                alert_df = pd.DataFrame(alert_data)
+                
+                st.dataframe(alert_df, use_container_width=True, hide_index=True)
+                
+                st.markdown("### Delete Alerts")
+                
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    alert_to_delete = st.selectbox("Select alert to delete",
+                                                  options=[f"{a['Symbol']} - {a['Condition']}" for a in alert_data],
+                                                  key="delete_alert_select")
+                
+                with col2:
+                    if st.button("🗑️ Delete", type="secondary"):
+                        idx = [f"{a['Symbol']} - {a['Condition']}" for a in alert_data].index(alert_to_delete)
+                        alert_id = alert_data[idx]['ID']
+                        
+                        if AlertsDB.delete_alert(alert_id):
+                            st.success("Alert deleted!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to delete alert")
+            else:
+                st.info("No alerts configured. Create your first alert using the form above.")
 
 if __name__ == "__main__":
     main()
