@@ -345,7 +345,14 @@ class PineScriptMonitor:
             return []
 
         df = self.df.copy()
-        cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
+
+        # Handle timezone-aware datetime comparison
+        if df.index.tz is not None:
+            # If index is timezone-aware, make cutoff_time timezone-aware too
+            from datetime import timezone
+            cutoff_time = datetime.now(df.index.tz) - timedelta(hours=lookback_hours)
+        else:
+            cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
 
         # Filter by time
         recent_df = df[df.index >= cutoff_time]
@@ -359,9 +366,13 @@ class PineScriptMonitor:
                 'type': 'LONG',
                 'timestamp': idx,
                 'price': long_signals.loc[idx, 'Close'],
+                'volume': long_signals.loc[idx, 'Volume'],
                 'rsi': long_signals.loc[idx, 'rsi_ma'],
                 'trend': long_signals.loc[idx, 'ma_cloud_trend'],
-                'webhook_message': self._generate_webhook_message('BUY', idx, long_signals.loc[idx, 'Close'])
+                'open': long_signals.loc[idx, 'Open'],
+                'high': long_signals.loc[idx, 'High'],
+                'low': long_signals.loc[idx, 'Low'],
+                'webhook_message': self._generate_webhook_message('BUY', idx, long_signals.loc[idx, 'Close'], long_signals.loc[idx, 'Volume'])
             })
 
         # Get all short signals
@@ -371,9 +382,13 @@ class PineScriptMonitor:
                 'type': 'SHORT',
                 'timestamp': idx,
                 'price': short_signals.loc[idx, 'Close'],
+                'volume': short_signals.loc[idx, 'Volume'],
                 'rsi': short_signals.loc[idx, 'rsi_ma'],
                 'trend': short_signals.loc[idx, 'ma_cloud_trend'],
-                'webhook_message': self._generate_webhook_message('SELL', idx, short_signals.loc[idx, 'Close'])
+                'open': short_signals.loc[idx, 'Open'],
+                'high': short_signals.loc[idx, 'High'],
+                'low': short_signals.loc[idx, 'Low'],
+                'webhook_message': self._generate_webhook_message('SELL', idx, short_signals.loc[idx, 'Close'], short_signals.loc[idx, 'Volume'])
             })
 
         # Sort by timestamp
@@ -382,13 +397,14 @@ class PineScriptMonitor:
         self.signals = signals
         return signals
 
-    def _generate_webhook_message(self, action: str, timestamp, price: float) -> str:
+    def _generate_webhook_message(self, action: str, timestamp, price: float, volume: float = 0) -> str:
         """Generate webhook message matching TradingView format"""
         message = {
             'action': action,
             'symbol': self.symbol,
             'timestamp': str(timestamp),
             'price': float(price),
+            'volume': float(volume),
             'secret': 'my_secret_key_123'
         }
         return json.dumps(message, indent=2)
@@ -473,3 +489,52 @@ class PineScriptMonitor:
     def is_monitoring(self) -> bool:
         """Check if monitoring is enabled"""
         return self.monitoring_enabled
+
+    def get_signal_statistics(self, lookback_hours: int = 24) -> Dict:
+        """
+        Get detailed signal statistics
+
+        Args:
+            lookback_hours: Hours to look back for signals
+
+        Returns:
+            Dictionary with signal counts and details
+        """
+        signals = self.get_all_signals(lookback_hours)
+
+        long_signals = [s for s in signals if s['type'] == 'LONG']
+        short_signals = [s for s in signals if s['type'] == 'SHORT']
+
+        # Calculate average volume for each signal type
+        avg_long_volume = sum(s['volume'] for s in long_signals) / len(long_signals) if long_signals else 0
+        avg_short_volume = sum(s['volume'] for s in short_signals) / len(short_signals) if short_signals else 0
+
+        # Calculate price change statistics
+        long_price_changes = []
+        short_price_changes = []
+
+        for i in range(len(long_signals) - 1):
+            price_change = ((long_signals[i]['price'] - long_signals[i+1]['price']) / long_signals[i+1]['price']) * 100
+            long_price_changes.append(price_change)
+
+        for i in range(len(short_signals) - 1):
+            price_change = ((short_signals[i]['price'] - short_signals[i+1]['price']) / short_signals[i+1]['price']) * 100
+            short_price_changes.append(price_change)
+
+        avg_long_price_change = sum(long_price_changes) / len(long_price_changes) if long_price_changes else 0
+        avg_short_price_change = sum(short_price_changes) / len(short_price_changes) if short_price_changes else 0
+
+        return {
+            'total_signals': len(signals),
+            'long_count': len(long_signals),
+            'short_count': len(short_signals),
+            'long_signals': long_signals,
+            'short_signals': short_signals,
+            'avg_long_volume': avg_long_volume,
+            'avg_short_volume': avg_short_volume,
+            'avg_long_price_change': avg_long_price_change,
+            'avg_short_price_change': avg_short_price_change,
+            'lookback_hours': lookback_hours,
+            'period_start': signals[-1]['timestamp'] if signals else None,
+            'period_end': signals[0]['timestamp'] if signals else None
+        }

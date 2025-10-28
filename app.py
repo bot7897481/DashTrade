@@ -1877,36 +1877,115 @@ def main():
 
                 # Signal History
                 st.markdown("---")
-                st.subheader("📊 Recent Signals")
+                st.subheader("📊 Signal Analytics Dashboard")
 
                 col1, col2 = st.columns([2, 1])
 
                 with col1:
-                    lookback_hours = st.slider("Lookback Period (hours)", 1, 168, 24, key="ps_lookback")
+                    lookback_hours = st.slider("Lookback Period (hours)", 1, 720, 24, key="ps_lookback")
 
                 with col2:
                     if st.button("🔄 Refresh Signals", key="ps_refresh"):
                         st.rerun()
 
-                signals = monitor.get_all_signals(lookback_hours=lookback_hours)
+                # Get detailed statistics
+                stats = monitor.get_signal_statistics(lookback_hours=lookback_hours)
+                signals = stats['long_signals'] + stats['short_signals']
+                signals.sort(key=lambda x: x['timestamp'], reverse=True)
+
+                # Display statistics overview
+                st.markdown("### 📈 Signal Statistics Summary")
+                col1, col2, col3, col4, col5 = st.columns(5)
+
+                with col1:
+                    st.metric("Total Signals", stats['total_signals'])
+
+                with col2:
+                    st.metric("🟢 LONG Signals", stats['long_count'],
+                             delta=f"{(stats['long_count']/stats['total_signals']*100):.1f}%" if stats['total_signals'] > 0 else "0%")
+
+                with col3:
+                    st.metric("🔴 SHORT Signals", stats['short_count'],
+                             delta=f"{(stats['short_count']/stats['total_signals']*100):.1f}%" if stats['total_signals'] > 0 else "0%")
+
+                with col4:
+                    avg_vol = (stats['avg_long_volume'] + stats['avg_short_volume']) / 2 if stats['total_signals'] > 0 else 0
+                    st.metric("Avg Volume", f"{avg_vol:,.0f}")
+
+                with col5:
+                    if stats['period_start'] and stats['period_end']:
+                        period_str = f"{stats['period_start'].strftime('%m/%d')} - {stats['period_end'].strftime('%m/%d')}"
+                    else:
+                        period_str = "No data"
+                    st.metric("Period", period_str)
 
                 if signals:
                     st.success(f"Found {len(signals)} signal(s) in the last {lookback_hours} hours")
 
-                    # Display signals in a table
-                    signal_data = []
-                    for sig in signals:
-                        signal_data.append({
-                            'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
-                            'Type': sig['type'],
-                            'Price': f"${sig['price']:.2f}",
-                            'RSI': f"{sig['rsi']:.2f}",
-                            'Trend': sig['trend'].title(),
-                            'Action': '🟢 BUY' if sig['type'] == 'LONG' else '🔴 SELL'
-                        })
+                    # Tabs for different views
+                    tab1, tab2, tab3 = st.tabs(["📋 All Signals", "🟢 LONG Signals", "🔴 SHORT Signals"])
 
-                    signal_df = pd.DataFrame(signal_data)
-                    st.dataframe(signal_df, use_container_width=True, hide_index=True)
+                    with tab1:
+                        # Display all signals in a detailed table
+                        signal_data = []
+                        for sig in signals:
+                            signal_data.append({
+                                'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                                'Type': sig['type'],
+                                'Price': f"${sig['price']:.2f}",
+                                'Volume': f"{sig['volume']:,.0f}",
+                                'RSI': f"{sig['rsi']:.2f}",
+                                'Trend': sig['trend'].title(),
+                                'Open': f"${sig['open']:.2f}",
+                                'High': f"${sig['high']:.2f}",
+                                'Low': f"${sig['low']:.2f}",
+                                'Action': '🟢 BUY' if sig['type'] == 'LONG' else '🔴 SELL'
+                            })
+
+                        signal_df = pd.DataFrame(signal_data)
+                        st.dataframe(signal_df, use_container_width=True, hide_index=True)
+
+                    with tab2:
+                        # LONG signals only
+                        if stats['long_count'] > 0:
+                            st.info(f"**Total LONG Signals:** {stats['long_count']} | **Avg Volume:** {stats['avg_long_volume']:,.0f}")
+
+                            long_data = []
+                            for sig in stats['long_signals']:
+                                long_data.append({
+                                    'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                                    'Price': f"${sig['price']:.2f}",
+                                    'Volume': f"{sig['volume']:,.0f}",
+                                    'RSI': f"{sig['rsi']:.2f}",
+                                    'Trend': sig['trend'].title(),
+                                    'OHLC': f"O:${sig['open']:.2f} H:${sig['high']:.2f} L:${sig['low']:.2f}"
+                                })
+
+                            long_df = pd.DataFrame(long_data)
+                            st.dataframe(long_df, use_container_width=True, hide_index=True)
+                        else:
+                            st.warning("No LONG signals in this period")
+
+                    with tab3:
+                        # SHORT signals only
+                        if stats['short_count'] > 0:
+                            st.info(f"**Total SHORT Signals:** {stats['short_count']} | **Avg Volume:** {stats['avg_short_volume']:,.0f}")
+
+                            short_data = []
+                            for sig in stats['short_signals']:
+                                short_data.append({
+                                    'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                                    'Price': f"${sig['price']:.2f}",
+                                    'Volume': f"{sig['volume']:,.0f}",
+                                    'RSI': f"{sig['rsi']:.2f}",
+                                    'Trend': sig['trend'].title(),
+                                    'OHLC': f"O:${sig['open']:.2f} H:${sig['high']:.2f} L:${sig['low']:.2f}"
+                                })
+
+                            short_df = pd.DataFrame(short_data)
+                            st.dataframe(short_df, use_container_width=True, hide_index=True)
+                        else:
+                            st.warning("No SHORT signals in this period")
 
                     # Show webhook messages for the most recent signal
                     st.markdown("---")
@@ -1923,13 +2002,14 @@ def main():
 
                     latest = signals[0]
 
-                    col1, col2, col3 = st.columns(3)
+                    col1, col2, col3, col4 = st.columns(4)
 
                     with col1:
                         st.markdown(f"""
                         **Signal Type:** {latest['type']}
                         **Time:** {latest['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}
                         **Price:** ${latest['price']:.2f}
+                        **Volume:** {latest['volume']:,.0f}
                         """)
 
                     with col2:
@@ -1940,8 +2020,21 @@ def main():
                         """)
 
                     with col3:
+                        st.markdown(f"""
+                        **OHLC Data:**
+                        Open: ${latest['open']:.2f}
+                        High: ${latest['high']:.2f}
+                        Low: ${latest['low']:.2f}
+                        Close: ${latest['price']:.2f}
+                        """)
+
+                    with col4:
                         # Calculate time since signal
-                        time_since = datetime.now() - latest['timestamp'].replace(tzinfo=None)
+                        if latest['timestamp'].tzinfo is not None:
+                            time_since = datetime.now(latest['timestamp'].tzinfo) - latest['timestamp']
+                        else:
+                            time_since = datetime.now() - latest['timestamp']
+
                         hours = int(time_since.total_seconds() / 3600)
                         minutes = int((time_since.total_seconds() % 3600) / 60)
 
