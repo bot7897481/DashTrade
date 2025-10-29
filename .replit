@@ -2,7 +2,21 @@ modules = ["python-3.11", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
+packages = [
+  "cairo",
+  "ffmpeg-full",
+  "freetype",
+  "ghostscript",
+  "glibcLocales",
+  "gobject-introspection",
+  "gtk3",
+  "libxcrypt",
+  "pkg-config",
+  "qhull",
+  "tcl",
+  "tk",
+  "xsimd"
+]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -24,13 +38,13 @@ args = "Server"
 name = "Server"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "streamlit run app.py --server.port 5000"
 waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [[ports]]
 localPort = 5000
@@ -47,3 +61,6 @@ externalPort = 3002
 [[ports]]
 localPort = 42293
 externalPort = 3001
+
+[env]
+PYTHONPATH = "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages"
