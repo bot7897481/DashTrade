@@ -10,6 +10,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
+from notification_handler import NotificationHandler
 
 
 class PineScriptMonitor:
@@ -57,9 +58,81 @@ class PineScriptMonitor:
         self.last_signal = None
         self.monitoring_enabled = False
 
+        # Notification handler
+        self.notifier = NotificationHandler()
+        self.notification_settings = {
+            'webhook_enabled': False,
+            'email_enabled': False,
+            'notify_on_long': True,
+            'notify_on_short': True
+        }
+
     def update_parameters(self, params: Dict):
         """Update Pine Script parameters"""
         self.params.update(params)
+
+    def configure_notifications(self, webhook_url: str = None, email_config: Dict = None,
+                                notify_on_long: bool = True, notify_on_short: bool = True):
+        """
+        Configure notification settings
+
+        Args:
+            webhook_url: Webhook URL for notifications
+            email_config: Dictionary with email configuration
+            notify_on_long: Enable notifications for LONG signals
+            notify_on_short: Enable notifications for SHORT signals
+        """
+        if webhook_url:
+            self.notifier.configure_webhook(webhook_url)
+            self.notification_settings['webhook_enabled'] = True
+
+        if email_config:
+            self.notifier.configure_email(
+                smtp_server=email_config.get('smtp_server'),
+                smtp_port=email_config.get('smtp_port'),
+                sender_email=email_config.get('sender_email'),
+                sender_password=email_config.get('sender_password'),
+                recipient_emails=email_config.get('recipient_emails', [])
+            )
+            self.notification_settings['email_enabled'] = True
+
+        self.notification_settings['notify_on_long'] = notify_on_long
+        self.notification_settings['notify_on_short'] = notify_on_short
+
+    def send_signal_notification(self, signal: Dict) -> Dict:
+        """
+        Send notifications for a detected signal
+
+        Args:
+            signal: Signal dictionary with type, price, timestamp, etc.
+
+        Returns:
+            Dictionary with notification results
+        """
+        # Check if we should notify for this signal type
+        if signal['type'] == 'LONG' and not self.notification_settings['notify_on_long']:
+            return {'skipped': True, 'reason': 'LONG notifications disabled'}
+
+        if signal['type'] == 'SHORT' and not self.notification_settings['notify_on_short']:
+            return {'skipped': True, 'reason': 'SHORT notifications disabled'}
+
+        # Prepare signal data for notification
+        signal_data = {
+            'symbol': self.symbol,
+            'type': signal['type'],
+            'price': signal['price'],
+            'volume': signal.get('volume', 0),
+            'rsi': signal.get('rsi', 0),
+            'trend': signal.get('trend', 'unknown'),
+            'timestamp': signal['timestamp']
+        }
+
+        # Send notifications
+        return self.notifier.notify_signal(
+            signal_data,
+            send_webhook=self.notification_settings['webhook_enabled'],
+            send_email=self.notification_settings['email_enabled']
+        )
 
     def fetch_data(self, period: str = '5d') -> pd.DataFrame:
         """

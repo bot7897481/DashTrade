@@ -20,11 +20,8 @@ from backtester import Backtester, BacktestResults
 from strategy_builder import CustomStrategy, StrategyCondition, StrategyTemplates, StrategyBuilder
 from alert_system import AlertMonitor
 from alpha_vantage_data import AlphaVantageProvider, fetch_alpha_vantage_data
-<<<<<<< HEAD
 from auth import UserDB
-=======
 from pine_script_monitor import PineScriptMonitor
->>>>>>> claude/session-011CUZtoXZ57cycWC48mJvmE
 
 # Page configuration
 st.set_page_config(
@@ -387,7 +384,6 @@ def main():
             st.warning("⚡ **Alpha Vantage** - Real-time data, 25 API calls/day limit")
         
         st.markdown("---")
-<<<<<<< HEAD
 
         # Mode selection - add Admin Panel if user is admin
         modes = ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"]
@@ -397,11 +393,9 @@ def main():
             modes.append("👑 Admin Panel")
 
         mode = st.radio("Mode", modes, index=0)
-=======
         
         # Mode selection
         mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager", "Pine Script Signals"], index=0)
->>>>>>> claude/session-011CUZtoXZ57cycWC48mJvmE
         
         st.markdown("---")
         
@@ -495,6 +489,52 @@ def main():
                 notify_on_short = st.checkbox("Notify on SHORT signals", value=True, key="ps_notify_short")
             else:
                 st.info("⏸️ Monitoring Paused")
+                notify_on_long = True
+                notify_on_short = True
+
+            # Notification Settings
+            with st.expander("📡 Notification Settings"):
+                st.markdown("### Webhook Configuration")
+                webhook_url = st.text_input("Webhook URL",
+                                            placeholder="https://your-webhook-url.com/signal",
+                                            key="ps_webhook",
+                                            help="Enter your webhook URL to receive POST notifications")
+
+                st.markdown("### Email Configuration")
+                email_enabled = st.checkbox("Enable Email Notifications", key="ps_email_enabled")
+
+                if email_enabled:
+                    smtp_server = st.text_input("SMTP Server",
+                                                placeholder="smtp.gmail.com",
+                                                key="ps_smtp_server")
+                    smtp_port = st.number_input("SMTP Port",
+                                               value=587,
+                                               min_value=1,
+                                               max_value=65535,
+                                               key="ps_smtp_port")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        sender_email = st.text_input("Sender Email",
+                                                     placeholder="your-email@gmail.com",
+                                                     key="ps_sender_email")
+                    with col2:
+                        sender_password = st.text_input("App Password",
+                                                       type="password",
+                                                       key="ps_sender_password",
+                                                       help="For Gmail, use an App Password")
+
+                    recipient_emails = st.text_area("Recipient Emails (one per line)",
+                                                    placeholder="recipient1@example.com\nrecipient2@example.com",
+                                                    key="ps_recipient_emails")
+
+                    st.info("💡 **Gmail Users:** Enable 2FA and create an App Password at: myaccount.google.com/apppasswords")
+                else:
+                    smtp_server = None
+                    smtp_port = None
+                    sender_email = None
+                    sender_password = None
+                    recipient_emails = None
 
             # Analyze button
             st.markdown("---")
@@ -1902,7 +1942,6 @@ def main():
             else:
                 st.info("No alerts configured. Create your first alert using the form above.")
 
-<<<<<<< HEAD
     elif mode == "👑 Admin Panel":
         st.subheader("👑 Admin Panel")
         st.caption("Manage users and system settings")
@@ -2064,7 +2103,6 @@ def main():
                     st.success("✅ View all users")
                     st.success("✅ System statistics")
                     st.warning("⚠️ Limited user management")
-=======
     elif mode == "Pine Script Signals":
         st.subheader("🔌 Pine Script Signal Monitor")
         st.caption("NovAlgo - Fast Signals | Real-time monitoring like TradingView")
@@ -2094,6 +2132,25 @@ def main():
                     'ma_cloud_short': ps_ma_short,
                     'ma_cloud_long': ps_ma_long,
                 })
+
+                # Configure notifications
+                email_config = None
+                if email_enabled and sender_email and sender_password:
+                    recipient_list = [email.strip() for email in recipient_emails.split('\n') if email.strip()]
+                    email_config = {
+                        'smtp_server': smtp_server,
+                        'smtp_port': smtp_port,
+                        'sender_email': sender_email,
+                        'sender_password': sender_password,
+                        'recipient_emails': recipient_list
+                    }
+
+                monitor.configure_notifications(
+                    webhook_url=webhook_url if webhook_url else None,
+                    email_config=email_config,
+                    notify_on_long=notify_on_long,
+                    notify_on_short=notify_on_short
+                )
 
                 # Set monitoring state
                 if enable_monitoring:
@@ -2158,6 +2215,22 @@ def main():
                 stats = monitor.get_signal_statistics(lookback_hours=lookback_hours)
                 signals = stats['long_signals'] + stats['short_signals']
                 signals.sort(key=lambda x: x['timestamp'], reverse=True)
+
+                # Send notifications for new signals (if monitoring is enabled)
+                if enable_monitoring and signals:
+                    # Check for new signals (within last 5 minutes)
+                    recent_cutoff = datetime.now() - timedelta(minutes=5)
+                    new_signals = [s for s in signals if s['timestamp'].replace(tzinfo=None) >= recent_cutoff]
+
+                    if new_signals:
+                        notification_results = []
+                        for signal in new_signals:
+                            result = monitor.send_signal_notification(signal)
+                            notification_results.append(result)
+
+                        # Show notification status
+                        if any(r.get('webhook_sent') or r.get('email_sent') for r in notification_results):
+                            st.success(f"✅ Sent {len(new_signals)} notification(s) for recent signals!")
 
                 # Display statistics overview
                 st.markdown("### 📈 Signal Statistics Summary")
@@ -2438,7 +2511,6 @@ def main():
 
             Click **"🔄 Analyze Signals"** in the sidebar to begin!
             """)
->>>>>>> claude/session-011CUZtoXZ57cycWC48mJvmE
 
 if __name__ == "__main__":
     # Initialize database tables on first run
