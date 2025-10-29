@@ -1,12 +1,11 @@
-modules = ["python-3.11", "postgresql-16"]
+modules = ["python-3.11"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["streamlit", "run", "app.py", "--server.port", "5000"]
+run = ["streamlit", "run", "app.py", "--server.port", "8501"]
 
 [workflows]
 runButton = "Project"
@@ -26,24 +25,20 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "streamlit run app.py --server.port 5000"
-waitForPort = 5000
+args = "streamlit run app.py --server.port 8501"
+waitForPort = 8501
 
 [workflows.workflow.metadata]
 outputType = "webview"
 
 [[ports]]
-localPort = 5000
+localPort = 8501
 externalPort = 80
 
 [[ports]]
-localPort = 33221
+localPort = 36543
 externalPort = 3000
 
 [[ports]]
-localPort = 37135
+localPort = 37889
 externalPort = 3002
-
-[[ports]]
-localPort = 42293
-externalPort = 3001
