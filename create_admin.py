@@ -18,11 +18,10 @@ def create_superadmin():
         print("✅ Authentication module loaded")
     except ImportError as e:
         print(f"❌ Failed to import auth module: {e}")
-        print("\nTrying to install bcrypt...")
-        import subprocess
-        subprocess.check_call(['pip', 'install', 'bcrypt', '--quiet'])
-        print("✅ bcrypt installed, retrying import...")
-        from auth import UserDB
+        print("\n💡 Run this command to install dependencies:")
+        print("   poetry install")
+        print("\nOr in the Replit shell, click 'Packages' and ensure all dependencies are installed.")
+        return False
 
     # Check if superadmin exists
     try:
