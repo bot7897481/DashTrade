@@ -383,9 +383,15 @@ def main():
             st.warning("⚡ **Alpha Vantage** - Real-time data, 25 API calls/day limit")
         
         st.markdown("---")
-        
-        # Mode selection
-        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"], index=0)
+
+        # Mode selection - add Admin Panel if user is admin
+        modes = ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"]
+
+        # Check if user is admin
+        if st.session_state['user'].get('role') in ['admin', 'superadmin']:
+            modes.append("👑 Admin Panel")
+
+        mode = st.radio("Mode", modes, index=0)
         
         st.markdown("---")
         
@@ -1829,6 +1835,168 @@ def main():
                             st.error("Failed to delete alert")
             else:
                 st.info("No alerts configured. Create your first alert using the form above.")
+
+    elif mode == "👑 Admin Panel":
+        st.subheader("👑 Admin Panel")
+        st.caption("Manage users and system settings")
+
+        # Check if user is actually admin
+        user_role = st.session_state['user'].get('role')
+        if user_role not in ['admin', 'superadmin']:
+            st.error("⛔ Access denied. Admin privileges required.")
+            return
+
+        # Show admin info
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Your Role", user_role.upper())
+        with col2:
+            total_users = UserDB.get_all_users_count()
+            st.metric("Total Users", total_users)
+        with col3:
+            st.metric("Status", "Active" if st.session_state['user'].get('is_active') else "Inactive")
+
+        st.markdown("---")
+
+        # Admin tabs
+        tab1, tab2 = st.tabs(["👥 User Management", "📊 System Stats"])
+
+        with tab1:
+            st.markdown("### User Management")
+
+            # Get all users
+            all_users = UserDB.get_all_users()
+
+            if all_users:
+                # Create user table
+                user_data = []
+                for user in all_users:
+                    user_data.append({
+                        'ID': user['id'],
+                        'Username': user['username'],
+                        'Email': user['email'],
+                        'Full Name': user.get('full_name', 'N/A'),
+                        'Role': user['role'].upper(),
+                        'Status': '✅ Active' if user['is_active'] else '❌ Disabled',
+                        'Created': user['created_at'].strftime('%Y-%m-%d') if user['created_at'] else 'N/A',
+                        'Last Login': user['last_login'].strftime('%Y-%m-%d %H:%M') if user['last_login'] else 'Never'
+                    })
+
+                # Display as DataFrame
+                import pandas as pd
+                df_users = pd.DataFrame(user_data)
+                st.dataframe(df_users, use_container_width=True, hide_index=True)
+
+                st.markdown("---")
+
+                # User actions (only for superadmin)
+                if user_role == 'superadmin':
+                    st.markdown("### User Actions")
+
+                    with st.expander("🔧 Manage User"):
+                        selected_user = st.selectbox(
+                            "Select User",
+                            options=[f"{u['username']} ({u['email']})" for u in all_users],
+                            key="manage_user_select"
+                        )
+
+                        if selected_user:
+                            # Get selected user ID
+                            selected_username = selected_user.split(' (')[0]
+                            selected_user_obj = next((u for u in all_users if u['username'] == selected_username), None)
+
+                            if selected_user_obj:
+                                st.write(f"**Managing:** {selected_user_obj['username']}")
+
+                                col1, col2, col3 = st.columns(3)
+
+                                with col1:
+                                    new_role = st.selectbox(
+                                        "Change Role",
+                                        options=['user', 'admin', 'superadmin'],
+                                        index=['user', 'admin', 'superadmin'].index(selected_user_obj['role']),
+                                        key="role_select"
+                                    )
+
+                                    if st.button("Update Role", key="update_role_btn"):
+                                        if selected_user_obj['id'] == user_id:
+                                            st.warning("⚠️ Cannot change your own role")
+                                        else:
+                                            result = UserDB.update_user_role(selected_user_obj['id'], new_role)
+                                            if result['success']:
+                                                st.success(f"✅ Role updated to {new_role}")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ {result['error']}")
+
+                                with col2:
+                                    if st.button("Toggle Active Status", key="toggle_status_btn"):
+                                        if selected_user_obj['id'] == user_id:
+                                            st.warning("⚠️ Cannot disable your own account")
+                                        else:
+                                            result = UserDB.toggle_user_status(selected_user_obj['id'])
+                                            if result['success']:
+                                                status = "enabled" if result['is_active'] else "disabled"
+                                                st.success(f"✅ User {status}")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ {result['error']}")
+
+                                with col3:
+                                    if selected_user_obj['role'] != 'superadmin':
+                                        if st.button("🗑️ Delete User", key="delete_user_btn", type="secondary"):
+                                            if st.session_state.get('confirm_delete'):
+                                                result = UserDB.delete_user(selected_user_obj['id'])
+                                                if result['success']:
+                                                    st.success("✅ User deleted")
+                                                    st.session_state['confirm_delete'] = False
+                                                    st.rerun()
+                                                else:
+                                                    st.error(f"❌ {result['error']}")
+                                            else:
+                                                st.session_state['confirm_delete'] = True
+                                                st.warning("⚠️ Click again to confirm deletion")
+                                    else:
+                                        st.info("Cannot delete superadmin")
+                else:
+                    st.info("👑 Only superadmins can manage users")
+
+            else:
+                st.info("No users found in the system")
+
+        with tab2:
+            st.markdown("### System Statistics")
+
+            # Get stats from database
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("#### User Stats")
+                try:
+                    watchlist = WatchlistDB.get_all_stocks(user_id)
+                    alerts = AlertsDB.get_active_alerts(user_id)
+
+                    st.metric("Your Watchlist Stocks", len(watchlist))
+                    st.metric("Your Active Alerts", len(alerts))
+
+                except Exception as e:
+                    st.error(f"Error loading stats: {e}")
+
+            with col2:
+                st.markdown("#### System Info")
+                st.info("DashTrade v1.0\nAuthentication: Active\nRole-Based Access: Enabled")
+
+                # Show role capabilities
+                st.markdown("**Your Permissions:**")
+                if user_role == 'superadmin':
+                    st.success("✅ Full system access")
+                    st.success("✅ User management")
+                    st.success("✅ Role assignments")
+                    st.success("✅ Delete users")
+                elif user_role == 'admin':
+                    st.success("✅ View all users")
+                    st.success("✅ System statistics")
+                    st.warning("⚠️ Limited user management")
 
 if __name__ == "__main__":
     # Initialize database tables on first run

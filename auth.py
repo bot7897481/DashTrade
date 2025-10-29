@@ -40,6 +40,7 @@ class UserDB:
                             email VARCHAR(255) UNIQUE NOT NULL,
                             password_hash VARCHAR(255) NOT NULL,
                             full_name VARCHAR(255),
+                            role VARCHAR(50) DEFAULT 'user' NOT NULL,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             last_login TIMESTAMP,
                             is_active BOOLEAN DEFAULT TRUE
@@ -66,7 +67,7 @@ class UserDB:
             return False
 
     @staticmethod
-    def register_user(username: str, email: str, password: str, full_name: Optional[str] = None) -> Dict:
+    def register_user(username: str, email: str, password: str, full_name: Optional[str] = None, role: str = 'user') -> Dict:
         """
         Register a new user
         Returns: {'success': True, 'user_id': int} or {'success': False, 'error': str}
@@ -80,19 +81,23 @@ class UserDB:
             if '@' not in email:
                 return {'success': False, 'error': 'Invalid email address'}
 
+            # Validate role
+            if role not in ['user', 'admin', 'superadmin']:
+                role = 'user'
+
             # Hash password
             password_hash = UserDB.hash_password(password)
 
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO users (username, email, password_hash, full_name)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO users (username, email, password_hash, full_name, role)
+                        VALUES (%s, %s, %s, %s, %s)
                         RETURNING id
-                    """, (username.lower(), email.lower(), password_hash, full_name))
+                    """, (username.lower(), email.lower(), password_hash, full_name, role))
 
                     user_id = cur.fetchone()[0]
-                    return {'success': True, 'user_id': user_id, 'username': username}
+                    return {'success': True, 'user_id': user_id, 'username': username, 'role': role}
 
         except psycopg2.IntegrityError as e:
             if 'username' in str(e):
@@ -114,7 +119,7 @@ class UserDB:
             with get_db_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                        SELECT id, username, email, password_hash, full_name, is_active
+                        SELECT id, username, email, password_hash, full_name, role, is_active
                         FROM users
                         WHERE username = %s
                     """, (username.lower(),))
@@ -153,7 +158,7 @@ class UserDB:
             with get_db_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                        SELECT id, username, email, full_name, created_at, last_login, is_active
+                        SELECT id, username, email, full_name, role, created_at, last_login, is_active
                         FROM users
                         WHERE id = %s
                     """, (user_id,))
@@ -206,3 +211,107 @@ class UserDB:
                     return cur.fetchone()[0]
         except Exception:
             return 0
+
+    @staticmethod
+    def get_all_users() -> list:
+        """Get all users (admin function)"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT id, username, email, full_name, role,
+                               created_at, last_login, is_active
+                        FROM users
+                        ORDER BY created_at DESC
+                    """)
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception:
+            return []
+
+    @staticmethod
+    def update_user_role(user_id: int, new_role: str) -> Dict:
+        """Update user role (admin function)"""
+        try:
+            if new_role not in ['user', 'admin', 'superadmin']:
+                return {'success': False, 'error': 'Invalid role'}
+
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users SET role = %s
+                        WHERE id = %s
+                    """, (new_role, user_id))
+
+                    if cur.rowcount > 0:
+                        return {'success': True}
+                    else:
+                        return {'success': False, 'error': 'User not found'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def toggle_user_status(user_id: int) -> Dict:
+        """Enable/disable user account (admin function)"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users SET is_active = NOT is_active
+                        WHERE id = %s
+                        RETURNING is_active
+                    """, (user_id,))
+
+                    result = cur.fetchone()
+                    if result:
+                        return {'success': True, 'is_active': result[0]}
+                    else:
+                        return {'success': False, 'error': 'User not found'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def delete_user(user_id: int) -> Dict:
+        """Delete user account (admin function)"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    # Check if user exists and is not superadmin
+                    cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+                    result = cur.fetchone()
+
+                    if not result:
+                        return {'success': False, 'error': 'User not found'}
+
+                    if result[0] == 'superadmin':
+                        return {'success': False, 'error': 'Cannot delete superadmin'}
+
+                    # Delete user (cascade will delete all related data)
+                    cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+
+                    return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def is_admin(user_id: int) -> bool:
+        """Check if user is admin or superadmin"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+                    result = cur.fetchone()
+                    return result and result[0] in ['admin', 'superadmin']
+        except Exception:
+            return False
+
+    @staticmethod
+    def is_superadmin(user_id: int) -> bool:
+        """Check if user is superadmin"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+                    result = cur.fetchone()
+                    return result and result[0] == 'superadmin'
+        except Exception:
+            return False

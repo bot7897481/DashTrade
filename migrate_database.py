@@ -17,8 +17,8 @@ def run_migration():
         conn.autocommit = False
         cur = conn.cursor()
 
-        # 1. Create users table
-        print("\n1. Creating users table...")
+        # 1. Create users table with role support
+        print("\n1. Creating users table with role support...")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -26,12 +26,30 @@ def run_migration():
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
                 full_name VARCHAR(255),
+                role VARCHAR(50) DEFAULT 'user' NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP,
                 is_active BOOLEAN DEFAULT TRUE
             )
         """)
-        print("   ✓ Users table created")
+
+        # Add role column if table exists but column doesn't
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns
+                WHERE table_name = 'users' AND column_name = 'role'
+            )
+        """)
+        has_role = cur.fetchone()[0]
+
+        if not has_role:
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN role VARCHAR(50) DEFAULT 'user' NOT NULL
+            """)
+            print("   ✓ Added role column to existing users table")
+        else:
+            print("   ✓ Users table created/verified with role support")
 
         # 2. Check if watchlist table exists and needs migration
         print("\n2. Migrating watchlist table...")
