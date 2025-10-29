@@ -20,7 +20,11 @@ from backtester import Backtester, BacktestResults
 from strategy_builder import CustomStrategy, StrategyCondition, StrategyTemplates, StrategyBuilder
 from alert_system import AlertMonitor
 from alpha_vantage_data import AlphaVantageProvider, fetch_alpha_vantage_data
+<<<<<<< HEAD
 from auth import UserDB
+=======
+from pine_script_monitor import PineScriptMonitor
+>>>>>>> claude/session-011CUZtoXZ57cycWC48mJvmE
 
 # Page configuration
 st.set_page_config(
@@ -383,6 +387,7 @@ def main():
             st.warning("⚡ **Alpha Vantage** - Real-time data, 25 API calls/day limit")
         
         st.markdown("---")
+<<<<<<< HEAD
 
         # Mode selection - add Admin Panel if user is admin
         modes = ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"]
@@ -392,6 +397,11 @@ def main():
             modes.append("👑 Admin Panel")
 
         mode = st.radio("Mode", modes, index=0)
+=======
+        
+        # Mode selection
+        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager", "Pine Script Signals"], index=0)
+>>>>>>> claude/session-011CUZtoXZ57cycWC48mJvmE
         
         st.markdown("---")
         
@@ -436,17 +446,73 @@ def main():
                 else:
                     st.info(f"{symbol} already in watchlist")
         
-        else:  # Portfolio Dashboard
+        elif mode == "Pine Script Signals":
+            st.title("🔌 Pine Script Monitor")
+
+            # Stock symbol input
+            st.subheader("📈 Stock Selection")
+            ps_symbol = st.text_input("Stock Symbol", value="AAPL", key="ps_symbol").upper()
+
+            # Timeframe selection
+            st.subheader("📅 Timeframe")
+            ps_interval = st.selectbox("Interval",
+                                      ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
+                                      index=4,
+                                      key="ps_interval")
+            ps_period = st.selectbox("Period",
+                                    ["1d", "5d", "1mo", "3mo", "6mo"],
+                                    index=1,
+                                    key="ps_period")
+
+            # Pine Script Parameters
+            st.subheader("🔧 Pine Script Settings")
+
+            with st.expander("QQE Parameters (Fast Signals)", expanded=True):
+                ps_rsi_period = st.slider("RSI Length", 5, 20, 8, key="ps_rsi")
+                ps_rsi_smooth = st.slider("RSI Smoothing", 2, 10, 3, key="ps_smooth")
+                ps_qqe_factor = st.slider("QQE Factor", 2.0, 5.0, 3.2, 0.1, key="ps_factor")
+
+            with st.expander("EMA Settings"):
+                ps_ema1 = st.number_input("EMA 1 (Red)", 5, 200, 20, key="ps_ema1")
+                ps_ema2 = st.number_input("EMA 2 (Orange)", 5, 200, 50, key="ps_ema2")
+                ps_ema3 = st.number_input("EMA 3 (Green)", 5, 200, 100, key="ps_ema3")
+                ps_ema4 = st.number_input("EMA 4 (White)", 5, 200, 200, key="ps_ema4")
+                ps_ema5 = st.number_input("EMA 5 (Yellow)", 5, 200, 9, key="ps_ema5")
+
+            with st.expander("MA Cloud"):
+                ps_ma_short = st.number_input("Short Period", 2, 50, 4, key="ps_ma_short")
+                ps_ma_long = st.number_input("Long Period", 5, 100, 20, key="ps_ma_long")
+
+            # Monitor controls
+            st.markdown("---")
+            st.subheader("🔔 Monitoring")
+
+            enable_monitoring = st.toggle("Enable Signal Monitoring", value=False, key="ps_monitoring")
+
+            if enable_monitoring:
+                st.success("✅ Monitoring Active")
+                notify_on_long = st.checkbox("Notify on LONG signals", value=True, key="ps_notify_long")
+                notify_on_short = st.checkbox("Notify on SHORT signals", value=True, key="ps_notify_short")
+            else:
+                st.info("⏸️ Monitoring Paused")
+
+            # Analyze button
+            st.markdown("---")
+            ps_analyze_button = st.button("🔄 Analyze Signals", type="primary", use_container_width=True, key="ps_analyze")
+
+            st.markdown("---")
+
+        else:  # Portfolio Dashboard and other modes
             st.title("💼 Portfolio Settings")
-            
+
             # Refresh interval
-            refresh_interval = st.selectbox("Auto-refresh", 
+            refresh_interval = st.selectbox("Auto-refresh",
                                           ["Off", "1 min", "5 min", "15 min"],
                                           index=0)
-            
+
             # Analysis depth
             quick_mode = st.checkbox("Quick Mode (faster, less detailed)", value=True)
-            
+
             st.markdown("---")
         
         # Watchlist Management
@@ -1836,6 +1902,7 @@ def main():
             else:
                 st.info("No alerts configured. Create your first alert using the form above.")
 
+<<<<<<< HEAD
     elif mode == "👑 Admin Panel":
         st.subheader("👑 Admin Panel")
         st.caption("Manage users and system settings")
@@ -1997,6 +2064,381 @@ def main():
                     st.success("✅ View all users")
                     st.success("✅ System statistics")
                     st.warning("⚠️ Limited user management")
+=======
+    elif mode == "Pine Script Signals":
+        st.subheader("🔌 Pine Script Signal Monitor")
+        st.caption("NovAlgo - Fast Signals | Real-time monitoring like TradingView")
+
+        # Initialize Pine Script Monitor in session state
+        if 'ps_monitor' not in st.session_state:
+            st.session_state.ps_monitor = None
+
+        if ps_analyze_button or st.session_state.ps_monitor is not None:
+            try:
+                # Create/update monitor with current parameters
+                source_key = "yahoo" if st.session_state.data_source == "Yahoo Finance" else "alpha_vantage"
+
+                # Initialize monitor
+                monitor = PineScriptMonitor(ps_symbol, ps_interval)
+
+                # Update parameters from UI
+                monitor.update_parameters({
+                    'rsi_period': ps_rsi_period,
+                    'rsi_smooth_period': ps_rsi_smooth,
+                    'qqe_factor': ps_qqe_factor,
+                    'ema1_period': ps_ema1,
+                    'ema2_period': ps_ema2,
+                    'ema3_period': ps_ema3,
+                    'ema4_period': ps_ema4,
+                    'ema5_period': ps_ema5,
+                    'ma_cloud_short': ps_ma_short,
+                    'ma_cloud_long': ps_ma_long,
+                })
+
+                # Set monitoring state
+                if enable_monitoring:
+                    monitor.enable_monitoring()
+                else:
+                    monitor.disable_monitoring()
+
+                st.session_state.ps_monitor = monitor
+
+                # Fetch and analyze data
+                with st.spinner(f"📊 Fetching data for {ps_symbol}..."):
+                    monitor.fetch_data(period=ps_period)
+                    monitor.run_complete_analysis()
+
+                # Display current status
+                st.markdown("---")
+                st.subheader(f"📈 {ps_symbol} - Current Status")
+
+                status = monitor.get_current_status()
+
+                # Status metrics
+                col1, col2, col3, col4, col5 = st.columns(5)
+
+                with col1:
+                    signal_color = "🟢" if status['status'] == 'LONG' else "🔴" if status['status'] == 'SHORT' else "⚪"
+                    st.metric("Signal", f"{signal_color} {status['status']}")
+
+                with col2:
+                    st.metric("Price", f"${status['price']:.2f}")
+
+                with col3:
+                    st.metric("RSI", f"{status['rsi']:.2f}")
+
+                with col4:
+                    trend_emoji = "📈" if status['trend'] == 'bullish' else "📉"
+                    st.metric("Trend", f"{trend_emoji} {status['trend'].title()}")
+
+                with col5:
+                    ema_emoji = "✅" if status['ema_alignment'] == 'bullish' else "❌" if status['ema_alignment'] == 'bearish' else "➖"
+                    st.metric("EMA Align", f"{ema_emoji} {status['ema_alignment'].title()}")
+
+                # Monitoring status
+                if monitor.is_monitoring():
+                    st.success("✅ **Monitoring Active** - You will be notified of new signals")
+                else:
+                    st.info("⏸️ **Monitoring Paused** - Enable monitoring to get notifications")
+
+                # Signal History
+                st.markdown("---")
+                st.subheader("📊 Signal Analytics Dashboard")
+
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    lookback_hours = st.slider("Lookback Period (hours)", 1, 720, 24, key="ps_lookback")
+
+                with col2:
+                    if st.button("🔄 Refresh Signals", key="ps_refresh"):
+                        st.rerun()
+
+                # Get detailed statistics
+                stats = monitor.get_signal_statistics(lookback_hours=lookback_hours)
+                signals = stats['long_signals'] + stats['short_signals']
+                signals.sort(key=lambda x: x['timestamp'], reverse=True)
+
+                # Display statistics overview
+                st.markdown("### 📈 Signal Statistics Summary")
+                col1, col2, col3, col4, col5 = st.columns(5)
+
+                with col1:
+                    st.metric("Total Signals", stats['total_signals'])
+
+                with col2:
+                    st.metric("🟢 LONG Signals", stats['long_count'],
+                             delta=f"{(stats['long_count']/stats['total_signals']*100):.1f}%" if stats['total_signals'] > 0 else "0%")
+
+                with col3:
+                    st.metric("🔴 SHORT Signals", stats['short_count'],
+                             delta=f"{(stats['short_count']/stats['total_signals']*100):.1f}%" if stats['total_signals'] > 0 else "0%")
+
+                with col4:
+                    avg_vol = (stats['avg_long_volume'] + stats['avg_short_volume']) / 2 if stats['total_signals'] > 0 else 0
+                    st.metric("Avg Volume", f"{avg_vol:,.0f}")
+
+                with col5:
+                    if stats['period_start'] and stats['period_end']:
+                        period_str = f"{stats['period_start'].strftime('%m/%d')} - {stats['period_end'].strftime('%m/%d')}"
+                    else:
+                        period_str = "No data"
+                    st.metric("Period", period_str)
+
+                if signals:
+                    st.success(f"Found {len(signals)} signal(s) in the last {lookback_hours} hours")
+
+                    # Tabs for different views
+                    tab1, tab2, tab3 = st.tabs(["📋 All Signals", "🟢 LONG Signals", "🔴 SHORT Signals"])
+
+                    with tab1:
+                        # Display all signals in a detailed table
+                        signal_data = []
+                        for sig in signals:
+                            signal_data.append({
+                                'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                                'Type': sig['type'],
+                                'Price': f"${sig['price']:.2f}",
+                                'Volume': f"{sig['volume']:,.0f}",
+                                'RSI': f"{sig['rsi']:.2f}",
+                                'Trend': sig['trend'].title(),
+                                'Open': f"${sig['open']:.2f}",
+                                'High': f"${sig['high']:.2f}",
+                                'Low': f"${sig['low']:.2f}",
+                                'Action': '🟢 BUY' if sig['type'] == 'LONG' else '🔴 SELL'
+                            })
+
+                        signal_df = pd.DataFrame(signal_data)
+                        st.dataframe(signal_df, use_container_width=True, hide_index=True)
+
+                    with tab2:
+                        # LONG signals only
+                        if stats['long_count'] > 0:
+                            st.info(f"**Total LONG Signals:** {stats['long_count']} | **Avg Volume:** {stats['avg_long_volume']:,.0f}")
+
+                            long_data = []
+                            for sig in stats['long_signals']:
+                                long_data.append({
+                                    'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                                    'Price': f"${sig['price']:.2f}",
+                                    'Volume': f"{sig['volume']:,.0f}",
+                                    'RSI': f"{sig['rsi']:.2f}",
+                                    'Trend': sig['trend'].title(),
+                                    'OHLC': f"O:${sig['open']:.2f} H:${sig['high']:.2f} L:${sig['low']:.2f}"
+                                })
+
+                            long_df = pd.DataFrame(long_data)
+                            st.dataframe(long_df, use_container_width=True, hide_index=True)
+                        else:
+                            st.warning("No LONG signals in this period")
+
+                    with tab3:
+                        # SHORT signals only
+                        if stats['short_count'] > 0:
+                            st.info(f"**Total SHORT Signals:** {stats['short_count']} | **Avg Volume:** {stats['avg_short_volume']:,.0f}")
+
+                            short_data = []
+                            for sig in stats['short_signals']:
+                                short_data.append({
+                                    'Time': sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                                    'Price': f"${sig['price']:.2f}",
+                                    'Volume': f"{sig['volume']:,.0f}",
+                                    'RSI': f"{sig['rsi']:.2f}",
+                                    'Trend': sig['trend'].title(),
+                                    'OHLC': f"O:${sig['open']:.2f} H:${sig['high']:.2f} L:${sig['low']:.2f}"
+                                })
+
+                            short_df = pd.DataFrame(short_data)
+                            st.dataframe(short_df, use_container_width=True, hide_index=True)
+                        else:
+                            st.warning("No SHORT signals in this period")
+
+                    # Show webhook messages for the most recent signal
+                    st.markdown("---")
+                    st.subheader("📡 Webhook Message (TradingView Format)")
+
+                    with st.expander("View Latest Webhook JSON", expanded=False):
+                        latest_signal = signals[0]
+                        st.code(latest_signal['webhook_message'], language='json')
+                        st.caption("Use this format to integrate with trading bots or notification systems")
+
+                    # Detailed signal analysis
+                    st.markdown("---")
+                    st.subheader("📈 Latest Signal Details")
+
+                    latest = signals[0]
+
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.markdown(f"""
+                        **Signal Type:** {latest['type']}
+                        **Time:** {latest['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}
+                        **Price:** ${latest['price']:.2f}
+                        **Volume:** {latest['volume']:,.0f}
+                        """)
+
+                    with col2:
+                        st.markdown(f"""
+                        **RSI:** {latest['rsi']:.2f}
+                        **Trend:** {latest['trend'].title()}
+                        **Action:** {'BUY' if latest['type'] == 'LONG' else 'SELL'}
+                        """)
+
+                    with col3:
+                        st.markdown(f"""
+                        **OHLC Data:**
+                        Open: ${latest['open']:.2f}
+                        High: ${latest['high']:.2f}
+                        Low: ${latest['low']:.2f}
+                        Close: ${latest['price']:.2f}
+                        """)
+
+                    with col4:
+                        # Calculate time since signal
+                        if latest['timestamp'].tzinfo is not None:
+                            time_since = datetime.now(latest['timestamp'].tzinfo) - latest['timestamp']
+                        else:
+                            time_since = datetime.now() - latest['timestamp']
+
+                        hours = int(time_since.total_seconds() / 3600)
+                        minutes = int((time_since.total_seconds() % 3600) / 60)
+
+                        st.markdown(f"""
+                        **Time Since Signal:**
+                        {hours}h {minutes}m ago
+                        """)
+
+                        if latest['type'] == 'LONG':
+                            st.success("🟢 **LONG Signal** - Consider buying")
+                        else:
+                            st.error("🔴 **SHORT Signal** - Consider selling")
+
+                else:
+                    st.warning(f"No signals detected in the last {lookback_hours} hours")
+                    st.info("Try adjusting the QQE parameters or increasing the lookback period")
+
+                # Technical Indicators Chart
+                st.markdown("---")
+                st.subheader("📊 Technical Analysis Chart")
+
+                # Create chart using the existing function
+                df_chart = monitor.df.copy()
+                df_chart.columns = [col.lower() for col in df_chart.columns]
+
+                # Rename columns to match the existing chart function
+                if 'qqe_long' in df_chart.columns:
+                    df_chart['qqe_long_signal'] = df_chart['qqe_long']
+                if 'qqe_short' in df_chart.columns:
+                    df_chart['qqe_short_signal'] = df_chart['qqe_short']
+
+                fig = create_candlestick_chart_with_signals(df_chart, ps_symbol)
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Indicator Values Table
+                st.markdown("---")
+                st.subheader("📊 Current Indicator Values")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**EMAs:**")
+                    ema_df = pd.DataFrame({
+                        'Indicator': ['EMA 5', 'EMA 20', 'EMA 50', 'EMA 100', 'EMA 200'],
+                        'Value': [
+                            f"${status['indicators']['ema5']:.2f}",
+                            f"${status['indicators']['ema20']:.2f}",
+                            f"${status['indicators']['ema50']:.2f}",
+                            f"${status['indicators']['ema100']:.2f}",
+                            f"${status['indicators']['ema200']:.2f}"
+                        ]
+                    })
+                    st.dataframe(ema_df, use_container_width=True, hide_index=True)
+
+                with col2:
+                    st.markdown("**Other Indicators:**")
+                    other_df = pd.DataFrame({
+                        'Indicator': ['VWAP', 'MA Cloud Short', 'MA Cloud Long', 'Current Price'],
+                        'Value': [
+                            f"${status['indicators']['vwap']:.2f}",
+                            f"${status['indicators']['ma_cloud_short']:.2f}",
+                            f"${status['indicators']['ma_cloud_long']:.2f}",
+                            f"${status['price']:.2f}"
+                        ]
+                    })
+                    st.dataframe(other_df, use_container_width=True, hide_index=True)
+
+                # Notification Settings
+                if enable_monitoring:
+                    st.markdown("---")
+                    st.subheader("🔔 Notification Settings")
+
+                    st.info("""
+                    **Monitoring Enabled!**
+
+                    When new signals are detected, they will appear in the signal history above.
+                    Refresh this page or enable auto-refresh to see new signals.
+
+                    **Note:** For external notifications (email, SMS, Telegram), configure webhooks
+                    using the JSON format shown above with your automation platform.
+                    """)
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        if notify_on_long:
+                            st.success("✅ LONG signal notifications enabled")
+                        else:
+                            st.info("⏸️ LONG signal notifications disabled")
+
+                    with col2:
+                        if notify_on_short:
+                            st.success("✅ SHORT signal notifications enabled")
+                        else:
+                            st.info("⏸️ SHORT signal notifications disabled")
+
+                # Save to watchlist option
+                st.markdown("---")
+                if st.button("➕ Add to Watchlist", key="ps_add_watchlist"):
+                    stock_name = get_stock_info(ps_symbol, source_key)
+                    if WatchlistDB.add_stock(ps_symbol, stock_name):
+                        st.success(f"Added {ps_symbol} to watchlist!")
+                    else:
+                        st.info(f"{ps_symbol} already in watchlist")
+
+            except Exception as e:
+                st.error(f"Error analyzing {ps_symbol}: {str(e)}")
+                st.exception(e)
+
+        else:
+            # Initial state - show instructions
+            st.info("""
+            ### 📘 How to Use Pine Script Signal Monitor
+
+            This tool implements the **NovAlgo - Fast Signals** Pine Script indicator from TradingView.
+
+            **Features:**
+            - ✅ QQE (Quantified Qualitative Estimation) signals
+            - ✅ Multiple EMAs (9, 20, 50, 100, 200)
+            - ✅ MA Cloud trend visualization
+            - ✅ VWAP with standard deviation bands
+            - ✅ Real-time signal monitoring
+            - ✅ Webhook-compatible JSON output
+
+            **Getting Started:**
+            1. Enter a stock symbol (e.g., AAPL, TSLA, SPY)
+            2. Adjust the timeframe and interval
+            3. Configure Pine Script parameters (QQE, EMAs, MA Cloud)
+            4. Click "Analyze Signals" to start
+            5. Enable monitoring to track new signals
+
+            **Signal Types:**
+            - 🟢 **LONG** - Buy signal when RSI crosses above QQE lower band
+            - 🔴 **SHORT** - Sell signal when RSI crosses below QQE upper band
+
+            Click **"🔄 Analyze Signals"** in the sidebar to begin!
+            """)
+>>>>>>> claude/session-011CUZtoXZ57cycWC48mJvmE
 
 if __name__ == "__main__":
     # Initialize database tables on first run

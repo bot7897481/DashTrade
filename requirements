@@ -1,0 +1,7 @@
+streamlit
+bcrypt
+psycopg2-binary
+pandas
+yfinance
+plotly
+streamlit-authenticator

@@ -1,8 +1,7 @@
-modules = ["python-3.11", "postgresql-16"]
+modules = ["python-3.11"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -37,13 +36,9 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 33221
+localPort = 36543
 externalPort = 3000
 
 [[ports]]
-localPort = 37135
+localPort = 37889
 externalPort = 3002
-
-[[ports]]
-localPort = 42293
-externalPort = 3001
