@@ -386,16 +386,13 @@ def main():
         st.markdown("---")
 
         # Mode selection - add Admin Panel if user is admin
-        modes = ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"]
+        modes = ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager", "🔌 Pine Script Signals", "📊 Interactive Charts"]
 
         # Check if user is admin
         if st.session_state['user'].get('role') in ['admin', 'superadmin']:
             modes.append("👑 Admin Panel")
 
         mode = st.radio("Mode", modes, index=0)
-        
-        # Mode selection
-        mode = st.radio("Mode", ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager", "Pine Script Signals"], index=0)
         
         st.markdown("---")
         
@@ -440,7 +437,7 @@ def main():
                 else:
                     st.info(f"{symbol} already in watchlist")
         
-        elif mode == "Pine Script Signals":
+        elif mode == "🔌 Pine Script Signals":
             st.title("🔌 Pine Script Monitor")
 
             # Stock symbol input
@@ -539,6 +536,44 @@ def main():
             # Analyze button
             st.markdown("---")
             ps_analyze_button = st.button("🔄 Analyze Signals", type="primary", use_container_width=True, key="ps_analyze")
+
+            st.markdown("---")
+
+        elif mode == "📊 Interactive Charts":
+            st.title("📊 Interactive Charts")
+
+            # Stock symbol input
+            st.subheader("📈 Stock Selection")
+            ic_symbol = st.text_input("Stock Symbol", value="AAPL", key="ic_symbol").upper()
+
+            # Timeframe selection
+            st.subheader("📅 Timeframe")
+            ic_period = st.selectbox("Period",
+                                    ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"],
+                                    index=5, key="ic_period")
+            ic_interval = st.selectbox("Interval",
+                                      ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
+                                      index=6, key="ic_interval")
+
+            # Chart settings
+            st.subheader("🎨 Chart Settings")
+            with st.expander("Display Options", expanded=True):
+                ic_show_volume = st.checkbox("Show Volume", value=True, key="ic_volume")
+                ic_show_emas = st.checkbox("Show EMAs", value=True, key="ic_emas")
+                ic_show_vwap = st.checkbox("Show VWAP", value=True, key="ic_vwap")
+                ic_show_ma_cloud = st.checkbox("Show MA Cloud", value=True, key="ic_cloud")
+                ic_show_signals = st.checkbox("Show Pine Script Signals", value=True, key="ic_signals")
+                ic_chart_height = st.slider("Chart Height (px)", 600, 1200, 800, 50, key="ic_height")
+
+            # Pine Script parameters (if signals enabled)
+            if ic_show_signals:
+                with st.expander("🔌 Pine Script Parameters"):
+                    ic_rsi_period = st.slider("RSI Length", 5, 20, 8, key="ic_rsi")
+                    ic_rsi_smooth = st.slider("RSI Smoothing", 2, 10, 3, key="ic_smooth")
+                    ic_qqe_factor = st.slider("QQE Factor", 2.0, 5.0, 3.2, 0.1, key="ic_qqe")
+
+            # Analyze button
+            ic_analyze_button = st.button("📊 Generate Chart", key="ic_analyze", use_container_width=True, type="primary")
 
             st.markdown("---")
 
@@ -2103,7 +2138,7 @@ def main():
                     st.success("✅ View all users")
                     st.success("✅ System statistics")
                     st.warning("⚠️ Limited user management")
-    elif mode == "Pine Script Signals":
+    elif mode == "🔌 Pine Script Signals":
         st.subheader("🔌 Pine Script Signal Monitor")
         st.caption("NovAlgo - Fast Signals | Real-time monitoring like TradingView")
 
@@ -2266,6 +2301,7 @@ def main():
 
                     with tab1:
                         # Display all signals in a detailed table
+                        import pandas as pd_local
                         signal_data = []
                         for sig in signals:
                             signal_data.append({
@@ -2281,12 +2317,13 @@ def main():
                                 'Action': '🟢 BUY' if sig['type'] == 'LONG' else '🔴 SELL'
                             })
 
-                        signal_df = pd.DataFrame(signal_data)
+                        signal_df = pd_local.DataFrame(signal_data)
                         st.dataframe(signal_df, use_container_width=True, hide_index=True)
 
                     with tab2:
                         # LONG signals only
                         if stats['long_count'] > 0:
+                            import pandas as pd_local
                             st.info(f"**Total LONG Signals:** {stats['long_count']} | **Avg Volume:** {stats['avg_long_volume']:,.0f}")
 
                             long_data = []
@@ -2300,7 +2337,7 @@ def main():
                                     'OHLC': f"O:${sig['open']:.2f} H:${sig['high']:.2f} L:${sig['low']:.2f}"
                                 })
 
-                            long_df = pd.DataFrame(long_data)
+                            long_df = pd_local.DataFrame(long_data)
                             st.dataframe(long_df, use_container_width=True, hide_index=True)
                         else:
                             st.warning("No LONG signals in this period")
@@ -2308,6 +2345,7 @@ def main():
                     with tab3:
                         # SHORT signals only
                         if stats['short_count'] > 0:
+                            import pandas as pd_local
                             st.info(f"**Total SHORT Signals:** {stats['short_count']} | **Avg Volume:** {stats['avg_short_volume']:,.0f}")
 
                             short_data = []
@@ -2321,7 +2359,7 @@ def main():
                                     'OHLC': f"O:${sig['open']:.2f} H:${sig['high']:.2f} L:${sig['low']:.2f}"
                                 })
 
-                            short_df = pd.DataFrame(short_data)
+                            short_df = pd_local.DataFrame(short_data)
                             st.dataframe(short_df, use_container_width=True, hide_index=True)
                         else:
                             st.warning("No SHORT signals in this period")
@@ -2415,8 +2453,9 @@ def main():
                 col1, col2 = st.columns(2)
 
                 with col1:
+                    import pandas as pd_local
                     st.markdown("**EMAs:**")
-                    ema_df = pd.DataFrame({
+                    ema_df = pd_local.DataFrame({
                         'Indicator': ['EMA 5', 'EMA 20', 'EMA 50', 'EMA 100', 'EMA 200'],
                         'Value': [
                             f"${status['indicators']['ema5']:.2f}",
@@ -2429,8 +2468,9 @@ def main():
                     st.dataframe(ema_df, use_container_width=True, hide_index=True)
 
                 with col2:
+                    import pandas as pd_local
                     st.markdown("**Other Indicators:**")
-                    other_df = pd.DataFrame({
+                    other_df = pd_local.DataFrame({
                         'Indicator': ['VWAP', 'MA Cloud Short', 'MA Cloud Long', 'Current Price'],
                         'Value': [
                             f"${status['indicators']['vwap']:.2f}",
@@ -2510,6 +2550,165 @@ def main():
             - 🔴 **SHORT** - Sell signal when RSI crosses below QQE upper band
 
             Click **"🔄 Analyze Signals"** in the sidebar to begin!
+            """)
+
+    elif mode == "📊 Interactive Charts":
+        st.title("📊 TradingView-Style Interactive Charts")
+        st.caption("Advanced charting with zoom, pan, and signal markers")
+
+        if ic_analyze_button:
+            try:
+                from interactive_chart import InteractiveChart
+
+                # Fetch data
+                with st.spinner(f"📊 Fetching data for {ic_symbol}..."):
+                    ticker = yf.Ticker(ic_symbol)
+                    df = ticker.history(period=ic_period, interval=ic_interval)
+
+                if df.empty:
+                    st.error(f"No data found for {ic_symbol}")
+                else:
+                    # Prepare signals if enabled
+                    signals = None
+                    if ic_show_signals:
+                        with st.spinner("🔌 Detecting Pine Script signals..."):
+                            monitor = PineScriptMonitor(ic_symbol, ic_interval)
+                            monitor.update_parameters({
+                                'rsi_period': ic_rsi_period,
+                                'rsi_smooth_period': ic_rsi_smooth,
+                                'qqe_factor': ic_qqe_factor,
+                            })
+                            monitor.fetch_data(period=ic_period)
+                            monitor.run_complete_analysis()
+
+                            # Get all signals
+                            stats = monitor.get_signal_statistics(lookback_hours=720)
+                            signals = {
+                                'long_signals': stats['long_signals'],
+                                'short_signals': stats['short_signals']
+                            }
+
+                            st.success(f"Found {len(stats['long_signals'])} LONG and {len(stats['short_signals'])} SHORT signals")
+
+                    # Calculate technical indicators for chart
+                    with st.spinner("📈 Calculating technical indicators..."):
+                        # EMAs
+                        if ic_show_emas:
+                            df['ema5'] = df['Close'].ewm(span=9, adjust=False).mean()
+                            df['ema1'] = df['Close'].ewm(span=20, adjust=False).mean()
+                            df['ema2'] = df['Close'].ewm(span=50, adjust=False).mean()
+                            df['ema3'] = df['Close'].ewm(span=100, adjust=False).mean()
+                            df['ema4'] = df['Close'].ewm(span=200, adjust=False).mean()
+
+                        # VWAP
+                        if ic_show_vwap:
+                            df['vwap'] = (df['Volume'] * (df['High'] + df['Low'] + df['Close']) / 3).cumsum() / df['Volume'].cumsum()
+
+                            # VWAP bands
+                            typical_price = (df['High'] + df['Low'] + df['Close']) / 3
+                            squared_diff = (typical_price - df['vwap']) ** 2
+                            variance = (df['Volume'] * squared_diff).cumsum() / df['Volume'].cumsum()
+                            std_dev = variance ** 0.5
+
+                            df['vwap_upper1'] = df['vwap'] + std_dev
+                            df['vwap_lower1'] = df['vwap'] - std_dev
+                            df['vwap_upper2'] = df['vwap'] + 2 * std_dev
+                            df['vwap_lower2'] = df['vwap'] - 2 * std_dev
+                            df['vwap_upper3'] = df['vwap'] + 3 * std_dev
+                            df['vwap_lower3'] = df['vwap'] - 3 * std_dev
+
+                        # MA Cloud
+                        if ic_show_ma_cloud:
+                            df['ma_cloud_short'] = df['Close'].rolling(window=9).mean()
+                            df['ma_cloud_long'] = df['Close'].rolling(window=21).mean()
+
+                    # Create chart
+                    st.markdown("---")
+                    chart = InteractiveChart(df, ic_symbol, signals)
+                    fig = chart.create_advanced_chart(
+                        show_volume=ic_show_volume,
+                        show_emas=ic_show_emas,
+                        show_vwap=ic_show_vwap,
+                        show_signals=ic_show_signals,
+                        show_ma_cloud=ic_show_ma_cloud,
+                        chart_height=ic_chart_height
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # Chart information
+                    st.markdown("---")
+                    st.subheader("📋 Chart Information")
+
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Symbol", ic_symbol)
+
+                    with col2:
+                        st.metric("Period", ic_period)
+
+                    with col3:
+                        st.metric("Interval", ic_interval)
+
+                    with col4:
+                        st.metric("Data Points", len(df))
+
+                    # Chart tips
+                    with st.expander("💡 Chart Tips", expanded=False):
+                        st.markdown("""
+                        ### Interactive Features:
+
+                        **Zoom & Pan:**
+                        - 🔍 Click and drag to zoom into a specific area
+                        - 👆 Double-click to reset zoom
+                        - 🖱️ Use scroll wheel to zoom in/out
+
+                        **Range Selector:**
+                        - Use the buttons at the top (1h, 4h, 1d, 1w, 1m, All) to quickly change timeframe
+
+                        **Hover Information:**
+                        - Hover over the chart to see detailed information
+                        - OHLC data, volume, and indicator values appear on hover
+
+                        **Signal Markers:**
+                        - 🟢 Green triangle = LONG/BUY signal
+                        - 🔴 Red triangle = SHORT/SELL signal
+                        - Hover over signals to see details (price, volume, RSI, trend)
+
+                        **Legend:**
+                        - Click legend items to show/hide indicators
+                        - Double-click to isolate a single indicator
+                        """)
+
+            except Exception as e:
+                st.error(f"Error generating chart for {ic_symbol}: {str(e)}")
+                st.exception(e)
+
+        else:
+            # Initial state - show instructions
+            st.info("""
+            ### 📘 TradingView-Style Interactive Charts
+
+            Create professional, interactive charts with advanced technical indicators and Pine Script signals.
+
+            **Features:**
+            - 📊 **Candlestick Charts** - Professional dark theme
+            - 📈 **Multiple EMAs** - 9, 20, 50, 100, 200 period EMAs
+            - 💧 **VWAP with Bands** - Volume-weighted average price with standard deviation bands
+            - ☁️ **MA Cloud** - Visual trend indication with moving average cloud
+            - 🔌 **Pine Script Signals** - LONG/SHORT signals from NovAlgo Fast Signals
+            - 📊 **Volume Subplot** - Color-coded volume bars
+            - 🔍 **Zoom & Pan** - Full interactivity with range selector
+
+            **Getting Started:**
+            1. Enter a stock symbol
+            2. Select your preferred timeframe
+            3. Choose which indicators to display
+            4. (Optional) Enable Pine Script signals
+            5. Click "📊 Generate Chart"
+
+            Click **"📊 Generate Chart"** in the sidebar to begin!
             """)
 
 if __name__ == "__main__":
