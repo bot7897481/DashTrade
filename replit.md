@@ -4,7 +4,7 @@
 Comprehensive stock trading signal application built with Streamlit and Python. This dashboard transforms your PinScript technical analysis into an advanced Python application with 100% technical analysis coverage.
 
 ## Last Updated
-October 26, 2025 - Added Alpha Vantage integration with news sentiment analysis
+October 29, 2025 - Added complete authentication system with user management and role-based access control
 
 ## Features Implemented
 
@@ -171,7 +171,43 @@ Port: 5000 (configured for Streamlit)
 - Interactive Plotly charts
 - Multi-tab interface for organized analysis
 
-## Completed Enhancements (NEW - October 26, 2025)
+## Authentication System ✅ (NEW - October 29, 2025)
+
+### User Authentication & Authorization
+The application now features a complete authentication system with role-based access control:
+
+#### Features
+- **Secure Login/Registration**: Username and password authentication with bcrypt hashing
+- **Role-Based Access Control**: Three user roles (user, admin, superadmin)
+- **User Isolation**: Complete data separation - each user has their own watchlist, alerts, and preferences
+- **Session Management**: Secure session handling with logout functionality
+- **Admin Panel**: User management interface for superadmin users
+
+#### User Roles
+- **User**: Regular user with access to all trading features
+- **Admin**: Can view all users and system statistics
+- **Superadmin**: Full system access including user management (create, edit roles, delete users)
+
+#### Database Schema
+- `users` table with secure password storage
+- All tables (watchlist, alerts, preferences) linked to user_id
+- Foreign key constraints ensure data integrity
+- Indexes for optimal query performance
+
+#### Setup Instructions
+1. **First Time Setup**: Run `python migrate_database.py` to create authentication tables
+2. **Create Superadmin**: Run `python create_admin.py` to create your first superadmin account
+3. **Start App**: Launch the app and login with your credentials
+4. **Add Users**: Superadmins can manage users via the Admin Panel
+
+#### Security Features
+- ✅ Bcrypt password hashing with salt
+- ✅ No plain text password storage
+- ✅ Database-level user data isolation
+- ✅ Session state management
+- ✅ XSRF protection enabled
+
+## Completed Enhancements (October 26, 2025)
 All major requested features have been implemented:
 
 ### 11. **Portfolio Tracking & Watchlist** ✅
@@ -268,11 +304,14 @@ All major requested features have been implemented:
 - Professional dark theme
 
 ## Future Enhancements
-- Email/SMS notifications for triggered alerts
+- Email/SMS notifications for triggered alerts (with user preferences)
 - Advanced chart pattern recognition (Fibonacci retracements, harmonic patterns)
 - Machine learning-based signal predictions
 - Export functionality for strategies and backtest results
 - Mobile-optimized interface
+- Password reset functionality via email
+- Two-factor authentication (2FA)
+- API key management for external integrations
 
 ## Dependencies
 ```python
@@ -287,6 +326,8 @@ matplotlib
 requests
 psycopg2-binary
 sqlalchemy
+bcrypt
+streamlit-authenticator
 ```
 
 ## Known Issues
