@@ -288,6 +288,16 @@ def show_login_page():
                             st.rerun()
                         else:
                             st.error(result['error'])
+                            # Show resend verification option if needed
+                            if result.get('requires_verification'):
+                                st.warning("""
+                                **Email not verified yet?**
+
+                                In a production environment, you would receive a verification email.
+                                For this demo, new accounts are auto-verified during registration.
+
+                                If you registered before this feature was added, please contact an administrator.
+                                """)
 
         st.markdown("---")
         st.markdown("Don't have an account?")
@@ -324,10 +334,29 @@ def show_register_page():
                         result = UserDB.register_user(username, email, password, full_name)
 
                         if result['success']:
-                            st.success("Account created successfully! Please login.")
-                            st.session_state['show_register'] = False
-                            st.balloons()
-                            st.rerun()
+                            st.success("✅ Account created successfully!")
+                            st.info("""
+                            **📧 Email Verification Required**
+
+                            A verification link has been generated for your account.
+
+                            **For this demo, email verification is automatic.**
+                            In production, this link would be sent to your email.
+
+                            Your account will be automatically verified in a moment...
+                            """)
+
+                            # Auto-verify for demo purposes (in production, send email instead)
+                            if result.get('verification_token'):
+                                import time
+                                time.sleep(2)  # Simulate email delay
+                                verify_result = UserDB.verify_email_token(result['verification_token'])
+                                if verify_result['success']:
+                                    st.success("✅ Email verified! You can now login.")
+                                    st.balloons()
+                                    time.sleep(1)
+                                    st.session_state['show_register'] = False
+                                    st.rerun()
                         else:
                             st.error(result['error'])
 
@@ -2715,6 +2744,27 @@ if __name__ == "__main__":
     # Initialize database tables on first run
     try:
         UserDB.create_users_table()
+        WatchlistDB.create_table()
+        AlertsDB.create_table()
+        PreferencesDB.create_table()
+
+        # Verify all existing users (migration from old schema)
+        verify_result = UserDB.verify_all_existing_users()
+        if verify_result['success'] and verify_result['count'] > 0:
+            print(f"✅ Verified {verify_result['count']} existing users")
+
+        # Create superadmin if it doesn't exist
+        superadmin_result = UserDB.create_superadmin_if_not_exists()
+        if superadmin_result['success'] and 'password' in superadmin_result:
+            print(f"""
+            ⚠️  SUPERADMIN CREATED:
+            Username: {superadmin_result['username']}
+            Password: {superadmin_result['password']}
+            Email: {superadmin_result['email']}
+
+            PLEASE CHANGE THE PASSWORD AFTER FIRST LOGIN!
+            """)
+
     except Exception as e:
         st.error(f"Database initialization error: {e}")
 

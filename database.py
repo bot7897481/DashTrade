@@ -27,6 +27,28 @@ class WatchlistDB:
     """Database operations for watchlist management"""
 
     @staticmethod
+    def create_table():
+        """Create watchlist table if it doesn't exist"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS watchlist (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL,
+                            symbol VARCHAR(10) NOT NULL,
+                            name VARCHAR(255),
+                            notes TEXT,
+                            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(user_id, symbol)
+                        )
+                    """)
+                    return True
+        except Exception as e:
+            print(f"Error creating watchlist table: {e}")
+            return False
+
+    @staticmethod
     def get_all_stocks(user_id: int) -> List[Dict]:
         """Get all stocks in watchlist for a specific user"""
         with get_db_connection() as conn:
@@ -85,6 +107,31 @@ class WatchlistDB:
 
 class AlertsDB:
     """Database operations for alerts"""
+
+    @staticmethod
+    def create_table():
+        """Create alerts table if it doesn't exist"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS alerts (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL,
+                            symbol VARCHAR(10) NOT NULL,
+                            alert_type VARCHAR(50) NOT NULL,
+                            condition VARCHAR(50) NOT NULL,
+                            threshold DECIMAL(15, 2) NOT NULL,
+                            message TEXT,
+                            is_active BOOLEAN DEFAULT TRUE,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            triggered_at TIMESTAMP
+                        )
+                    """)
+                    return True
+        except Exception as e:
+            print(f"Error creating alerts table: {e}")
+            return False
 
     @staticmethod
     def get_active_alerts(user_id: int, symbol: Optional[str] = None) -> List[Dict]:
@@ -151,6 +198,27 @@ class AlertsDB:
 
 class PreferencesDB:
     """Database operations for user preferences"""
+
+    @staticmethod
+    def create_table():
+        """Create user_preferences table if it doesn't exist"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS user_preferences (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL,
+                            key VARCHAR(100) NOT NULL,
+                            value TEXT,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(user_id, key)
+                        )
+                    """)
+                    return True
+        except Exception as e:
+            print(f"Error creating user_preferences table: {e}")
+            return False
 
     @staticmethod
     def get_preference(user_id: int, key: str) -> Optional[str]:
