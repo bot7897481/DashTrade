@@ -18,10 +18,14 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Server"
+args = "Streamlit"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Webhook Server"
 
 [[workflows.workflow]]
-name = "Server"
+name = "Streamlit"
 author = "agent"
 
 [[workflows.workflow.tasks]]
@@ -32,9 +36,25 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
+[[workflows.workflow]]
+name = "Webhook Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python webhook_server.py"
+waitForPort = 8080
+
+[workflows.workflow.metadata]
+outputType = "output"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
 
 [[ports]]
 localPort = 33221
