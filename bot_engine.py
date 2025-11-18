@@ -2,7 +2,9 @@
 Trading Bot Engine - Multi-user trading execution with risk management
 Adapted from standalone bot, now supports per-user Alpaca accounts
 """
-import alpaca_trade_api as tradeapi
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
 import logging
 from datetime import datetime
 import time
@@ -39,9 +41,9 @@ class TradingEngine:
         self.secret_key = keys['secret_key']
         self.mode = keys['mode']
 
-        # Initialize Alpaca API
-        base_url = "https://paper-api.alpaca.markets" if self.mode == 'paper' else "https://api.alpaca.markets"
-        self.api = tradeapi.REST(self.api_key, self.secret_key, base_url, api_version='v2')
+        # Initialize Alpaca API (new alpaca-py library)
+        paper = (self.mode == 'paper')
+        self.api = TradingClient(self.api_key, self.secret_key, paper=paper)
 
         logger.info(f"✅ Trading engine initialized for user {user_id} ({self.mode} mode)")
 
@@ -238,14 +240,14 @@ class TradingEngine:
             # Update status: ORDER SUBMITTED
             BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal='BUY')
 
-            # Submit order to Alpaca
-            order = self.api.submit_order(
+            # Submit order to Alpaca (new alpaca-py API)
+            order_request = MarketOrderRequest(
                 symbol=symbol,
                 notional=position_size,
-                side='buy',
-                type='market',
-                time_in_force='day'
+                side=OrderSide.BUY,
+                time_in_force=TimeInForce.DAY
             )
+            order = self.api.submit_order(order_request)
 
             order_id = order.id
             logger.info(f"✅ ORDER SUBMITTED: {order_id}")
@@ -307,14 +309,14 @@ class TradingEngine:
             # Update status: ORDER SUBMITTED
             BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal='SELL')
 
-            # Submit order to Alpaca
-            order = self.api.submit_order(
+            # Submit order to Alpaca (new alpaca-py API)
+            order_request = MarketOrderRequest(
                 symbol=symbol,
                 notional=position_size,
-                side='sell',
-                type='market',
-                time_in_force='day'
+                side=OrderSide.SELL,
+                time_in_force=TimeInForce.DAY
             )
+            order = self.api.submit_order(order_request)
 
             order_id = order.id
             logger.info(f"✅ ORDER SUBMITTED: {order_id}")
