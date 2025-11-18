@@ -19,8 +19,9 @@ if 'authenticated' not in st.session_state or not st.session_state.authenticated
     st.error("Please log in to access the Trading Bot")
     st.stop()
 
-user_id = st.session_state.user_id
-username = st.session_state.username
+# Get user info from session state (stored in 'user' dict)
+user_id = st.session_state['user']['id']
+username = st.session_state['user']['username']
 
 # ============================================================================
 # MAIN PAGE
