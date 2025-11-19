@@ -1,0 +1,49 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches:
+      - claude/learn-replit-01VJWXqcpk6TTxoc63oYcQHd
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.AZURE_SSH_KEY }}
+          SSH_HOST: ${{ secrets.AZURE_VM_IP }}
+          SSH_USER: ${{ secrets.AZURE_SSH_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
+
+      - name: 🚀 Deploy to Azure VM
+        env:
+          SSH_HOST: ${{ secrets.AZURE_VM_IP }}
+          SSH_USER: ${{ secrets.AZURE_SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key $SSH_USER@$SSH_HOST "bash /opt/dashtrade/deploy.sh"
+
+      - name: ✅ Verify Deployment
+        env:
+          SSH_HOST: ${{ secrets.AZURE_VM_IP }}
+          SSH_USER: ${{ secrets.AZURE_SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key $SSH_USER@$SSH_HOST "
+            sudo systemctl status dashtrade-streamlit --no-pager
+            sudo systemctl status dashtrade-webhook --no-pager
+          "
+
+      - name: 🎉 Deployment Complete
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Access your app at: http://${{ secrets.AZURE_VM_IP }}"

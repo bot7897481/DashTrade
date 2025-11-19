@@ -1,0 +1,36 @@
+# DashTrade Dependencies
+# Generated from pyproject.toml
+
+# Core Trading Library
+alpaca-py>=0.43.0
+
+# Authentication & Security
+bcrypt>=4.0.1
+cryptography>=41.0.0
+
+# Web Framework
+flask>=3.0.0
+streamlit>=1.50.0
+streamlit-authenticator>=0.3.3
+
+# Data Processing
+pandas>=2.3.3
+numpy>=2.3.4
+scipy>=1.16.2
+
+# Visualization
+matplotlib>=3.10.7
+plotly>=6.3.1
+
+# Database
+psycopg2-binary>=2.9.11
+sqlalchemy>=2.0.44
+
+# Market Data
+yfinance>=0.2.66
+
+# Technical Analysis
+ta>=0.11.0
+
+# Utilities
+requests>=2.32.5
