@@ -130,6 +130,9 @@ class Backtester:
                  df: pd.DataFrame,
                  initial_capital: float = 10000.0,
                  position_size_pct: float = 10.0,
+                 strategy_mode: str = 'long_only',
+                 use_trend_filter: bool = False,
+                 trend_ema_period: int = 200,
                  use_stop_loss: bool = True,
                  stop_loss_pct: float = 2.0,
                  use_take_profit: bool = False,
@@ -141,6 +144,9 @@ class Backtester:
             df: DataFrame with OHLCV data and signals
             initial_capital: Starting capital
             position_size_pct: Percentage of capital per trade
+            strategy_mode: 'long_only', 'long_short', or 'short_only'
+            use_trend_filter: Filter signals by trend (200 EMA)
+            trend_ema_period: EMA period for trend filter (default 200)
             use_stop_loss: Whether to use stop losses
             stop_loss_pct: Stop loss percentage
             use_take_profit: Whether to use take profit
@@ -149,6 +155,9 @@ class Backtester:
         self.df = df.copy()
         self.initial_capital = initial_capital
         self.position_size_pct = position_size_pct
+        self.strategy_mode = strategy_mode
+        self.use_trend_filter = use_trend_filter
+        self.trend_ema_period = trend_ema_period
         self.use_stop_loss = use_stop_loss
         self.stop_loss_pct = stop_loss_pct
         self.use_take_profit = use_take_profit
@@ -159,6 +168,9 @@ class Backtester:
         self.trades: List[Trade] = []
         self.open_trades: List[Trade] = []
         self.equity_curve: List[float] = []
+
+        if self.use_trend_filter:
+            self.df['ema_trend'] = self.df['close'].ewm(span=self.trend_ema_period, adjust=False).mean()
     
     def calculate_position_size(self, price: float) -> int:
         """Calculate position size in shares"""
@@ -196,6 +208,15 @@ class Backtester:
         """Enter a short position"""
         shares = self.calculate_position_size(price)
         
+        # Calculate margin requirement (50% of position value)
+        margin_required = shares * price * 0.5
+        
+        if margin_required > self.capital:
+            return None  # Insufficient capital
+        
+        # Deduct margin from available capital
+        self.capital -= margin_required
+        
         stop_loss = price * (1 + self.stop_loss_pct / 100) if self.use_stop_loss else None
         take_profit = price * (1 - self.take_profit_pct / 100) if self.use_take_profit else None
         
@@ -221,8 +242,10 @@ class Backtester:
         
         if trade.position_type == 'long':
             self.capital += trade.shares * price
-        else:
-            self.capital += trade.pnl()
+        else:  # short position
+            # Return margin + P&L
+            margin = trade.shares * trade.entry_price * 0.5
+            self.capital += margin + trade.pnl()
         
         if trade in self.open_trades:
             self.open_trades.remove(trade)
@@ -231,7 +254,7 @@ class Backtester:
         """Check if any open trades hit stop loss or take profit"""
         trades_to_exit = []
         
-        for trade in self.open_trades:
+        for trade in list(self.open_trades): # Iterate over a copy to allow modification
             if trade.position_type == 'long':
                 if trade.stop_loss and low <= trade.stop_loss:
                     trades_to_exit.append((trade, trade.stop_loss, 'stop_loss'))
@@ -254,10 +277,42 @@ class Backtester:
             if trade.position_type == 'long':
                 equity += trade.shares * current_price
             else:
-                equity += trade.shares * trade.entry_price
-                equity -= trade.shares * current_price
+                # For short: Equity = Free Capital + Margin + P&L
+                # P&L = (Entry - Current) * Shares
+                # current code: equity += (Entry - Current) * Shares
+                # But it missed adding back the Margin that was deducted from self.capital
+                margin = trade.shares * trade.entry_price * 0.5
+                pnl = (trade.entry_price - current_price) * trade.shares
+                equity += margin + pnl
         
         return equity
+    
+    def validate_signal_with_trend(self, row, signal_type: str) -> bool:
+        """
+        Validate if signal aligns with trend filter
+        
+        Args:
+            row: DataFrame row with price data
+            signal_type: 'long' or 'short'
+            
+        Returns:
+            bool: True if signal is valid (or no filter), False otherwise
+        """
+        if not self.use_trend_filter:
+            return True  # No filter, all signals valid
+        
+        if 'ema_trend' not in row:
+            return True  # No trend data, allow signal
+        
+        price = row['close']
+        trend_ema = row['ema_trend']
+        
+        if signal_type == 'long':
+            return price > trend_ema  # Only long in uptrend
+        elif signal_type == 'short':
+            return price < trend_ema  # Only short in downtrend
+        
+        return True
     
     def run_simple_strategy(self, 
                            long_signal_col: str = 'qqe_long',
@@ -286,26 +341,54 @@ class Backtester:
             has_long_signal = row.get(long_signal_col, False)
             has_short_signal = row.get(short_signal_col, False)
             
-            # STEP 1: Exit opposite positions if exit_on_opposite is enabled
-            if exit_on_opposite:
-                if has_long_signal and self.open_trades:
-                    # Exit any short positions
-                    for trade in list(self.open_trades):
-                        if trade.position_type == 'short':
-                            self.exit_trade(trade, date, close_price, 'opposite_signal')
-                
-                elif has_short_signal and self.open_trades:
-                    # Exit any long positions
+            # Validate signals with trend filter
+            long_signal_valid = has_long_signal and self.validate_signal_with_trend(row, 'long')
+            short_signal_valid = has_short_signal and self.validate_signal_with_trend(row, 'short')
+            
+            # STRATEGY MODE LOGIC
+            if self.strategy_mode == 'long_only':
+                # Long-only mode: enter on long signals, exit on short signals (don't actually short)
+                if short_signal_valid and self.open_trades:
+                    # Exit long positions on short signal
                     for trade in list(self.open_trades):
                         if trade.position_type == 'long':
-                            self.exit_trade(trade, date, close_price, 'opposite_signal')
+                            self.exit_trade(trade, date, close_price, 'long_only_exit')
+                
+                if long_signal_valid and len(self.open_trades) == 0:
+                    self.enter_long(date, close_price)
             
-            # STEP 2: Enter new positions if no trades are open (independent of exit logic above)
-            if has_long_signal and len(self.open_trades) == 0:
-                self.enter_long(date, close_price)
+            elif self.strategy_mode == 'short_only':
+                # Short-only mode: enter on short signals, exit on long signals (don't actually long)
+                if long_signal_valid and self.open_trades:
+                    # Exit short positions on long signal
+                    for trade in list(self.open_trades):
+                        if trade.position_type == 'short':
+                            self.exit_trade(trade, date, close_price, 'short_only_exit')
+                
+                if short_signal_valid and len(self.open_trades) == 0:
+                    self.enter_short(date, close_price)
             
-            elif has_short_signal and len(self.open_trades) == 0:
-                self.enter_short(date, close_price)
+            else:  # long_short mode
+                # Original behavior: both long and short positions
+                if exit_on_opposite:
+                    if long_signal_valid and self.open_trades:
+                        # Exit any short positions
+                        for trade in list(self.open_trades):
+                            if trade.position_type == 'short':
+                                self.exit_trade(trade, date, close_price, 'opposite_signal')
+                    
+                    elif short_signal_valid and self.open_trades:
+                        # Exit any long positions
+                        for trade in list(self.open_trades):
+                            if trade.position_type == 'long':
+                                self.exit_trade(trade, date, close_price, 'opposite_signal')
+                
+                # Enter new positions if no trades are open
+                if long_signal_valid and len(self.open_trades) == 0:
+                    self.enter_long(date, close_price)
+                
+                elif short_signal_valid and len(self.open_trades) == 0:
+                    self.enter_short(date, close_price)
             
             self.equity = self.calculate_equity(close_price)
             self.equity_curve.append(self.equity)

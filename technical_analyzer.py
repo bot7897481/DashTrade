@@ -155,6 +155,27 @@ class TechnicalAnalyzer:
         
         return self.df
     
+    def add_all_indicators(self) -> pd.DataFrame:
+        """
+        Calculate all standard indicators used across the platform
+        (EMAs, MA Cloud, QQE, VWAP)
+        """
+        self.calculate_emas()
+        self.calculate_ma_cloud()
+        self.calculate_qqe()
+        self.calculate_vwap()
+        return self.df
+    
+    def add_novalgo_fast_signals(self) -> pd.DataFrame:
+        """
+        Apply 'NovAlgo - Fast Signals' strategy settings
+        RSI Period: 8
+        RSI Smoothing: 3
+        QQE Factor: 3.2
+        """
+        # Calculate QQE with optimized fast settings
+        return self.calculate_qqe(rsi_period=8, smoothing=3, qqe_factor=3.2)
+    
     def get_signal_history(self) -> List[Dict]:
         """
         Extract all LONG/SHORT signals with timestamps and prices

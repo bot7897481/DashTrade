@@ -8,20 +8,118 @@ from contextlib import contextmanager
 from typing import List, Dict, Optional
 from datetime import datetime
 
+from dotenv import load_dotenv
+
+load_dotenv()
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 @contextmanager
 def get_db_connection():
     """Context manager for database connections"""
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
+    if DATABASE_URL and DATABASE_URL.startswith('sqlite'):
+        import sqlite3
+        # Remove sqlite:/// from the URL to get the file path
+        db_path = DATABASE_URL.replace('sqlite:///', '')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row  # Allow accessing columns by name
+        
+        # Enable foreign keys
+        conn.execute("PRAGMA foreign_keys = ON")
+        
+        try:
+            # Custom cursor wrapper to handle parameter substitution (%s -> ?)
+            class SQLiteCursorWrapper:
+                def __init__(self, cursor):
+                    self.cursor = cursor
+                    self.rowcount = -1
+                
+                def execute(self, sql, params=None):
+                    # Replace %s with ? for SQLite
+                    sql = sql.replace('%s', '?')
+                    
+                    # Handle RETURNING clause (rough approximation for SQLite < 3.35)
+                    # For simple INSERT ... RETURNING id, we can use lastrowid
+                    returning_clause = None
+                    if 'RETURNING' in sql:
+                        parts = sql.split('RETURNING')
+                        sql = parts[0]
+                        returning_clause = parts[1].strip()
+                    
+                    if params:
+                        self.cursor.execute(sql, params)
+                    else:
+                        self.cursor.execute(sql)
+                        
+                    self.rowcount = self.cursor.rowcount
+                    
+                    # If we had a RETURNING clause, try to fetch the ID (hacky support for simple cases)
+                    if returning_clause and 'INSERT' in sql:
+                        # This assumes we wanted the ID of the inserted row
+                        self.lastrowid = self.cursor.lastrowid
+                
+                def fetchone(self):
+                    # If we have a lastrowid from an INSERT imitation, return it like RETURNING id would
+                    if hasattr(self, 'lastrowid'):
+                        # Return a tuple (id,) to mimic default psycopg2 cursor behavior
+                        return (self.lastrowid,)
+                    result = self.cursor.fetchone()
+                    if result is None:
+                        return None
+                    return dict(result)
+                    
+                def fetchall(self):
+                    results = self.cursor.fetchall()
+                    return [dict(row) for row in results]
+                
+                def close(self):
+                    self.cursor.close()
+                    
+                def __enter__(self):
+                    return self
+                    
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    self.close()
+            
+            # Wrapper for the connection object since we can't monkey patch sqlite3.Connection.cursor
+            class SQLiteConnectionWrapper:
+                def __init__(self, connection):
+                    self.conn = connection
+                
+                def cursor(self, cursor_factory=None):
+                    return SQLiteCursorWrapper(self.conn.cursor())
+                
+                def commit(self):
+                    self.conn.commit()
+                
+                def rollback(self):
+                    self.conn.rollback()
+                
+                def close(self):
+                    self.conn.close()
+                    
+                def __getattr__(self, name):
+                    return getattr(self.conn, name)
+
+            wrapped_conn = SQLiteConnectionWrapper(conn)
+            yield wrapped_conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+            
+    else:
+        # PostgreSQL connection
+        conn = psycopg2.connect(DATABASE_URL)
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
 
 class WatchlistDB:
     """Database operations for watchlist management"""

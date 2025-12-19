@@ -5,6 +5,10 @@ Uses Fernet (symmetric encryption) from cryptography library
 import os
 from cryptography.fernet import Fernet
 from typing import Tuple
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Encryption key - should be stored as environment variable
 # Generate once with: Fernet.generate_key().decode()

@@ -3,8 +3,10 @@ Trading Bot Engine - Multi-user trading execution with risk management
 Adapted from standalone bot, now supports per-user Alpaca accounts
 """
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockLatestQuoteRequest
 import logging
 from datetime import datetime
 import time
@@ -44,8 +46,79 @@ class TradingEngine:
         # Initialize Alpaca API (new alpaca-py library)
         paper = (self.mode == 'paper')
         self.api = TradingClient(self.api_key, self.secret_key, paper=paper)
+        self.data_client = StockHistoricalDataClient(self.api_key, self.secret_key)
 
         logger.info(f"✅ Trading engine initialized for user {user_id} ({self.mode} mode)")
+
+    def get_market_clock(self) -> Dict:
+        """Get Alpaca market clock"""
+        try:
+            clock = self.api.get_clock()
+            return {
+                'timestamp': clock.timestamp.isoformat(),
+                'is_open': clock.is_open,
+                'next_open': clock.next_open.isoformat(),
+                'next_close': clock.next_close.isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Error getting clock: {e}")
+            return {'error': str(e)}
+
+    def get_price_quote(self, symbol: str) -> Dict:
+        """Get latest quote for a stock"""
+        try:
+            request_params = StockLatestQuoteRequest(symbol_or_symbols=symbol.upper())
+            quote = self.data_client.get_stock_latest_quote(request_params)
+            
+            # The result is a dictionary-like object mapping symbols to quotes
+            if symbol.upper() in quote:
+                q = quote[symbol.upper()]
+                return {
+                    'symbol': symbol.upper(),
+                    'bid_price': float(q.bid_price),
+                    'ask_price': float(q.ask_price),
+                    'timestamp': q.timestamp.isoformat()
+                }
+            return {'error': f"No quote found for {symbol}"}
+        except Exception as e:
+            logger.error(f"Error getting quote: {e}")
+            return {'error': str(e)}
+
+    def place_manual_order(self, symbol: str, qty: float, side: str, order_type: str = 'market', limit_price: float = None) -> Dict:
+        """Place a manual order from the AI Assistant"""
+        try:
+            side_enum = OrderSide.BUY if side.upper() == 'BUY' else OrderSide.SELL
+            
+            if order_type.lower() == 'limit' and limit_price:
+                request = LimitOrderRequest(
+                    symbol=symbol.upper(),
+                    qty=qty,
+                    side=side_enum,
+                    type=OrderType.LIMIT,
+                    limit_price=limit_price,
+                    time_in_force=TimeInForce.DAY
+                )
+            else:
+                request = MarketOrderRequest(
+                    symbol=symbol.upper(),
+                    qty=qty,
+                    side=side_enum,
+                    time_in_force=TimeInForce.DAY
+                )
+            
+            order = self.api.submit_order(request)
+            return {
+                'status': 'success',
+                'order_id': order.id,
+                'client_order_id': order.client_order_id,
+                'symbol': order.symbol,
+                'qty': float(order.qty),
+                'side': order.side.value,
+                'order_status': order.status.value
+            }
+        except Exception as e:
+            logger.error(f"Error placing manual order: {e}")
+            return {'status': 'error', 'message': str(e)}
 
     def get_current_position(self, symbol: str) -> Optional[Dict]:
         """
@@ -55,7 +128,7 @@ class TradingEngine:
             dict: {'side': 'LONG'|'SHORT'|'FLAT', 'qty': float, 'market_value': float} or None
         """
         try:
-            positions = self.api.list_positions()
+            positions = self.api.get_all_positions()
             for pos in positions:
                 if pos.symbol == symbol:
                     qty = float(pos.qty)
@@ -234,6 +307,7 @@ class TradingEngine:
 
     def _execute_long(self, bot_id: int, symbol: str, timeframe: str, position_size: float) -> Dict:
         """Execute a BUY (long) order"""
+        trade_id = None
         try:
             logger.info(f"🟢 Submitting BUY order: ${position_size} {symbol}")
 
@@ -249,7 +323,7 @@ class TradingEngine:
             )
             order = self.api.submit_order(order_request)
 
-            order_id = order.id
+            order_id = str(order.id)
             logger.info(f"✅ ORDER SUBMITTED: {order_id}")
 
             # Log trade
@@ -265,7 +339,7 @@ class TradingEngine:
 
             # Wait 2 seconds and check status
             time.sleep(2)
-            order_status = self.api.get_order(order_id)
+            order_status = self.api.get_order_by_id(order_id)
 
             if order_status.status == 'filled':
                 filled_qty = float(order_status.filled_qty)
@@ -303,22 +377,36 @@ class TradingEngine:
 
     def _execute_short(self, bot_id: int, symbol: str, timeframe: str, position_size: float) -> Dict:
         """Execute a SELL (short) order"""
+        trade_id = None
         try:
-            logger.info(f"🔴 Submitting SELL order: ${position_size} {symbol}")
+            # Shorting typically requires whole shares (cannot use notional for shorting on Alpaca)
+            quote = self.get_price_quote(symbol)
+            if 'error' in quote:
+                raise Exception(f"Could not get price for {symbol}: {quote['error']}")
+            
+            # Fallback to bid if ask is 0 (can happen after hours)
+            current_price = max(float(quote.get('ask_price', 0)), float(quote.get('bid_price', 0)))
+            
+            if current_price <= 0:
+                raise Exception(f"Market is closed and no valid price found for {symbol}")
+            
+            qty = int(position_size / current_price)
+            
+            if qty <= 0:
+                raise Exception(f"Position size ${position_size} is too small for 1 whole share of {symbol} @ ${current_price}")
 
-            # Update status: ORDER SUBMITTED
-            BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal='SELL')
+            logger.info(f"🔴 Submitting SELL order: {qty} shares of {symbol} (@ ~${current_price})")
 
             # Submit order to Alpaca (new alpaca-py API)
             order_request = MarketOrderRequest(
                 symbol=symbol,
-                notional=position_size,
+                qty=qty,
                 side=OrderSide.SELL,
                 time_in_force=TimeInForce.DAY
             )
             order = self.api.submit_order(order_request)
 
-            order_id = order.id
+            order_id = str(order.id)
             logger.info(f"✅ ORDER SUBMITTED: {order_id}")
 
             # Log trade
@@ -334,7 +422,7 @@ class TradingEngine:
 
             # Wait 2 seconds and check status
             time.sleep(2)
-            order_status = self.api.get_order(order_id)
+            order_status = self.api.get_order_by_id(order_id)
 
             if order_status.status == 'filled':
                 filled_qty = float(order_status.filled_qty)
@@ -387,7 +475,7 @@ class TradingEngine:
     def get_all_positions(self) -> list:
         """Get all current positions"""
         try:
-            positions = self.api.list_positions()
+            positions = self.api.get_all_positions()
             return [{
                 'symbol': pos.symbol,
                 'qty': float(pos.qty),
@@ -400,4 +488,14 @@ class TradingEngine:
             } for pos in positions]
         except Exception as e:
             logger.error(f"Error getting positions: {e}")
+            return []
+
+    def cancel_all_orders(self):
+        """Cancel all open orders"""
+        try:
+            results = self.api.cancel_orders()
+            logger.info(f"✅ Cancelled all open orders: {results}")
+            return results
+        except Exception as e:
+            logger.error(f"Error cancelling orders: {e}")
             return []

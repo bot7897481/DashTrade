@@ -164,6 +164,13 @@ with tab2:
                         value=5000.0,
                         step=100.0
                     )
+                    
+                    signal_source = st.selectbox(
+                        "Signal Source",
+                        options=["Webhook", "Internal (Yahoo)", "Internal (Alpaca)"],
+                        index=0,
+                        help="Webhook: Wait for external TradingView signals. Internal (Yahoo): DashTrade calculates signals using Yahoo data (15m delay). Internal (Alpaca): DashTrade calculates signals using Alpaca Real-Time data."
+                    )
 
                 with col2:
                     strategy_name = st.text_input("Strategy Name (optional)", value="")
@@ -181,12 +188,21 @@ with tab2:
                         value=0.0,
                         step=100.0
                     )
+                    
+                    strategy_type = st.selectbox(
+                        "Internal Strategy",
+                        options=["none", "NovAlgo Fast Signals [Custom]"],
+                        index=0,
+                        help="Only used if Signal Source starts with 'Internal'"
+                    )
 
                 submit_bot = st.form_submit_button("✅ Create Bot")
 
                 if submit_bot:
                     if not symbol:
                         st.error("Please enter a symbol")
+                    elif "Internal" in signal_source and strategy_type == "none":
+                        st.error("Please select an Internal Strategy (e.g., NovAlgo Fast Signals) when using an Internal Signal Source.")
                     else:
                         # Check if bot already exists
                         existing = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe)
@@ -200,7 +216,9 @@ with tab2:
                                 position_size=position_size,
                                 strategy_name=strategy_name if strategy_name else None,
                                 risk_limit_percent=risk_limit,
-                                daily_loss_limit=daily_loss_limit if daily_loss_limit > 0 else None
+                                daily_loss_limit=daily_loss_limit if daily_loss_limit > 0 else None,
+                                signal_source=signal_source.lower(),
+                                strategy_type=strategy_type if "Internal" in signal_source else "none"
                             )
 
                             if bot_id:
@@ -233,13 +251,17 @@ with tab2:
             df_display['total_pnl'] = df_display['total_pnl'].apply(lambda x: f"${float(x):,.2f}" if x else "$0.00")
             df_display['risk_limit_percent'] = df_display['risk_limit_percent'].apply(lambda x: f"{float(x):.1f}%")
 
-            # Rename columns for display
+            # Renamed columns for display
             df_display.columns = [
                 'Symbol', 'Timeframe', 'Position Size', 'Active',
                 'Status', 'Risk Limit', 'Position', 'Total P&L', 'Trades'
             ]
-
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
+            
+            # Add Source column to display df
+            df_display['Source'] = df['signal_source'].apply(lambda x: "🔗 " + x.title())
+            df_display['Strategy'] = df['strategy_type'].apply(lambda x: x if x != 'none' else "N/A")
+            
+            st.dataframe(df_display[['Symbol', 'Timeframe', 'Source', 'Strategy', 'Position Size', 'Active', 'Status', 'Risk Limit', 'Position', 'Total P&L', 'Trades']], use_container_width=True, hide_index=True)
 
             # Bot management
             st.markdown("### Manage Bots")

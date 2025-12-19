@@ -20,7 +20,9 @@ from backtester import Backtester, BacktestResults
 from strategy_builder import CustomStrategy, StrategyCondition, StrategyTemplates, StrategyBuilder
 from alert_system import AlertMonitor
 from alpha_vantage_data import AlphaVantageProvider, fetch_alpha_vantage_data
+from yahoo_finance_data import fetch_yahoo_data
 from auth import UserDB
+from ai_assistant import AIAssistant, LLMKeysDB
 
 # Page configuration
 st.set_page_config(
@@ -67,24 +69,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Helper functions
-@st.cache_data(ttl=300)
-def fetch_yahoo_data(symbol: str, period: str, interval: str):
-    """Fetch stock data from Yahoo Finance"""
-    try:
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period=period, interval=interval)
-        
-        if df.empty:
-            return None, f"No data found for {symbol}"
-        
-        # Ensure column names are lowercase
-        df.columns = [col.lower() for col in df.columns]
-        df = df[['open', 'high', 'low', 'close', 'volume']]
-        
-        return df, None
-    except Exception as e:
-        return None, str(e)
-
 @st.cache_data(ttl=300)
 def fetch_stock_data(symbol: str, period: str, interval: str, source: str = "yahoo"):
     """Unified data fetcher - routes to Yahoo Finance or Alpha Vantage based on selection"""
@@ -385,7 +369,7 @@ def main():
         st.markdown("---")
 
         # Mode selection - add Admin Panel if user is admin
-        modes = ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager"]
+        modes = ["Single Stock Analysis", "Portfolio Dashboard", "Multi-Stock Comparison", "Backtesting", "Strategy Builder", "Alert Manager", "🤖 AI Assistant"]
 
         # Check if user is admin
         if st.session_state['user'].get('role') in ['admin', 'superadmin']:
@@ -1219,13 +1203,15 @@ def main():
                 help="Historical data to analyze"
             )
         
+        
         st.markdown("### Backtest Parameters")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
             initial_capital = st.number_input("Initial Capital ($)", value=10000.0, step=1000.0)
-            position_size = st.slider("Position Size (%)", 5, 50, 10)
+            position_size = st.slider("Position Size (%)", 5, 100, 10, 
+                                     help="Percentage of capital per trade (100% for long-only recommended)")
         
         with col2:
             use_stop_loss = st.checkbox("Use Stop Loss", value=True)
@@ -1235,9 +1221,43 @@ def main():
             use_take_profit = st.checkbox("Use Take Profit", value=False)
             take_profit_pct = st.slider("Take Profit (%)", 2.0, 20.0, 5.0, 0.5) if use_take_profit else 5.0
         
+        st.markdown("### Strategy Configuration")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            strategy_mode = st.radio(
+                "Strategy Mode",
+                ["Long Only", "Long & Short", "Short Only"],
+                index=0,  # Default to Long Only (performs 22x better!)
+                help="Long Only: Buy on long signals, sell on short signals (recommended for trending markets)"
+            )
+            
+            # Map display names to internal values
+            mode_map = {
+                "Long Only": "long_only",
+                "Long & Short": "long_short",
+                "Short Only": "short_only"
+            }
+            strategy_mode_value = mode_map[strategy_mode]
+        
+        with col2:
+            use_trend_filter = st.checkbox(
+                "Use Trend Filter",
+                value=False,
+                help="Filter signals by 200 EMA trend (only long in uptrend, only short in downtrend)"
+            )
+            
+            if use_trend_filter:
+                trend_ema_period = st.slider("Trend EMA Period", 50, 200, 200, 10,
+                                             help="EMA period for trend detection (200 is standard)")
+            else:
+                trend_ema_period = 200
+        
         st.markdown("### Strategy Selection")
         
-        strategy_type = st.radio("Strategy", ["QQE Signals", "EMA Crossover", "MA Cloud Trend"], horizontal=True)
+        strategy_type = st.radio("Strategy", ["QQE Signals", "NovAlgo Fast Signals [Custom]", "EMA Crossover", "MA Cloud Trend"], horizontal=True)
+
         
         # Show info about selected interval
         if bt_interval in ["5m", "15m", "30m", "45m"]:
@@ -1257,7 +1277,14 @@ def main():
                 analyzer = TechnicalAnalyzer(df)
                 analyzer.calculate_emas()
                 analyzer.calculate_ma_cloud()
-                analyzer.calculate_qqe()
+                
+                # Logic for strategy selection
+                if strategy_type == "NovAlgo Fast Signals [Custom]":
+                    st.toast("Running Custom Pine Script Logic...")
+                    analyzer.add_novalgo_fast_signals()
+                else:
+                    # Default QQE
+                    analyzer.calculate_qqe()
                 
                 backtester = Backtester(
                     analyzer.df,
@@ -1717,7 +1744,7 @@ def main():
             st.warning("📋 No stocks in watchlist. Add stocks first to create alerts.")
             return
         
-        tab1, tab2 = st.tabs(["➕ Create Alert", "📋 Manage Alerts"])
+        tab1, tab2, tab3 = st.tabs(["➕ Create Alert", "📋 Manage Alerts", "⚙️ Notification Settings"])
         
         with tab1:
             st.markdown("### Create New Alert")
@@ -1734,10 +1761,14 @@ def main():
             
             if alert_category == "Indicator Signal":
                 signal_type = st.selectbox("Signal", 
-                                          ["QQE Long Signal", "QQE Short Signal"])
+                                          ["QQE Long Signal", "QQE Short Signal", "NovAlgo Fast Long [Custom]", "NovAlgo Fast Short [Custom]"])
                 
                 if st.button("Create Alert", type="primary"):
-                    alert_type = 'qqe_long_signal' if signal_type == "QQE Long Signal" else 'qqe_short_signal'
+                    if "NovAlgo Fast" in signal_type:
+                        alert_type = 'fast_qqe_long' if "Long" in signal_type else 'fast_qqe_short'
+                    else:
+                        alert_type = 'qqe_long_signal' if signal_type == "QQE Long Signal" else 'qqe_short_signal'
+                    
                     condition_text = f"{signal_type} on {alert_symbol}"
 
                     if AlertsDB.add_alert(user_id, alert_symbol, alert_type, condition_text):
@@ -1836,6 +1867,142 @@ def main():
             else:
                 st.info("No alerts configured. Create your first alert using the form above.")
 
+        with tab3:
+            st.markdown("### 📧 Email Notifications")
+            st.caption("Receive instant email alerts when your trading signals trigger.")
+            
+            # Fetch fresh user data to get current settings
+            current_user = UserDB.get_user_by_id(user_id)
+            
+            if current_user:
+                email = current_user.get('email', 'Unknown')
+                is_enabled = current_user.get('email_enabled', False)
+                
+                st.info(f"Updates will be sent to: **{email}**")
+                
+                # Toggle
+                new_state = st.toggle("Enable Email Alerts", value=is_enabled)
+                
+                if new_state != is_enabled:
+                    if UserDB.update_email_preference(user_id, new_state):
+                        st.success(f"Email notifications {'enabled' if new_state else 'disabled'}!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to update preference")
+            else:
+                st.error("Could not load user settings")
+
+
+    # ==========================================
+    # 7. AI ASSISTANT
+    # ==========================================
+    elif mode == "🤖 AI Assistant":
+        st.header("🤖 AI Trading Assistant")
+        st.caption("Powered by Claude 3.5 Sonnet with Alpaca Tool Integration")
+        
+        # User is guaranteed to be logged in if we are here (checked in main)
+        user_id = st.session_state['user']['id']
+        
+        # Check if user has an API key configured
+        existing_key = LLMKeysDB.get_key(user_id)
+        
+        # Tabs for Chat and Settings
+        tab_chat, tab_settings = st.tabs(["💬 Chat", "🔑 API Login"])
+        
+        with tab_settings:
+            st.subheader("Connect Your Claude Account")
+            st.markdown("""
+            To use the AI Assistant, please **login** with your Anthropic API Key.
+            This connects DashTrade to your personal Claude account.
+            
+            [Get my API Key](https://console.anthropic.com/)
+            """)
+            
+            with st.form("llm_key_form"):
+                api_key_input = st.text_input("Enter Anthropic API Key (sk-ant-...)", 
+                                             type="password", 
+                                             value=existing_key if existing_key else "")
+                save_btn = st.form_submit_button("Login / Save Key")
+                
+                if save_btn:
+                    if api_key_input.startswith("sk-"):
+                        if LLMKeysDB.save_key(user_id, api_key_input):
+                            st.success("✅ Successfully connected to Claude! You can now use the Chat tab.")
+                            st.rerun()
+                        else:
+                            st.error("Failed to save API Key.")
+                    else:
+                        st.error("Invalid API Key format.")
+        
+        with tab_chat:
+            if not existing_key:
+                st.info("👋 **Welcome to DashTrade AI!**")
+                st.warning("🔒 **Login Required**: Please go to the **🔑 API Login** tab and enter your Anthropic API Key to start chatting.")
+            else:
+                # Add a sidebar for AI Capabilities
+                with st.sidebar:
+                    st.markdown("### 🤖 Help & Commands")
+                    with st.expander("Show AI Capabilities", expanded=True):
+                        st.markdown("""
+                        **Account Tools:**
+                        - "What's my balance?"
+                        - "Am I in the green today?"
+                        
+                        **Market Data:**
+                        - "What's the price of AAPL?"
+                        - "Is the market open?"
+                        
+                        **Portfolio:**
+                        - "Show my positions."
+                        - "Which position is performing best?"
+                        
+                        **Trading (Paper):**
+                        - "Buy 10 shares of SPY"
+                        - "Close my position in TSLA"
+                        """)
+                    
+                # Initialize chat history
+                if "messages" not in st.session_state:
+                    st.session_state.messages = []
+
+                # Display chat messages
+                for message in st.session_state.messages:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
+
+                # Chat input
+                if prompt := st.chat_input("Ask about trading, indicators, or market concepts..."):
+                    # Add user message to chat history
+                    st.session_state.messages.append({"role": "user", "content": prompt})
+                    with st.chat_message("user"):
+                        st.markdown(prompt)
+
+                    # Display assistant response
+                    with st.chat_message("assistant"):
+                        message_placeholder = st.empty()
+                        full_response = ""
+                        
+                        try:
+                            # Initialize assistant with user_id for tool execution
+                            assistant = AIAssistant(existing_key, user_id=user_id)
+                            
+                            # Prepare messages for API (convert streamlit format to anthropic format if needed)
+                            # Simple pass-through for now
+                            api_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                            
+                            # Stream response
+                            for chunk in assistant.chat_stream(api_messages):
+                                full_response += chunk
+                                message_placeholder.markdown(full_response + "▌")
+                            
+                            message_placeholder.markdown(full_response)
+                            
+                            # Add assistant response to chat history
+                            st.session_state.messages.append({"role": "assistant", "content": full_response})
+                            
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
+
     elif mode == "👑 Admin Panel":
         st.subheader("👑 Admin Panel")
         st.caption("Manage users and system settings")
@@ -1871,6 +2038,23 @@ def main():
                 # Create user table
                 user_data = []
                 for user in all_users:
+                    # Helper function to format dates (handles both datetime objects and strings)
+                    def format_date(date_value, format_str='%Y-%m-%d'):
+                        if not date_value:
+                            return 'N/A' if '%H' not in format_str else 'Never'
+                        if isinstance(date_value, str):
+                            # Already a string, try to parse and reformat
+                            try:
+                                from datetime import datetime
+                                dt = datetime.fromisoformat(date_value.replace('Z', '+00:00'))
+                                return dt.strftime(format_str)
+                            except:
+                                # If parsing fails, return as-is or truncated
+                                return date_value[:10] if '%H' not in format_str else date_value[:16].replace('T', ' ')
+                        else:
+                            # It's a datetime object
+                            return date_value.strftime(format_str)
+                    
                     user_data.append({
                         'ID': user['id'],
                         'Username': user['username'],
@@ -1878,12 +2062,11 @@ def main():
                         'Full Name': user.get('full_name', 'N/A'),
                         'Role': user['role'].upper(),
                         'Status': '✅ Active' if user['is_active'] else '❌ Disabled',
-                        'Created': user['created_at'].strftime('%Y-%m-%d') if user['created_at'] else 'N/A',
-                        'Last Login': user['last_login'].strftime('%Y-%m-%d %H:%M') if user['last_login'] else 'Never'
+                        'Created': format_date(user.get('created_at')),
+                        'Last Login': format_date(user.get('last_login'), '%Y-%m-%d %H:%M')
                     })
 
                 # Display as DataFrame
-                import pandas as pd
                 df_users = pd.DataFrame(user_data)
                 st.dataframe(df_users, use_container_width=True, hide_index=True)
 
@@ -1892,6 +2075,44 @@ def main():
                 # User actions (only for superadmin)
                 if user_role == 'superadmin':
                     st.markdown("### User Actions")
+
+                    # Create new user
+                    with st.expander("➕ Create New User"):
+                        st.markdown("**Create a new user account with specific role**")
+                        
+                        with st.form("create_user_form"):
+                            new_username = st.text_input("Username", help="Minimum 3 characters")
+                            new_email = st.text_input("Email")
+                            new_full_name = st.text_input("Full Name (optional)")
+                            new_password = st.text_input("Password", type="password", help="Minimum 6 characters")
+                            new_role = st.selectbox("Role", options=['user', 'admin', 'superadmin'], index=0)
+                            
+                            create_submit = st.form_submit_button("Create User", use_container_width=True)
+                            
+                            if create_submit:
+                                if not new_username or not new_email or not new_password:
+                                    st.error("❌ Please fill in all required fields")
+                                elif len(new_username) < 3:
+                                    st.error("❌ Username must be at least 3 characters")
+                                elif len(new_password) < 6:
+                                    st.error("❌ Password must be at least 6 characters")
+                                else:
+                                    # Create user with specific role
+                                    result = UserDB.register_user(new_username, new_email, new_password, new_full_name or None)
+                                    
+                                    if result['success']:
+                                        # Update role if not default
+                                        if new_role != 'user':
+                                            role_result = UserDB.update_user_role(result['user_id'], new_role)
+                                            if role_result['success']:
+                                                st.success(f"✅ User '{new_username}' created successfully with role '{new_role}'")
+                                            else:
+                                                st.warning(f"⚠️ User created but role update failed: {role_result['error']}")
+                                        else:
+                                            st.success(f"✅ User '{new_username}' created successfully")
+                                        st.rerun()
+                                    else:
+                                        st.error(f"❌ Failed to create user: {result['error']}")
 
                     with st.expander("🔧 Manage User"):
                         selected_user = st.selectbox(

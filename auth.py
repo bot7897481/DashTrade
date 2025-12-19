@@ -11,18 +11,7 @@ from datetime import datetime
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
-@contextmanager
-def get_db_connection():
-    """Context manager for database connections"""
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
+from database import get_db_connection
 
 class UserDB:
     """Database operations for user authentication"""
@@ -99,14 +88,17 @@ class UserDB:
                     user_id = cur.fetchone()[0]
                     return {'success': True, 'user_id': user_id, 'username': username, 'role': role}
 
-        except psycopg2.IntegrityError as e:
-            if 'username' in str(e):
-                return {'success': False, 'error': 'Username already exists'}
-            elif 'email' in str(e):
-                return {'success': False, 'error': 'Email already registered'}
-            else:
-                return {'success': False, 'error': 'Registration failed'}
         except Exception as e:
+            err_msg = str(e).lower()
+            if 'username' in err_msg:
+                return {'success': False, 'error': 'Username already exists'}
+            elif 'email' in err_msg:
+                return {'success': False, 'error': 'Email already registered'}
+            
+            # Check for generic integrity/constraint errors if specific field scan failed
+            if 'integrity' in err_msg or 'constraint' in err_msg or 'unique' in err_msg:
+                 return {'success': False, 'error': 'Registration failed (Constraint Error)'}
+                 
             return {'success': False, 'error': f'Registration error: {str(e)}'}
 
     @staticmethod
@@ -119,7 +111,7 @@ class UserDB:
             with get_db_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                        SELECT id, username, email, password_hash, full_name, role, is_active
+                        SELECT id, username, email, password_hash, full_name, role, is_active, email_enabled
                         FROM users
                         WHERE username = %s
                     """, (username.lower(),))
@@ -158,7 +150,7 @@ class UserDB:
             with get_db_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                        SELECT id, username, email, full_name, role, created_at, last_login, is_active
+                        SELECT id, username, email, full_name, role, created_at, last_login, is_active, email_enabled
                         FROM users
                         WHERE id = %s
                     """, (user_id,))
@@ -314,4 +306,19 @@ class UserDB:
                     result = cur.fetchone()
                     return result and result[0] == 'superadmin'
         except Exception:
+            return False
+
+    @staticmethod
+    def update_email_preference(user_id: int, enabled: bool) -> bool:
+        """Update user's email notification preference"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users SET email_enabled = %s
+                        WHERE id = %s
+                    """, (enabled, user_id))
+                    return cur.rowcount > 0
+        except Exception as e:
+            print(f"Error updating email preference: {e}")
             return False

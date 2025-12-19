@@ -10,20 +10,118 @@ from datetime import datetime
 import secrets
 from encryption import encrypt_alpaca_keys, decrypt_alpaca_keys
 
+from dotenv import load_dotenv
+
+load_dotenv()
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 @contextmanager
 def get_db_connection():
     """Context manager for database connections"""
-    conn = psycopg2.connect(DATABASE_URL)
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
+    if DATABASE_URL and DATABASE_URL.startswith('sqlite'):
+        import sqlite3
+        # Remove sqlite:/// from the URL to get the file path
+        db_path = DATABASE_URL.replace('sqlite:///', '')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row  # Allow accessing columns by name
+        
+        # Enable foreign keys
+        conn.execute("PRAGMA foreign_keys = ON")
+        
+        try:
+            # Custom cursor wrapper to handle parameter substitution (%s -> ?)
+            class SQLiteCursorWrapper:
+                def __init__(self, cursor):
+                    self.cursor = cursor
+                    self.rowcount = -1
+                
+                def execute(self, sql, params=None):
+                    # Replace %s with ? for SQLite
+                    sql = sql.replace('%s', '?')
+                    
+                    # Handle RETURNING clause (rough approximation for SQLite < 3.35)
+                    # For simple INSERT ... RETURNING id, we can use lastrowid
+                    returning_clause = None
+                    if 'RETURNING' in sql:
+                        parts = sql.split('RETURNING')
+                        sql = parts[0]
+                        returning_clause = parts[1].strip()
+                    
+                    if params:
+                        self.cursor.execute(sql, params)
+                    else:
+                        self.cursor.execute(sql)
+                        
+                    self.rowcount = self.cursor.rowcount
+                    
+                    # If we had a RETURNING clause, try to fetch the ID (hacky support for simple cases)
+                    if returning_clause and 'INSERT' in sql:
+                        # This assumes we wanted the ID of the inserted row
+                        self.lastrowid = self.cursor.lastrowid
+                
+                def fetchone(self):
+                    # If we have a lastrowid from an INSERT imitation, return it like RETURNING id would
+                    if hasattr(self, 'lastrowid'):
+                        # Return a tuple (id,) to mimic default psycopg2 cursor behavior
+                        return (self.lastrowid,)
+                    result = self.cursor.fetchone()
+                    if result is None:
+                        return None
+                    return dict(result)
+                    
+                def fetchall(self):
+                    results = self.cursor.fetchall()
+                    return [dict(row) for row in results]
+                
+                def close(self):
+                    self.cursor.close()
+                    
+                def __enter__(self):
+                    return self
+                    
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    self.close()
+            
+            # Wrapper for the connection object since we can't monkey patch sqlite3.Connection.cursor
+            class SQLiteConnectionWrapper:
+                def __init__(self, connection):
+                    self.conn = connection
+                
+                def cursor(self, cursor_factory=None):
+                    return SQLiteCursorWrapper(self.conn.cursor())
+                
+                def commit(self):
+                    self.conn.commit()
+                
+                def rollback(self):
+                    self.conn.rollback()
+                
+                def close(self):
+                    self.conn.close()
+                    
+                def __getattr__(self, name):
+                    return getattr(self.conn, name)
+
+            wrapped_conn = SQLiteConnectionWrapper(conn)
+            yield wrapped_conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+            
+    else:
+        # PostgreSQL connection
+        conn = psycopg2.connect(DATABASE_URL)
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
 
 class BotAPIKeysDB:
     """Manage user Alpaca API keys"""
@@ -133,7 +231,8 @@ class BotConfigDB:
     @staticmethod
     def create_bot(user_id: int, symbol: str, timeframe: str, position_size: float,
                    strategy_name: str = None, risk_limit_percent: float = 10.0,
-                   daily_loss_limit: float = None, max_position_size: float = None) -> Optional[int]:
+                   daily_loss_limit: float = None, max_position_size: float = None,
+                   signal_source: str = 'webhook', strategy_type: str = 'none') -> Optional[int]:
         """
         Create a new bot configuration
 
@@ -146,11 +245,13 @@ class BotConfigDB:
                     cur.execute("""
                         INSERT INTO user_bot_configs
                         (user_id, symbol, timeframe, position_size, strategy_name,
-                         risk_limit_percent, daily_loss_limit, max_position_size)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                         risk_limit_percent, daily_loss_limit, max_position_size,
+                         signal_source, strategy_type)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (user_id, symbol.upper(), timeframe, position_size, strategy_name,
-                          risk_limit_percent, daily_loss_limit, max_position_size))
+                          risk_limit_percent, daily_loss_limit, max_position_size,
+                          signal_source, strategy_type))
                     return cur.fetchone()[0]
         except Exception as e:
             print(f"Error creating bot: {e}")
@@ -170,6 +271,17 @@ class BotConfigDB:
                 query += " ORDER BY created_at DESC"
 
                 cur.execute(query, (user_id,))
+                return [dict(row) for row in cur.fetchall()]
+
+    @staticmethod
+    def get_all_active_internal_bots() -> List[Dict]:
+        """Get all active bots across all users that use internal signal source"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM user_bot_configs
+                    WHERE is_active = TRUE AND signal_source LIKE 'internal%'
+                """)
                 return [dict(row) for row in cur.fetchall()]
 
     @staticmethod
@@ -385,7 +497,7 @@ class WebhookTokenDB:
                         RETURNING user_id
                     """, (token,))
                     result = cur.fetchone()
-                    return result[0] if result else None
+                    return result['user_id'] if result else None
         except Exception:
             return None
 
@@ -399,7 +511,7 @@ class WebhookTokenDB:
                     WHERE user_id = %s AND is_active = TRUE
                 """, (user_id,))
                 result = cur.fetchone()
-                return result[0] if result else None
+                return result['token'] if result else None
 
 
 class RiskEventDB:

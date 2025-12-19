@@ -9,6 +9,9 @@ This script completes the setup by:
 import os
 import sys
 import getpass
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def check_database_url():
     """Check if DATABASE_URL is set"""
@@ -35,15 +38,30 @@ def check_database_url():
 def test_connection():
     """Test database connection"""
     try:
-        import psycopg2
         db_url = os.getenv('DATABASE_URL')
+        if db_url and db_url.startswith('sqlite'):
+            import sqlite3
+            print("\n🔌 Testing database connection (SQLite)...")
+            db_path = db_url.replace('sqlite:///', '')
+            conn = sqlite3.connect(db_path)
+            # Create the file if it doesn't exist to ensure write permissions
+            conn.execute("CREATE TABLE IF NOT EXISTS _test_conn (id INTEGER)")
+            conn.execute("DROP TABLE _test_conn")
+            print("✅ Database connection successful!")
+            conn.close()
+            return True
 
+        import psycopg2
         print("\n🔌 Testing database connection...")
         conn = psycopg2.connect(db_url)
         print("✅ Database connection successful!")
         conn.close()
         return True
     except ImportError:
+        # Check if we're using SQLite
+        if db_url and db_url.startswith('sqlite'):
+            print("ℹ️ Using SQLite (psycopg2 not needed)")
+            return True
         print("❌ psycopg2 not installed. Run: pip install psycopg2-binary")
         return False
     except Exception as e:
@@ -57,22 +75,36 @@ def run_migration():
 
     try:
         # Import migration functionality
-        import psycopg2
         db_url = os.getenv('DATABASE_URL')
-
-        conn = psycopg2.connect(db_url)
-        conn.autocommit = False
+        
+        # Determine strict mode (PostgreSQL) vs compat mode (SQLite)
+        is_sqlite = db_url and db_url.startswith('sqlite')
+        
+        if is_sqlite:
+            import sqlite3
+            db_path = db_url.replace('sqlite:///', '')
+            conn = sqlite3.connect(db_path)
+            # SQLite doesn't need autocommit=False for this simple script usually, but let's keep it safe
+            # conn.autocommit = False # Not attribute in sqlite3
+        else:
+            conn = psycopg2.connect(db_url)
+            conn.autocommit = False
+            
         cur = conn.cursor()
 
         # Create users table with role support
+        # SQLite uses INTEGER PRIMARY KEY AUTOINCREMENT instead of SERIAL
+        serial_type = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
+        
         print("Creating users table with role support...")
-        cur.execute("""
+        cur.execute(f"""
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id {serial_type},
                 username VARCHAR(255) UNIQUE NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
                 full_name VARCHAR(255),
+                email_enabled BOOLEAN DEFAULT FALSE,
                 role VARCHAR(50) DEFAULT 'user' NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP,
@@ -81,24 +113,52 @@ def run_migration():
         """)
         print("  ✅ Users table created")
 
-        # Check if watchlist exists
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'watchlist'
-            )
-        """)
-        watchlist_exists = cur.fetchone()[0]
-
-        if watchlist_exists:
-            # Add user_id if it doesn't exist
+        # Check for email_enabled column
+        if is_sqlite:
+            cur.execute("PRAGMA table_info(users)")
+            columns = [row[1] for row in cur.fetchall()]
+            if 'email_enabled' not in columns:
+                print("Adding email_enabled column to users...")
+                cur.execute("ALTER TABLE users ADD COLUMN email_enabled BOOLEAN DEFAULT 0")
+        else:
             cur.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.columns
-                    WHERE table_name = 'watchlist' AND column_name = 'user_id'
+                    WHERE table_name = 'users' AND column_name = 'email_enabled'
                 )
             """)
-            has_user_id = cur.fetchone()[0]
+            if not cur.fetchone()[0]:
+                print("Adding email_enabled column to users...")
+                cur.execute("ALTER TABLE users ADD COLUMN email_enabled BOOLEAN DEFAULT FALSE")
+
+        # Check if watchlist exists
+        if is_sqlite:
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='watchlist'")
+            watchlist_exists = cur.fetchone() is not None
+        else:
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'watchlist'
+                )
+            """)
+            watchlist_exists = cur.fetchone()[0]
+
+        if watchlist_exists:
+            # Add user_id if it doesn't exist
+            if is_sqlite:
+                # SQLite PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk)
+                cur.execute("PRAGMA table_info(watchlist)")
+                columns = [row[1] for row in cur.fetchall()]
+                has_user_id = 'user_id' in columns
+            else:
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.columns
+                        WHERE table_name = 'watchlist' AND column_name = 'user_id'
+                    )
+                """)
+                has_user_id = cur.fetchone()[0]
 
             if not has_user_id:
                 print("Updating watchlist table...")
@@ -117,9 +177,9 @@ def run_migration():
                 print("  ✅ Watchlist table updated")
         else:
             print("Creating watchlist table...")
-            cur.execute("""
+            cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS watchlist (
-                    id SERIAL PRIMARY KEY,
+                    id {serial_type},
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     symbol VARCHAR(10) NOT NULL,
                     name VARCHAR(255),
@@ -131,22 +191,31 @@ def run_migration():
             print("  ✅ Watchlist table created")
 
         # Alerts table
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'alerts'
-            )
-        """)
-        alerts_exists = cur.fetchone()[0]
-
-        if alerts_exists:
+        if is_sqlite:
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='alerts'")
+            alerts_exists = cur.fetchone() is not None
+        else:
             cur.execute("""
                 SELECT EXISTS (
-                    SELECT FROM information_schema.columns
-                    WHERE table_name = 'alerts' AND column_name = 'user_id'
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'alerts'
                 )
             """)
-            has_user_id = cur.fetchone()[0]
+            alerts_exists = cur.fetchone()[0]
+
+        if alerts_exists:
+            if is_sqlite:
+                cur.execute("PRAGMA table_info(alerts)")
+                columns = [row[1] for row in cur.fetchall()]
+                has_user_id = 'user_id' in columns
+            else:
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.columns
+                        WHERE table_name = 'alerts' AND column_name = 'user_id'
+                    )
+                """)
+                has_user_id = cur.fetchone()[0]
 
             if not has_user_id:
                 print("Updating alerts table...")
@@ -157,9 +226,9 @@ def run_migration():
                 print("  ✅ Alerts table updated")
         else:
             print("Creating alerts table...")
-            cur.execute("""
+            cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS alerts (
-                    id SERIAL PRIMARY KEY,
+                    id {serial_type},
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     symbol VARCHAR(10) NOT NULL,
                     alert_type VARCHAR(50) NOT NULL,
@@ -172,22 +241,31 @@ def run_migration():
             print("  ✅ Alerts table created")
 
         # User preferences table
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'user_preferences'
-            )
-        """)
-        prefs_exists = cur.fetchone()[0]
-
-        if prefs_exists:
+        if is_sqlite:
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_preferences'")
+            prefs_exists = cur.fetchone() is not None
+        else:
             cur.execute("""
                 SELECT EXISTS (
-                    SELECT FROM information_schema.columns
-                    WHERE table_name = 'user_preferences' AND column_name = 'user_id'
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'user_preferences'
                 )
             """)
-            has_user_id = cur.fetchone()[0]
+            prefs_exists = cur.fetchone()[0]
+
+        if prefs_exists:
+            if is_sqlite:
+                cur.execute("PRAGMA table_info(user_preferences)")
+                columns = [row[1] for row in cur.fetchall()]
+                has_user_id = 'user_id' in columns
+            else:
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.columns
+                        WHERE table_name = 'user_preferences' AND column_name = 'user_id'
+                    )
+                """)
+                has_user_id = cur.fetchone()[0]
 
             if not has_user_id:
                 print("Updating user_preferences table...")
@@ -206,9 +284,9 @@ def run_migration():
                 print("  ✅ User preferences table updated")
         else:
             print("Creating user_preferences table...")
-            cur.execute("""
+            cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS user_preferences (
-                    id SERIAL PRIMARY KEY,
+                    id {serial_type},
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     key VARCHAR(100) NOT NULL,
                     value TEXT,
@@ -217,6 +295,35 @@ def run_migration():
                 )
             """)
             print("  ✅ User preferences table created")
+
+        # User LLM Keys table
+        if is_sqlite:
+            print("Creating 'user_llm_keys' table (SQLite)...")
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_llm_keys (
+                user_id INTEGER PRIMARY KEY,
+                provider TEXT NOT NULL,
+                api_key_encrypted TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            """)
+        else:
+            print("Creating 'user_llm_keys' table (PostgreSQL)...")
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_llm_keys (
+                user_id INTEGER PRIMARY KEY,
+                provider VARCHAR(50) NOT NULL,
+                api_key_encrypted TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            """)
+        print("  ✅ User LLM Keys table created")
 
         # Create indexes
         print("Creating indexes...")
@@ -249,10 +356,17 @@ def create_superadmin():
         from auth import UserDB
 
         # Check if any superadmin exists
-        import psycopg2
         db_url = os.getenv('DATABASE_URL')
-        conn = psycopg2.connect(db_url)
-        cur = conn.cursor()
+        if db_url and db_url.startswith('sqlite'):
+            import sqlite3
+            db_path = db_url.replace('sqlite:///', '')
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+        else:
+            import psycopg2
+            conn = psycopg2.connect(db_url)
+            cur = conn.cursor()
+            
         cur.execute("SELECT COUNT(*) FROM users WHERE role = 'superadmin'")
         superadmin_count = cur.fetchone()[0]
         cur.close()
