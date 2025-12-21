@@ -75,6 +75,95 @@ class UserDB:
                         )
                     """)
 
+                    # Create user API keys table for Alpaca
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS user_api_keys (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                            alpaca_api_key_encrypted TEXT NOT NULL,
+                            alpaca_secret_key_encrypted TEXT NOT NULL,
+                            alpaca_mode VARCHAR(10) DEFAULT 'paper',
+                            is_active BOOLEAN DEFAULT TRUE,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+
+                    # Create user bot configs table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS user_bot_configs (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            symbol VARCHAR(10) NOT NULL,
+                            timeframe VARCHAR(10) NOT NULL,
+                            position_size DECIMAL(10,2) NOT NULL,
+                            strategy_name VARCHAR(100),
+                            risk_limit_percent DECIMAL(5,2) DEFAULT 10.0,
+                            daily_loss_limit DECIMAL(10,2),
+                            max_position_size DECIMAL(10,2),
+                            signal_source VARCHAR(50) DEFAULT 'webhook',
+                            strategy_type VARCHAR(50) DEFAULT 'none',
+                            is_active BOOLEAN DEFAULT FALSE,
+                            order_status VARCHAR(20) DEFAULT 'IDLE',
+                            last_signal VARCHAR(10),
+                            last_signal_time TIMESTAMP,
+                            current_position_side VARCHAR(10),
+                            total_pnl DECIMAL(15,2) DEFAULT 0.0,
+                            total_trades INTEGER DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+
+                    # Create bot trades table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS bot_trades (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            bot_config_id INTEGER REFERENCES user_bot_configs(id) ON DELETE CASCADE,
+                            symbol VARCHAR(10) NOT NULL,
+                            timeframe VARCHAR(10) NOT NULL,
+                            action VARCHAR(10) NOT NULL,
+                            notional DECIMAL(15,2) NOT NULL,
+                            order_id VARCHAR(100),
+                            filled_qty DECIMAL(15,8),
+                            filled_avg_price DECIMAL(15,8),
+                            status VARCHAR(20) DEFAULT 'SUBMITTED',
+                            error_message TEXT,
+                            filled_at TIMESTAMP,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+
+                    # Create user webhook tokens table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS user_webhook_tokens (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                            token VARCHAR(100) UNIQUE NOT NULL,
+                            is_active BOOLEAN DEFAULT TRUE,
+                            request_count INTEGER DEFAULT 0,
+                            last_used_at TIMESTAMP,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+
+                    # Create bot risk events table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS bot_risk_events (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            bot_config_id INTEGER REFERENCES user_bot_configs(id) ON DELETE CASCADE,
+                            event_type VARCHAR(50) NOT NULL,
+                            symbol VARCHAR(10) NOT NULL,
+                            timeframe VARCHAR(10) NOT NULL,
+                            threshold_value DECIMAL(15,2) NOT NULL,
+                            current_value DECIMAL(15,2) NOT NULL,
+                            action_taken TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+
                     print("✓ Database tables created successfully")
                     return True
         except Exception as e:
