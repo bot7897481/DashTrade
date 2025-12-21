@@ -11,12 +11,25 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Get database URL and handle potential formatting issues
 DATABASE_URL = os.getenv('DATABASE_URL')
+
+# Railway/Heroku sometimes use postgres://, but SQLAlchemy/others occasionally need postgresql://
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 @contextmanager
 def get_db_connection():
     """Context manager for database connections"""
-    if DATABASE_URL and DATABASE_URL.startswith('sqlite'):
+    if not DATABASE_URL:
+        raise ValueError(
+            "DATABASE_URL environment variable is not set. "
+            "If you are running on Railway, make sure you have added a PostgreSQL service "
+            "and that the DATABASE_URL variable is available in your service's variables tab."
+        )
+
+    if DATABASE_URL.startswith('sqlite'):
         import sqlite3
         # Remove sqlite:/// from the URL to get the file path
         db_path = DATABASE_URL.replace('sqlite:///', '')

@@ -9,9 +9,7 @@ from contextlib import contextmanager
 from typing import Optional, Dict
 from datetime import datetime
 
-DATABASE_URL = os.getenv('DATABASE_URL')
-
-from database import get_db_connection
+from database import get_db_connection, DATABASE_URL
 
 class UserDB:
     """Database operations for user authentication"""
