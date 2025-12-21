@@ -15,9 +15,18 @@ load_dotenv()
 # Get database URL and handle potential formatting issues
 DATABASE_URL = os.getenv('DATABASE_URL')
 
-# Railway/Heroku sometimes use postgres://, but SQLAlchemy/others occasionally need postgresql://
+# Handle Railway/Heroku postgres:// vs postgresql:// format
 if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+# If no DATABASE_URL is set, try Railway's specific variable
+if not DATABASE_URL:
+    DATABASE_URL = os.getenv('RAILWAY_DATABASE_URL')
+
+# Fallback for development - create SQLite database if no PostgreSQL is configured
+if not DATABASE_URL:
+    DATABASE_URL = 'sqlite:///dashtrade.db'
+    print("Warning: No DATABASE_URL found. Using SQLite database for development.")
 
 @contextmanager
 def get_db_connection():

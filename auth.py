@@ -20,6 +20,7 @@ class UserDB:
         try:
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
+                    # Create users table
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS users (
                             id SERIAL PRIMARY KEY,
@@ -30,12 +31,59 @@ class UserDB:
                             role VARCHAR(50) DEFAULT 'user' NOT NULL,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             last_login TIMESTAMP,
-                            is_active BOOLEAN DEFAULT TRUE
+                            is_active BOOLEAN DEFAULT TRUE,
+                            email_enabled BOOLEAN DEFAULT TRUE
                         )
                     """)
+
+                    # Create watchlist table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS watchlist (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            symbol VARCHAR(10) NOT NULL,
+                            name VARCHAR(255),
+                            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            notes TEXT,
+                            UNIQUE(user_id, symbol)
+                        )
+                    """)
+
+                    # Create alerts table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS alerts (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            symbol VARCHAR(10) NOT NULL,
+                            alert_type VARCHAR(50) NOT NULL,
+                            condition_text TEXT NOT NULL,
+                            is_active BOOLEAN DEFAULT TRUE,
+                            triggered_at TIMESTAMP,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+
+                    # Create user preferences table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS user_preferences (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            key VARCHAR(100) NOT NULL,
+                            value TEXT,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(user_id, key)
+                        )
+                    """)
+
+                    print("✓ Database tables created successfully")
                     return True
         except Exception as e:
-            print(f"Error creating users table: {e}")
+            print(f"Error creating database tables: {e}")
+            # Don't fail completely on Railway if tables already exist
+            import os
+            if os.getenv('RAILWAY_ENVIRONMENT'):
+                print("Running on Railway - continuing despite table creation error")
+                return True
             return False
 
     @staticmethod

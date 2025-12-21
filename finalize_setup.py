@@ -355,6 +355,9 @@ def create_superadmin():
     try:
         from auth import UserDB
 
+        # Check if we're on Railway (non-interactive environment)
+        is_railway = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PROJECT_ID')
+
         # Check if any superadmin exists
         db_url = os.getenv('DATABASE_URL')
         if db_url and db_url.startswith('sqlite'):
@@ -366,7 +369,7 @@ def create_superadmin():
             import psycopg2
             conn = psycopg2.connect(db_url)
             cur = conn.cursor()
-            
+
         cur.execute("SELECT COUNT(*) FROM users WHERE role = 'superadmin'")
         superadmin_count = cur.fetchone()[0]
         cur.close()
@@ -374,57 +377,88 @@ def create_superadmin():
 
         if superadmin_count > 0:
             print(f"\n⚠️  {superadmin_count} superadmin(s) already exist.")
-            create_another = input("\nCreate another superadmin? (yes/no): ").lower()
-            if create_another not in ['yes', 'y']:
-                print("Skipping superadmin creation.")
+            if is_railway:
+                print("Running on Railway - skipping additional superadmin creation.")
                 return True
+            else:
+                create_another = input("\nCreate another superadmin? (yes/no): ").lower()
+                if create_another not in ['yes', 'y']:
+                    print("Skipping superadmin creation.")
+                    return True
 
-        print("\nPlease provide superadmin account details:")
-        print("-" * 70)
+        if is_railway:
+            # On Railway, create a default superadmin account
+            print("\n🔐 Creating default superadmin account for Railway...")
 
-        username = input("Username: ").strip()
-        if len(username) < 3:
-            print("❌ Username must be at least 3 characters")
-            return False
+            result = UserDB.register_user(
+                username='admin',
+                email='admin@dashtrade.app',
+                password='admin123!',
+                full_name='Railway Admin',
+                role='superadmin'
+            )
 
-        email = input("Email: ").strip()
-        if '@' not in email:
-            print("❌ Invalid email address")
-            return False
-
-        full_name = input("Full Name (optional): ").strip() or None
-
-        password = getpass.getpass("Password (min 6 chars): ")
-        if len(password) < 6:
-            print("❌ Password must be at least 6 characters")
-            return False
-
-        password_confirm = getpass.getpass("Confirm Password: ")
-        if password != password_confirm:
-            print("❌ Passwords do not match")
-            return False
-
-        print("\n🔐 Creating superadmin account...")
-
-        result = UserDB.register_user(
-            username=username,
-            email=email,
-            password=password,
-            full_name=full_name,
-            role='superadmin'
-        )
-
-        if result['success']:
-            print("\n✅ Superadmin account created successfully!")
-            print("="*70)
-            print(f"\n👤 Username: {username}")
-            print(f"📧 Email: {email}")
-            print(f"👑 Role: SUPERADMIN")
-            print("\n" + "="*70)
-            return True
+            if result['success']:
+                print("\n✅ Default superadmin account created!")
+                print("="*70)
+                print("\n👤 Username: admin")
+                print("🔑 Password: admin123!")
+                print("📧 Email: admin@dashtrade.app")
+                print("👑 Role: SUPERADMIN")
+                print("\n⚠️  IMPORTANT: Change the default password after first login!")
+                print("="*70)
+                return True
+            else:
+                print(f"\n❌ Failed to create default superadmin: {result['error']}")
+                return False
         else:
-            print(f"\n❌ Failed to create superadmin: {result['error']}")
-            return False
+            # Interactive mode for local development
+            print("\nPlease provide superadmin account details:")
+            print("-" * 70)
+
+            username = input("Username: ").strip()
+            if len(username) < 3:
+                print("❌ Username must be at least 3 characters")
+                return False
+
+            email = input("Email: ").strip()
+            if '@' not in email:
+                print("❌ Invalid email address")
+                return False
+
+            full_name = input("Full Name (optional): ").strip() or None
+
+            password = getpass.getpass("Password (min 6 chars): ")
+            if len(password) < 6:
+                print("❌ Password must be at least 6 characters")
+                return False
+
+            password_confirm = getpass.getpass("Confirm Password: ")
+            if password != password_confirm:
+                print("❌ Passwords do not match")
+                return False
+
+            print("\n🔐 Creating superadmin account...")
+
+            result = UserDB.register_user(
+                username=username,
+                email=email,
+                password=password,
+                full_name=full_name,
+                role='superadmin'
+            )
+
+            if result['success']:
+                print("\n✅ Superadmin account created successfully!")
+                print("="*70)
+                print(f"\n👤 Username: {username}")
+                print(f"📧 Email: {email}")
+                print(f"👑 Role: SUPERADMIN")
+                print("\n" + "="*70)
+                return True
+            else:
+                print(f"\n❌ Failed to create superadmin: {result['error']}")
+                return False
 
     except Exception as e:
         print(f"\n❌ Error creating superadmin: {e}")
