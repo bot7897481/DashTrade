@@ -244,6 +244,14 @@ class UserDB:
         Register a new user
         Returns: {'success': True, 'user_id': int} or {'success': False, 'error': str}
         """
+        # #region agent log
+        import json
+        try:
+            with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C,D,E,F","location":"auth.py:242","message":"register_user called","data":{"username":username,"email":email,"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+        except: pass
+        # #endregion
+        
         try:
             # Validate inputs
             if len(username) < 3:
@@ -267,8 +275,55 @@ class UserDB:
             # Hash password
             password_hash = UserDB.hash_password(password)
 
+            # #region agent log
+            try:
+                with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:270","message":"Before DB check - checking if user exists","data":{"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+            except: pass
+            # #endregion
+
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
+                    # Check if username already exists (HYPOTHESIS A, B, C)
+                    cur.execute("""
+                        SELECT id, username, email, is_active, role 
+                        FROM users 
+                        WHERE LOWER(username) = LOWER(%s) OR LOWER(email) = LOWER(%s)
+                    """, (username, email))
+                    existing = cur.fetchone()
+                    
+                    # #region agent log
+                    try:
+                        with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                            existing_dict = dict(existing) if existing else None
+                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:285","message":"DB check result","data":{"existing_user":existing_dict,"username_checked":username.lower(),"email_checked":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                    except: pass
+                    # #endregion
+                    
+                    if existing:
+                        existing_dict = dict(existing) if hasattr(existing, '_asdict') else (existing if isinstance(existing, dict) else {'id': existing[0], 'username': existing[1], 'email': existing[2] if len(existing) > 2 else None, 'is_active': existing[3] if len(existing) > 3 else None})
+                        existing_username = existing_dict.get('username') if isinstance(existing_dict, dict) else (existing[1] if len(existing) > 1 else None)
+                        existing_email = existing_dict.get('email') if isinstance(existing_dict, dict) else (existing[2] if len(existing) > 2 else None)
+                        
+                        # #region agent log
+                        try:
+                            with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:290","message":"Existing user found","data":{"existing_username":existing_username,"existing_email":existing_email,"input_username":username,"input_email":email},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                        except: pass
+                        # #endregion
+                        
+                        if existing_username and existing_username.lower() == username.lower():
+                            return {'success': False, 'error': 'Username already exists'}
+                        elif existing_email and existing_email.lower() == email.lower():
+                            return {'success': False, 'error': 'Email already registered'}
+                    
+                    # #region agent log
+                    try:
+                        with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"auth.py:300","message":"Before INSERT attempt","data":{"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                    except: pass
+                    # #endregion
+                    
                     cur.execute("""
                         INSERT INTO users (username, email, password_hash, full_name, role)
                         VALUES (%s, %s, %s, %s, %s)
@@ -276,10 +331,27 @@ class UserDB:
                     """, (username.lower(), email.lower(), password_hash, full_name, role))
 
                     user_id = cur.fetchone()[0]
+                    
+                    # #region agent log
+                    try:
+                        with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"auth.py:310","message":"INSERT successful","data":{"user_id":user_id,"username":username.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                    except: pass
+                    # #endregion
+                    
                     return {'success': True, 'user_id': user_id, 'username': username, 'role': role}
 
         except Exception as e:
             err_msg = str(e).lower()
+            full_error = str(e)
+            
+            # #region agent log
+            try:
+                with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D,E,F","location":"auth.py:320","message":"Exception caught","data":{"error":full_error,"error_lower":err_msg,"username":username,"email":email},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+            except: pass
+            # #endregion
+            
             if 'username' in err_msg:
                 return {'success': False, 'error': 'Username already exists'}
             elif 'email' in err_msg:
