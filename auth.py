@@ -302,14 +302,14 @@ class UserDB:
                     
                     if existing_users:
                         for existing in existing_users:
-                            existing_dict = dict(existing) if hasattr(existing, '_asdict') or isinstance(existing, dict) else {'id': existing[0], 'username': existing[1], 'email': existing[2] if len(existing) > 2 else None, 'is_active': existing[3] if len(existing) > 3 else None}
-                            existing_username = existing_dict.get('username', existing_dict.get('username'))
-                            existing_email = existing_dict.get('email', existing_dict.get('email'))
+                            existing_dict = dict(existing)
+                            existing_username = existing_dict.get('username')
+                            existing_email = existing_dict.get('email')
                             
                             # #region agent log
                             try:
                                 with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
-                                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:290","message":"Existing user found","data":{"existing_username":existing_username,"existing_email":existing_email,"input_username":username,"input_email":email,"is_active":existing_dict.get('is_active')},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:304","message":"Existing user found","data":{"existing_username":existing_username,"existing_email":existing_email,"input_username":username,"input_email":email,"is_active":existing_dict.get('is_active'),"existing_id":existing_dict.get('id')},"timestamp":int(__import__('time').time()*1000)}) + '\n')
                             except: pass
                             # #endregion
                             
