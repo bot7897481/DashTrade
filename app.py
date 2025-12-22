@@ -2623,6 +2623,33 @@ if __name__ == "__main__":
     # Initialize database tables on first run
     try:
         UserDB.create_users_table()
+
+        # Auto-create admin if none exists
+        try:
+            from database import get_db_connection
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'superadmin')")
+                    result = cur.fetchone()
+                    admin_count = result[0] if isinstance(result, tuple) else result.get('count', 0) if isinstance(result, dict) else 0
+
+                    if admin_count == 0:
+                        # No admin exists, create default one
+                        print("No admin found. Creating default superadmin account...")
+                        result = UserDB.register_user(
+                            username='admin',
+                            email='admin@dashtrade.app',
+                            password='Admin123',
+                            full_name='Administrator',
+                            role='superadmin'
+                        )
+                        if result.get('success'):
+                            print("Default superadmin created: admin / Admin123")
+                        else:
+                            print(f"Failed to create admin: {result.get('error')}")
+        except Exception as admin_err:
+            print(f"Admin check/creation error (non-fatal): {admin_err}")
+
     except ConnectionError as e:
         # Show helpful error for connection issues
         st.error("🚨 Database Connection Error")
