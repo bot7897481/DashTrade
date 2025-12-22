@@ -607,7 +607,7 @@ def show_register_page():
                     """, unsafe_allow_html=True)
                 else:
                     # Process admin code if provided
-                    admin_code_clean = None
+                    admin_code_to_use = None
                     if admin_code and admin_code.strip():
                         admin_code_clean = admin_code.strip().replace('-', '').replace(' ', '')
                         # Validate format
@@ -617,17 +617,42 @@ def show_register_page():
                                 <strong>⚠️ Error:</strong> Admin code must be exactly 16 digits (e.g., 1234-5678-9012-3456)
                             </div>
                             """, unsafe_allow_html=True)
-                            admin_code_clean = None  # Don't use invalid code
+                            admin_code_to_use = None  # Don't use invalid code
+                        else:
+                            # Format with dashes for consistency
+                            admin_code_to_use = f"{admin_code_clean[:4]}-{admin_code_clean[4:8]}-{admin_code_clean[8:12]}-{admin_code_clean[12:16]}"
                     
                     # Create account
                     with st.spinner("✨ Creating your account..."):
-                        result = UserDB.register_user(
-                            username, 
-                            email, 
-                            password, 
-                            full_name,
-                            admin_code=admin_code_clean if admin_code_clean else None
-                        )
+                        try:
+                            result = UserDB.register_user(
+                                username, 
+                                email, 
+                                password, 
+                                full_name,
+                                admin_code=admin_code_to_use
+                            )
+                        except Exception as e:
+                            error_msg = str(e)
+                            # Check if it's a database connection error
+                            if 'connection' in error_msg.lower() or 'localhost' in error_msg.lower():
+                                st.markdown("""
+                                <div class='error-message'>
+                                    <strong>❌ Database Connection Error:</strong> Cannot connect to database.
+                                    <br><br>This usually means:
+                                    <br>• You're testing locally but DATABASE_URL is not set
+                                    <br>• Railway deployment hasn't finished yet
+                                    <br>• Database service is not running
+                                    <br><br>💡 Make sure you're accessing the Railway-deployed app, not running locally.
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class='error-message'>
+                                    <strong>❌ Registration Failed:</strong> {error_msg}
+                                </div>
+                                """, unsafe_allow_html=True)
+                            result = {'success': False, 'error': error_msg}
                         
                         if result['success']:
                             role_msg = "admin" if result.get('role') == 'admin' else "user"
@@ -660,10 +685,16 @@ def show_register_page():
                                 </div>
                                 """, unsafe_allow_html=True)
                             elif 'admin code' in error_msg.lower() or 'activation' in error_msg.lower():
-                                st.markdown("""
+                                entered_code = admin_code if admin_code else '(none)'
+                                st.markdown(f"""
                                 <div class='info-message'>
-                                    <strong>💡 Tip:</strong> The admin activation code is incorrect. 
-                                    Contact your administrator for the correct code, or create a regular user account by leaving it blank.
+                                    <strong>💡 Admin Code Help:</strong>
+                                    <br>• You entered: <strong>{entered_code}</strong>
+                                    <br>• Admin code must match the ADMIN_CODE variable in Railway
+                                    <br>• If ADMIN_CODE is not set in Railway, use default: <strong>1234-5678-9012-3456</strong>
+                                    <br>• Codes work with or without dashes (e.g., 1234-5678-9012-3456 or 1234567890123456)
+                                    <br>• Leave blank to create a regular user account
+                                    <br><br>🔍 Check Railway Variables tab to see what ADMIN_CODE is set to.
                                 </div>
                                 """, unsafe_allow_html=True)
         

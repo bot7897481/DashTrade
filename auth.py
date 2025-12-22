@@ -194,27 +194,34 @@ class UserDB:
     def validate_admin_code(admin_code: Optional[str] = None) -> bool:
         """
         Validate admin activation code
-        Returns True if code is valid or if no code is required
+        Returns True if code is valid
         """
         if not admin_code:
+            return False
+        
+        # Clean the input code
+        admin_code_clean = admin_code.replace('-', '').replace(' ', '').strip()
+        
+        # Must be exactly 16 digits
+        if len(admin_code_clean) != 16 or not admin_code_clean.isdigit():
             return False
         
         # Get admin code from environment variable
         expected_code = os.getenv('ADMIN_CODE', '').strip()
         
-        # If no ADMIN_CODE is set, generate a default one (for first-time setup)
-        if not expected_code:
-            # Generate a default 16-digit code: 1234-5678-9012-3456
-            expected_code = '1234567890123456'
-            # You can set ADMIN_CODE in Railway environment variables to change this
-        
-        # Remove dashes/spaces for comparison
-        admin_code_clean = admin_code.replace('-', '').replace(' ', '').strip()
-        expected_code_clean = expected_code.replace('-', '').replace(' ', '').strip()
-        
-        # Check if codes match (16 digits)
-        if len(admin_code_clean) == 16 and admin_code_clean == expected_code_clean:
-            return True
+        # If ADMIN_CODE is set in environment, use it
+        if expected_code:
+            # Remove dashes/spaces from expected code
+            expected_code_clean = expected_code.replace('-', '').replace(' ', '').strip()
+            
+            # Compare codes
+            if admin_code_clean == expected_code_clean:
+                return True
+        else:
+            # If no ADMIN_CODE is set, use default: 1234-5678-9012-3456
+            default_code = '1234567890123456'
+            if admin_code_clean == default_code:
+                return True
         
         return False
     
