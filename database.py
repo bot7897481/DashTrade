@@ -133,15 +133,34 @@ def get_db_connection():
             
     else:
         # PostgreSQL connection
-        conn = psycopg2.connect(DATABASE_URL)
         try:
-            yield conn
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            conn.close()
+            conn = psycopg2.connect(DATABASE_URL)
+            try:
+                yield conn
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise e
+            finally:
+                conn.close()
+        except psycopg2.OperationalError as e:
+            error_msg = str(e)
+            # Check if it's a localhost connection error
+            if 'localhost' in error_msg or '127.0.0.1' in error_msg or '::1' in error_msg:
+                raise ConnectionError(
+                    f"Database connection failed: Trying to connect to localhost instead of Railway database.\n"
+                    f"This usually means:\n"
+                    f"1. You're running the app locally (use Railway URL instead)\n"
+                    f"2. DATABASE_URL is not set correctly in Railway\n"
+                    f"3. Railway PostgreSQL service is not connected\n\n"
+                    f"Current DATABASE_URL: {DATABASE_URL[:50] if DATABASE_URL else 'NOT SET'}...\n\n"
+                    f"To fix:\n"
+                    f"- Make sure you're accessing your Railway app URL (not running streamlit locally)\n"
+                    f"- Check Railway → Variables → DATABASE_URL is set\n"
+                    f"- Verify PostgreSQL service is added and running in Railway"
+                )
+            else:
+                raise
 
 class WatchlistDB:
     """Database operations for watchlist management"""

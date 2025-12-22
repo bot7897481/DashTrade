@@ -2612,11 +2612,58 @@ def main():
                     st.warning("⚠️ Limited user management")
 
 if __name__ == "__main__":
+    # Check database connection and show helpful error if needed
+    import os
+    from database import DATABASE_URL
+    
+    # Show database status (helpful for debugging)
+    db_url_preview = DATABASE_URL[:50] + "..." if DATABASE_URL and len(DATABASE_URL) > 50 else (DATABASE_URL or "NOT SET")
+    is_railway = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PROJECT_ID')
+    
     # Initialize database tables on first run
     try:
         UserDB.create_users_table()
+    except ConnectionError as e:
+        # Show helpful error for connection issues
+        st.error("🚨 Database Connection Error")
+        st.markdown(f"""
+        <div class='error-message'>
+            <strong>Cannot connect to database!</strong><br><br>
+            {str(e)}<br><br>
+            <strong>Quick Fix:</strong><br>
+            • Make sure you're accessing your <strong>Railway app URL</strong>, not running locally<br>
+            • Check Railway → Variables → DATABASE_URL is set<br>
+            • Verify PostgreSQL service is running in Railway<br><br>
+            <strong>Current Status:</strong><br>
+            • Running on Railway: {'Yes' if is_railway else 'No (likely local)'}<br>
+            • DATABASE_URL: {db_url_preview}
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
     except Exception as e:
-        st.error(f"Database initialization error: {e}")
+        error_msg = str(e)
+        if 'localhost' in error_msg.lower() or 'connection refused' in error_msg.lower():
+            st.error("🚨 Database Connection Error")
+            st.markdown(f"""
+            <div class='error-message'>
+                <strong>Database Connection Failed!</strong><br><br>
+                The app is trying to connect to <strong>localhost</strong> instead of Railway's database.<br><br>
+                <strong>This means:</strong><br>
+                • You're likely running the app <strong>locally</strong> instead of using Railway URL<br>
+                • Or DATABASE_URL is not set correctly in Railway<br><br>
+                <strong>Solution:</strong><br>
+                1. <strong>Don't run</strong> <code>streamlit run app.py</code> locally<br>
+                2. Go to your <strong>Railway dashboard</strong> → Get your app URL<br>
+                3. Access the app through that URL (e.g., https://your-app.railway.app)<br>
+                4. Railway automatically sets DATABASE_URL for you<br><br>
+                <strong>Current Status:</strong><br>
+                • Running on Railway: {'Yes ✅' if is_railway else 'No ❌ (This is the problem!)'}<br>
+                • DATABASE_URL: {db_url_preview}
+            </div>
+            """, unsafe_allow_html=True)
+            st.stop()
+        else:
+            st.error(f"Database initialization error: {e}")
 
     # Check authentication
     if 'authenticated' not in st.session_state:
