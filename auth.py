@@ -283,39 +283,42 @@ class UserDB:
             # #endregion
 
             with get_db_connection() as conn:
-                with conn.cursor() as cur:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     # Check if username already exists (HYPOTHESIS A, B, C)
                     cur.execute("""
                         SELECT id, username, email, is_active, role 
                         FROM users 
                         WHERE LOWER(username) = LOWER(%s) OR LOWER(email) = LOWER(%s)
                     """, (username, email))
-                    existing = cur.fetchone()
+                    existing_users = cur.fetchall()
                     
                     # #region agent log
                     try:
                         with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
-                            existing_dict = dict(existing) if existing else None
-                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:285","message":"DB check result","data":{"existing_user":existing_dict,"username_checked":username.lower(),"email_checked":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                            existing_list = [dict(row) for row in existing_users] if existing_users else []
+                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:285","message":"DB check result","data":{"existing_users":existing_list,"username_checked":username.lower(),"email_checked":email.lower(),"count":len(existing_users)},"timestamp":int(__import__('time').time()*1000)}) + '\n')
                     except: pass
                     # #endregion
                     
-                    if existing:
-                        existing_dict = dict(existing) if hasattr(existing, '_asdict') else (existing if isinstance(existing, dict) else {'id': existing[0], 'username': existing[1], 'email': existing[2] if len(existing) > 2 else None, 'is_active': existing[3] if len(existing) > 3 else None})
-                        existing_username = existing_dict.get('username') if isinstance(existing_dict, dict) else (existing[1] if len(existing) > 1 else None)
-                        existing_email = existing_dict.get('email') if isinstance(existing_dict, dict) else (existing[2] if len(existing) > 2 else None)
-                        
-                        # #region agent log
-                        try:
-                            with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
-                                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:290","message":"Existing user found","data":{"existing_username":existing_username,"existing_email":existing_email,"input_username":username,"input_email":email},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-                        except: pass
-                        # #endregion
-                        
-                        if existing_username and existing_username.lower() == username.lower():
-                            return {'success': False, 'error': 'Username already exists'}
-                        elif existing_email and existing_email.lower() == email.lower():
-                            return {'success': False, 'error': 'Email already registered'}
+                    if existing_users:
+                        for existing in existing_users:
+                            existing_dict = dict(existing) if hasattr(existing, '_asdict') or isinstance(existing, dict) else {'id': existing[0], 'username': existing[1], 'email': existing[2] if len(existing) > 2 else None, 'is_active': existing[3] if len(existing) > 3 else None}
+                            existing_username = existing_dict.get('username', existing_dict.get('username'))
+                            existing_email = existing_dict.get('email', existing_dict.get('email'))
+                            
+                            # #region agent log
+                            try:
+                                with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:290","message":"Existing user found","data":{"existing_username":existing_username,"existing_email":existing_email,"input_username":username,"input_email":email,"is_active":existing_dict.get('is_active')},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                            except: pass
+                            # #endregion
+                            
+                            # Check username match (case-insensitive)
+                            if existing_username and str(existing_username).lower() == username.lower():
+                                return {'success': False, 'error': f'Username already exists (found user ID: {existing_dict.get("id")})'}
+                            # Check email match (case-insensitive)
+                            elif existing_email and str(existing_email).lower() == email.lower():
+                                return {'success': False, 'error': f'Email already registered (found user ID: {existing_dict.get("id")})'}
                     
                     # #region agent log
                     try:
