@@ -393,7 +393,7 @@ def create_superadmin():
             result = UserDB.register_user(
                 username='admin',
                 email='admin@dashtrade.app',
-                password='admin123!',
+                password='Admin123',
                 full_name='Railway Admin',
                 role='superadmin'
             )
@@ -402,7 +402,7 @@ def create_superadmin():
                 print("\n✅ Default superadmin account created!")
                 print("="*70)
                 print("\n👤 Username: admin")
-                print("🔑 Password: admin123!")
+                print("🔑 Password: Admin123")
                 print("📧 Email: admin@dashtrade.app")
                 print("👑 Role: SUPERADMIN")
                 print("\n⚠️  IMPORTANT: Change the default password after first login!")

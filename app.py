@@ -270,7 +270,11 @@ def show_login_page():
                             st.success(f"Welcome back, {result['user']['username']}!")
                             st.rerun()
                         else:
-                            st.error(result['error'])
+                            error_msg = result.get('error', 'Login failed')
+                            st.error(f"❌ {error_msg}")
+                            # Show helpful hints for common issues
+                            if 'Invalid username or password' in error_msg:
+                                st.info("💡 Tip: Username is case-insensitive. Make sure your password is correct.")
 
         st.markdown("---")
         st.markdown("Don't have an account?")

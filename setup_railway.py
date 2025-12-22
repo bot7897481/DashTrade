@@ -159,7 +159,7 @@ def show_next_steps():
     print("\n4. Deploy and access:")
     print("   • Railway will auto-deploy on push")
     print("   • Get your app URL from Railway dashboard")
-    print("   • Default admin: admin / admin123! (change immediately!)")
+    print("   • Default admin: admin / Admin123 (change immediately!)")
 
     print("\n5. Verify deployment:")
     print("   • Check Railway logs for any errors")
