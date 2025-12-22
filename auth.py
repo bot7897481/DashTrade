@@ -244,13 +244,14 @@ class UserDB:
         Register a new user
         Returns: {'success': True, 'user_id': int} or {'success': False, 'error': str}
         """
-        # #region agent log
-        import json
-        try:
-            with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C,D,E,F","location":"auth.py:242","message":"register_user called","data":{"username":username,"email":email,"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-        except: pass
-        # #endregion
+            # #region agent log
+            print(f"[DEBUG] register_user called: username='{username}', email='{email}'")
+            import json
+            try:
+                with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C,D,E,F","location":"auth.py:242","message":"register_user called","data":{"username":username,"email":email,"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+            except: pass
+            # #endregion
         
         try:
             # Validate inputs
@@ -276,6 +277,7 @@ class UserDB:
             password_hash = UserDB.hash_password(password)
 
             # #region agent log
+            print(f"[DEBUG] Before DB check: checking for existing users with username='{username.lower()}' or email='{email.lower()}'")
             try:
                 with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:270","message":"Before DB check - checking if user exists","data":{"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
@@ -301,24 +303,36 @@ class UserDB:
                     # #endregion
                     
                     if existing_users:
+                        # #region agent log
+                        print(f"[DEBUG] Found {len(existing_users)} existing user(s) matching username/email")
+                        # #endregion
+                        
                         for existing in existing_users:
                             existing_dict = dict(existing)
                             existing_username = existing_dict.get('username')
                             existing_email = existing_dict.get('email')
+                            existing_id = existing_dict.get('id')
                             
                             # #region agent log
-                            try:
-                                with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
-                                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"auth.py:304","message":"Existing user found","data":{"existing_username":existing_username,"existing_email":existing_email,"input_username":username,"input_email":email,"is_active":existing_dict.get('is_active'),"existing_id":existing_dict.get('id')},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-                            except: pass
+                            print(f"[DEBUG] Checking existing user: ID={existing_id}, username='{existing_username}', email='{existing_email}'")
+                            print(f"[DEBUG] Input: username='{username}' (lower: '{username.lower()}'), email='{email}' (lower: '{email.lower()}')")
                             # #endregion
                             
                             # Check username match (case-insensitive)
                             if existing_username and str(existing_username).lower() == username.lower():
-                                return {'success': False, 'error': f'Username already exists (found user ID: {existing_dict.get("id")})'}
+                                error_msg = f"Username already exists. Found user ID {existing_id} with username '{existing_username}' (your input: '{username}')"
+                                print(f"[DEBUG] Username match detected: {error_msg}")
+                                return {'success': False, 'error': error_msg}
                             # Check email match (case-insensitive)
                             elif existing_email and str(existing_email).lower() == email.lower():
-                                return {'success': False, 'error': f'Email already registered (found user ID: {existing_dict.get("id")})'}
+                                error_msg = f"Email already registered. Found user ID {existing_id} with email '{existing_email}' (your input: '{email}')"
+                                print(f"[DEBUG] Email match detected: {error_msg}")
+                                return {'success': False, 'error': error_msg}
+                        
+                        # If we get here, there was a match but username/email didn't match exactly
+                        # This shouldn't happen, but log it for debugging
+                        print(f"[DEBUG] WARNING: Found existing users but no exact match. This is unexpected.")
+                        return {'success': False, 'error': f'Registration conflict detected. Please try a different username or email.'}
                     
                     # #region agent log
                     try:
