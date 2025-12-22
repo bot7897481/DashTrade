@@ -565,6 +565,15 @@ def show_register_page():
             )
             st.markdown("</div>", unsafe_allow_html=True)
             
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            admin_code = st.text_input(
+                "🔑 Admin Activation Code (optional)", 
+                help="Enter a 16-digit admin code to create an admin account. Leave blank for regular user account.",
+                placeholder="1234-5678-9012-3456",
+                max_chars=19
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
             submit = st.form_submit_button(
                 "✨ Create Account", 
                 use_container_width=True,
@@ -597,13 +606,34 @@ def show_register_page():
                     </div>
                     """, unsafe_allow_html=True)
                 else:
+                    # Process admin code if provided
+                    admin_code_clean = None
+                    if admin_code and admin_code.strip():
+                        admin_code_clean = admin_code.strip().replace('-', '').replace(' ', '')
+                        # Validate format
+                        if len(admin_code_clean) != 16 or not admin_code_clean.isdigit():
+                            st.markdown("""
+                            <div class='error-message'>
+                                <strong>⚠️ Error:</strong> Admin code must be exactly 16 digits (e.g., 1234-5678-9012-3456)
+                            </div>
+                            """, unsafe_allow_html=True)
+                            admin_code_clean = None  # Don't use invalid code
+                    
+                    # Create account
                     with st.spinner("✨ Creating your account..."):
-                        result = UserDB.register_user(username, email, password, full_name)
+                        result = UserDB.register_user(
+                            username, 
+                            email, 
+                            password, 
+                            full_name,
+                            admin_code=admin_code_clean if admin_code_clean else None
+                        )
                         
                         if result['success']:
-                            st.markdown("""
+                            role_msg = "admin" if result.get('role') == 'admin' else "user"
+                            st.markdown(f"""
                             <div class='success-message'>
-                                <strong>✅ Success!</strong> Account created successfully! 
+                                <strong>✅ Success!</strong> Account created successfully as <strong>{role_msg}</strong>! 
                                 <br>You can now login with your credentials.
                             </div>
                             """, unsafe_allow_html=True)
@@ -627,6 +657,13 @@ def show_register_page():
                                 <div class='info-message'>
                                     <strong>💡 Tip:</strong> This username or email is already registered. 
                                     Try logging in instead, or use a different username/email.
+                                </div>
+                                """, unsafe_allow_html=True)
+                            elif 'admin code' in error_msg.lower() or 'activation' in error_msg.lower():
+                                st.markdown("""
+                                <div class='info-message'>
+                                    <strong>💡 Tip:</strong> The admin activation code is incorrect. 
+                                    Contact your administrator for the correct code, or create a regular user account by leaving it blank.
                                 </div>
                                 """, unsafe_allow_html=True)
         

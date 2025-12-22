@@ -191,7 +191,48 @@ class UserDB:
             return False
 
     @staticmethod
-    def register_user(username: str, email: str, password: str, full_name: Optional[str] = None, role: str = 'user') -> Dict:
+    def validate_admin_code(admin_code: Optional[str] = None) -> bool:
+        """
+        Validate admin activation code
+        Returns True if code is valid or if no code is required
+        """
+        if not admin_code:
+            return False
+        
+        # Get admin code from environment variable
+        expected_code = os.getenv('ADMIN_CODE', '').strip()
+        
+        # If no ADMIN_CODE is set, generate a default one (for first-time setup)
+        if not expected_code:
+            # Generate a default 16-digit code: 1234-5678-9012-3456
+            expected_code = '1234567890123456'
+            # You can set ADMIN_CODE in Railway environment variables to change this
+        
+        # Remove dashes/spaces for comparison
+        admin_code_clean = admin_code.replace('-', '').replace(' ', '').strip()
+        expected_code_clean = expected_code.replace('-', '').replace(' ', '').strip()
+        
+        # Check if codes match (16 digits)
+        if len(admin_code_clean) == 16 and admin_code_clean == expected_code_clean:
+            return True
+        
+        return False
+    
+    @staticmethod
+    def get_default_admin_code() -> str:
+        """Get the default admin code for display"""
+        admin_code = os.getenv('ADMIN_CODE', '').strip()
+        if not admin_code:
+            # Default code for first-time setup
+            return '1234-5678-9012-3456'
+        # Format with dashes for display
+        code_clean = admin_code.replace('-', '').replace(' ', '')
+        if len(code_clean) == 16:
+            return f"{code_clean[:4]}-{code_clean[4:8]}-{code_clean[8:12]}-{code_clean[12:16]}"
+        return admin_code
+
+    @staticmethod
+    def register_user(username: str, email: str, password: str, full_name: Optional[str] = None, role: str = 'user', admin_code: Optional[str] = None) -> Dict:
         """
         Register a new user
         Returns: {'success': True, 'user_id': int} or {'success': False, 'error': str}
@@ -204,6 +245,13 @@ class UserDB:
                 return {'success': False, 'error': 'Password must be at least 6 characters'}
             if '@' not in email:
                 return {'success': False, 'error': 'Invalid email address'}
+
+            # Check admin code if provided
+            if admin_code:
+                if UserDB.validate_admin_code(admin_code):
+                    role = 'admin'  # Grant admin role if code is valid
+                else:
+                    return {'success': False, 'error': 'Invalid admin activation code'}
 
             # Validate role
             if role not in ['user', 'admin', 'superadmin']:
