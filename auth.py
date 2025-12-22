@@ -244,14 +244,14 @@ class UserDB:
         Register a new user
         Returns: {'success': True, 'user_id': int} or {'success': False, 'error': str}
         """
-            # #region agent log
-            print(f"[DEBUG] register_user called: username='{username}', email='{email}'")
-            import json
-            try:
-                with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C,D,E,F","location":"auth.py:242","message":"register_user called","data":{"username":username,"email":email,"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-            except: pass
-            # #endregion
+        # #region agent log
+        import json
+        print(f"[DEBUG] register_user called: username='{username}', email='{email}'")
+        try:
+            with open('/Users/abedsaeedi/Documents/GitHub/DashTrade/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C,D,E,F","location":"auth.py:242","message":"register_user called","data":{"username":username,"email":email,"username_lower":username.lower(),"email_lower":email.lower()},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+        except: pass
+        # #endregion
         
         try:
             # Validate inputs
