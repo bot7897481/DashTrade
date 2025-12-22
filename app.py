@@ -32,29 +32,155 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS (same as before)
+# Custom CSS
 st.markdown("""
 <style>
+    /* Hide Streamlit default elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Main header */
     .main-header {
         font-size: 3rem;
         font-weight: bold;
         text-align: center;
         margin-bottom: 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
+    
+    /* Login/Register Page Styles */
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+    }
+    
+    .login-card {
+        background: white;
+        border-radius: 20px;
+        padding: 3rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 450px;
+        width: 100%;
+        animation: slideUp 0.5s ease-out;
+    }
+    
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .login-title {
+        font-size: 2rem;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 0.5rem;
+        color: #1a1a1a;
+    }
+    
+    .login-subtitle {
+        text-align: center;
+        color: #666;
+        margin-bottom: 2rem;
+        font-size: 0.95rem;
+    }
+    
+    .form-input {
+        margin-bottom: 1.5rem;
+    }
+    
+    .login-button {
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .login-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .register-link {
+        text-align: center;
+        margin-top: 1.5rem;
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .register-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    
+    .register-link a:hover {
+        text-decoration: underline;
+    }
+    
+    .error-message {
+        background-color: #fee;
+        border-left: 4px solid #f44336;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        color: #c62828;
+    }
+    
+    .success-message {
+        background-color: #e8f5e9;
+        border-left: 4px solid #4caf50;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        color: #2e7d32;
+    }
+    
+    .info-message {
+        background-color: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        color: #1565c0;
+    }
+    
+    /* Metric cards */
     .metric-card {
         background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 0.5rem 0;
     }
+    
     .bullish {
         color: #00c853;
         font-weight: bold;
     }
+    
     .bearish {
         color: #ff1744;
         font-weight: bold;
     }
+    
     .watchlist-item {
         padding: 0.5rem;
         margin: 0.25rem 0;
@@ -62,8 +188,28 @@ st.markdown("""
         border-radius: 0.25rem;
         cursor: pointer;
     }
+    
     .watchlist-item:hover {
         background-color: #e9ecef;
+    }
+    
+    /* Styling for Streamlit form inputs */
+    .stTextInput > div > div > input {
+        border-radius: 10px;
+        border: 2px solid #e0e0e0;
+        padding: 0.75rem;
+        transition: border-color 0.3s;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    /* Styling for buttons */
+    .stButton > button {
+        border-radius: 10px;
+        transition: all 0.3s;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -242,85 +388,259 @@ def create_candlestick_chart_with_signals(df, symbol: str):
 
 # Main App
 def show_login_page():
-    """Display login page"""
-    st.markdown('<h1 class="main-header">📈 DashTrade</h1>', unsafe_allow_html=True)
-    st.markdown("### Login to Your Trading Dashboard")
-    st.markdown("---")
-
+    """Display modern login page"""
+    # Background gradient
+    st.markdown("""
+    <div style='position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                z-index: -1;'></div>
+    """, unsafe_allow_html=True)
+    
+    # Center the login card
     col1, col2, col3 = st.columns([1, 2, 1])
-
+    
     with col2:
-        st.subheader("Login")
-
-        with st.form("login_form"):
-            username = st.text_input("Username", key="login_username")
-            password = st.text_input("Password", type="password", key="login_password")
-            submit = st.form_submit_button("Login", use_container_width=True)
-
+        # Login Card
+        st.markdown("""
+        <div style='background: white; border-radius: 20px; padding: 3rem; 
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); margin: 2rem 0;'>
+            <h1 style='text-align: center; font-size: 2.5rem; margin-bottom: 0.5rem; 
+                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                       background-clip: text;'>
+                📈 DashTrade
+            </h1>
+            <p style='text-align: center; color: #666; margin-bottom: 2rem; font-size: 1rem;'>
+                Welcome back! Sign in to access your trading dashboard
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Login Form
+        with st.form("login_form", clear_on_submit=False):
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            username = st.text_input(
+                "👤 Username", 
+                key="login_username",
+                placeholder="Enter your username",
+                help="Username is case-insensitive"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            password = st.text_input(
+                "🔒 Password", 
+                type="password", 
+                key="login_password",
+                placeholder="Enter your password"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            submit = st.form_submit_button(
+                "🚀 Sign In", 
+                use_container_width=True,
+                type="primary"
+            )
+            
             if submit:
                 if not username or not password:
-                    st.error("Please enter both username and password")
+                    st.markdown("""
+                    <div class='error-message'>
+                        <strong>⚠️ Error:</strong> Please enter both username and password
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    with st.spinner("Authenticating..."):
+                    with st.spinner("🔐 Authenticating..."):
                         result = UserDB.authenticate_user(username, password)
-
+                        
                         if result['success']:
                             st.session_state['authenticated'] = True
                             st.session_state['user'] = result['user']
-                            st.success(f"Welcome back, {result['user']['username']}!")
+                            st.markdown(f"""
+                            <div class='success-message'>
+                                <strong>✅ Success!</strong> Welcome back, {result['user']['username']}!
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.balloons()
                             st.rerun()
                         else:
                             error_msg = result.get('error', 'Login failed')
-                            st.error(f"❌ {error_msg}")
-                            # Show helpful hints for common issues
+                            st.markdown(f"""
+                            <div class='error-message'>
+                                <strong>❌ Login Failed:</strong> {error_msg}
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Show helpful hints
                             if 'Invalid username or password' in error_msg:
-                                st.info("💡 Tip: Username is case-insensitive. Make sure your password is correct.")
-
-        st.markdown("---")
-        st.markdown("Don't have an account?")
-        if st.button("Create New Account", use_container_width=True):
+                                st.markdown("""
+                                <div class='info-message'>
+                                    <strong>💡 Tip:</strong> Username is case-insensitive. 
+                                    Make sure your password is correct. If you forgot your password, 
+                                    contact your administrator.
+                                </div>
+                                """, unsafe_allow_html=True)
+        
+        # Register link
+        st.markdown("""
+        <div style='text-align: center; margin-top: 2rem; padding-top: 1.5rem; 
+                    border-top: 1px solid #e0e0e0;'>
+            <p style='color: #666; margin-bottom: 0.5rem; font-size: 0.95rem;'>
+                Don't have an account?
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("✨ Create New Account", use_container_width=True, type="secondary"):
             st.session_state['show_register'] = True
             st.rerun()
 
 def show_register_page():
-    """Display registration page"""
-    st.markdown('<h1 class="main-header">📈 DashTrade</h1>', unsafe_allow_html=True)
-    st.markdown("### Create Your Trading Account")
-    st.markdown("---")
-
+    """Display modern registration page"""
+    # Background gradient
+    st.markdown("""
+    <div style='position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                z-index: -1;'></div>
+    """, unsafe_allow_html=True)
+    
+    # Center the registration card
     col1, col2, col3 = st.columns([1, 2, 1])
-
+    
     with col2:
-        st.subheader("Register")
-
-        with st.form("register_form"):
-            username = st.text_input("Username", help="Minimum 3 characters")
-            email = st.text_input("Email")
-            full_name = st.text_input("Full Name (optional)")
-            password = st.text_input("Password", type="password", help="Minimum 6 characters")
-            password_confirm = st.text_input("Confirm Password", type="password")
-            submit = st.form_submit_button("Create Account", use_container_width=True)
+        # Registration Card
+        st.markdown("""
+        <div style='background: white; border-radius: 20px; padding: 3rem; 
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); margin: 2rem 0;'>
+            <h1 style='text-align: center; font-size: 2.5rem; margin-bottom: 0.5rem; 
+                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                       background-clip: text;'>
+                📈 DashTrade
+            </h1>
+            <p style='text-align: center; color: #666; margin-bottom: 2rem; font-size: 1rem;'>
+                Create your account and start trading today
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Registration Form
+        with st.form("register_form", clear_on_submit=False):
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            username = st.text_input(
+                "👤 Username", 
+                help="Minimum 3 characters",
+                placeholder="Choose a username"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            email = st.text_input(
+                "📧 Email",
+                placeholder="your.email@example.com"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            full_name = st.text_input(
+                "👨‍💼 Full Name (optional)",
+                placeholder="Your full name"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            password = st.text_input(
+                "🔒 Password", 
+                type="password", 
+                help="Minimum 6 characters",
+                placeholder="Create a strong password"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
+            password_confirm = st.text_input(
+                "🔒 Confirm Password", 
+                type="password",
+                placeholder="Re-enter your password"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            submit = st.form_submit_button(
+                "✨ Create Account", 
+                use_container_width=True,
+                type="primary"
+            )
 
             if submit:
                 if not username or not email or not password:
-                    st.error("Please fill in all required fields")
+                    st.markdown("""
+                    <div class='error-message'>
+                        <strong>⚠️ Error:</strong> Please fill in all required fields (Username, Email, Password)
+                    </div>
+                    """, unsafe_allow_html=True)
                 elif password != password_confirm:
-                    st.error("Passwords do not match")
+                    st.markdown("""
+                    <div class='error-message'>
+                        <strong>⚠️ Error:</strong> Passwords do not match. Please try again.
+                    </div>
+                    """, unsafe_allow_html=True)
+                elif len(password) < 6:
+                    st.markdown("""
+                    <div class='error-message'>
+                        <strong>⚠️ Error:</strong> Password must be at least 6 characters long.
+                    </div>
+                    """, unsafe_allow_html=True)
+                elif len(username) < 3:
+                    st.markdown("""
+                    <div class='error-message'>
+                        <strong>⚠️ Error:</strong> Username must be at least 3 characters long.
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    with st.spinner("Creating account..."):
+                    with st.spinner("✨ Creating your account..."):
                         result = UserDB.register_user(username, email, password, full_name)
-
+                        
                         if result['success']:
-                            st.success("Account created successfully! Please login.")
-                            st.session_state['show_register'] = False
+                            st.markdown("""
+                            <div class='success-message'>
+                                <strong>✅ Success!</strong> Account created successfully! 
+                                <br>You can now login with your credentials.
+                            </div>
+                            """, unsafe_allow_html=True)
                             st.balloons()
+                            st.session_state['show_register'] = False
+                            # Small delay to show success message
+                            import time
+                            time.sleep(1.5)
                             st.rerun()
                         else:
-                            st.error(result['error'])
-
-        st.markdown("---")
-        st.markdown("Already have an account?")
-        if st.button("Back to Login", use_container_width=True):
+                            error_msg = result.get('error', 'Registration failed')
+                            st.markdown(f"""
+                            <div class='error-message'>
+                                <strong>❌ Registration Failed:</strong> {error_msg}
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Provide helpful hints
+                            if 'already exists' in error_msg.lower():
+                                st.markdown("""
+                                <div class='info-message'>
+                                    <strong>💡 Tip:</strong> This username or email is already registered. 
+                                    Try logging in instead, or use a different username/email.
+                                </div>
+                                """, unsafe_allow_html=True)
+        
+        # Back to login link
+        st.markdown("""
+        <div style='text-align: center; margin-top: 2rem; padding-top: 1.5rem; 
+                    border-top: 1px solid #e0e0e0;'>
+            <p style='color: #666; margin-bottom: 0.5rem; font-size: 0.95rem;'>
+                Already have an account?
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("← Back to Login", use_container_width=True, type="secondary"):
             st.session_state['show_register'] = False
             st.rerun()
 
