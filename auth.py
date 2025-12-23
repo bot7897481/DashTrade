@@ -347,7 +347,9 @@ class UserDB:
                         RETURNING id
                     """, (username.lower(), email.lower(), password_hash, full_name, role))
 
-                    user_id = cur.fetchone()[0]
+                    result = cur.fetchone()
+                    # Handle both dict (RealDictCursor) and tuple returns
+                    user_id = result['id'] if isinstance(result, dict) else result[0]
                     
                     # #region agent log
                     try:
