@@ -11,7 +11,10 @@ import os
 st.set_page_config(page_title="Trading Bot", page_icon="🤖", layout="wide")
 
 # Import after st.set_page_config
-from bot_database import BotAPIKeysDB, BotConfigDB, BotTradesDB, WebhookTokenDB, RiskEventDB
+from bot_database import (
+    BotAPIKeysDB, BotConfigDB, BotTradesDB, WebhookTokenDB, RiskEventDB,
+    SystemStrategyDB, UserStrategySubscriptionDB, UserOutgoingWebhookDB
+)
 from bot_engine import TradingEngine
 
 # Check authentication
@@ -32,8 +35,9 @@ st.markdown(f"**User:** {username}")
 st.markdown("---")
 
 # Create tabs
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "⚙️ Setup", "📋 My Bots", "📊 Live Positions", "📜 Trade History", "📈 Performance", "⚠️ Risk Events"
+tab1, tab2, tab2b, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "⚙️ Setup", "📋 My Bots", "📡 System Strategies", "📊 Live Positions",
+    "📜 Trade History", "📈 Performance", "⚠️ Risk Events", "🔗 Webhooks"
 ])
 
 # ============================================================================
@@ -115,11 +119,28 @@ with tab1:
                 st.rerun()
 
         if token:
-            # Determine the webhook URL (adjust for your Replit URL)
-            base_url = os.getenv('REPLIT_URL', 'http://localhost:8080')
+            # Determine the webhook URL - check multiple sources
+            # Railway sets RAILWAY_PUBLIC_DOMAIN automatically
+            railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+            if railway_domain:
+                base_url = f"https://{railway_domain}"
+            else:
+                # Fall back to manually set URL or localhost
+                base_url = os.getenv('WEBHOOK_BASE_URL') or os.getenv('REPLIT_URL', 'http://localhost:8080')
+
             webhook_url = f"{base_url}/webhook?token={token}"
 
             st.code(webhook_url, language=None)
+
+            # Show warning if using localhost
+            if 'localhost' in base_url:
+                st.warning("""
+                ⚠️ **Webhook URL shows localhost** - TradingView cannot reach this!
+
+                **To fix:** Set `WEBHOOK_BASE_URL` in Railway environment variables:
+                - Go to Railway → Your App → Variables
+                - Add: `WEBHOOK_BASE_URL` = `https://your-app-name.up.railway.app`
+                """)
 
             st.info("""
             **How to use this webhook:**
@@ -288,6 +309,161 @@ with tab2:
                                 st.rerun()
 
 # ============================================================================
+# TAB 2B: SYSTEM STRATEGIES (Subscribe to company signals)
+# ============================================================================
+
+with tab2b:
+    st.header("📡 System Strategies")
+    st.caption("Subscribe to NovAlgo's TradingView strategies - signals are executed automatically")
+
+    if not has_keys:
+        st.warning("⚠️ Please configure your Alpaca API keys in the Setup tab first")
+    else:
+        # Get available system strategies
+        try:
+            system_strategies = SystemStrategyDB.get_all_strategies(active_only=True)
+        except Exception:
+            system_strategies = []
+            st.warning("⚠️ System strategies not available. Database migration may be needed.")
+
+        if not system_strategies:
+            st.info("No system strategies available yet. Check back later!")
+        else:
+            # Get user's bots for subscription
+            user_bots = BotConfigDB.get_user_bots(user_id)
+
+            if not user_bots:
+                st.warning("⚠️ You need to create a bot first in the 'My Bots' tab before subscribing to strategies")
+            else:
+                st.markdown("### Available Strategies")
+
+                for strategy in system_strategies:
+                    with st.container(border=True):
+                        col1, col2 = st.columns([3, 2])
+
+                        with col1:
+                            st.markdown(f"### 📈 {strategy['name']}")
+                            st.markdown(f"**Symbol:** {strategy['symbol']} | **Timeframe:** {strategy['timeframe']}")
+                            if strategy.get('description'):
+                                st.write(strategy['description'])
+
+                            # Show stats
+                            st.caption(f"📊 Total signals sent: {strategy.get('total_signals', 0)}")
+
+                        with col2:
+                            st.markdown("**Subscribe with your bot:**")
+
+                            # Select which bot to subscribe
+                            matching_bots = [b for b in user_bots if b['symbol'] == strategy['symbol']]
+
+                            if not matching_bots:
+                                st.info(f"Create a bot for {strategy['symbol']} to subscribe")
+                                if st.button(f"➕ Quick Create Bot for {strategy['symbol']}", key=f"quick_create_{strategy['id']}"):
+                                    bot_id = BotConfigDB.create_bot(
+                                        user_id=user_id,
+                                        symbol=strategy['symbol'],
+                                        timeframe=strategy['timeframe'],
+                                        position_size=1000.0,
+                                        strategy_name=f"System: {strategy['name']}",
+                                        signal_source='system'
+                                    )
+                                    if bot_id:
+                                        st.success(f"✅ Bot created! Refresh to subscribe.")
+                                        st.rerun()
+                            else:
+                                for bot in matching_bots:
+                                    is_subscribed = UserStrategySubscriptionDB.is_subscribed(
+                                        user_id, strategy['id'], bot['id']
+                                    )
+
+                                    bot_label = f"{bot['symbol']} - {bot['timeframe']} (${float(bot['position_size']):,.0f})"
+
+                                    if is_subscribed:
+                                        st.success(f"✅ Subscribed: {bot_label}")
+                                        if st.button("Unsubscribe", key=f"unsub_{strategy['id']}_{bot['id']}"):
+                                            UserStrategySubscriptionDB.unsubscribe(user_id, strategy['id'], bot['id'])
+                                            st.rerun()
+                                    else:
+                                        st.write(f"Bot: {bot_label}")
+
+                        # Risk Warning & Subscribe form (only if not subscribed)
+                        if matching_bots:
+                            not_subscribed_bots = [
+                                b for b in matching_bots
+                                if not UserStrategySubscriptionDB.is_subscribed(user_id, strategy['id'], b['id'])
+                            ]
+
+                            if not_subscribed_bots:
+                                with st.expander("⚠️ Subscribe - Read Risk Disclaimer First"):
+                                    st.error(f"""
+                                    **RISK DISCLAIMER**
+
+                                    {strategy.get('risk_warning', 'Trading involves substantial risk. Past performance is not indicative of future results.')}
+
+                                    By subscribing, you acknowledge:
+                                    - This strategy is provided by NovAlgo's TradingView alerts
+                                    - Signals are generated automatically and may result in losses
+                                    - NovAlgo is NOT responsible for any trading losses
+                                    - You are trading with your own funds at your own risk
+                                    - Past performance does not guarantee future results
+                                    """)
+
+                                    selected_bot = st.selectbox(
+                                        "Select bot to subscribe:",
+                                        options=[f"{b['id']}|{b['symbol']} - {b['timeframe']}" for b in not_subscribed_bots],
+                                        key=f"select_bot_{strategy['id']}"
+                                    )
+
+                                    accept_disclaimer = st.checkbox(
+                                        "I have read and accept the risk disclaimer",
+                                        key=f"accept_{strategy['id']}"
+                                    )
+
+                                    if st.button("✅ Subscribe to Strategy", key=f"subscribe_{strategy['id']}", type="primary"):
+                                        if not accept_disclaimer:
+                                            st.error("❌ You must accept the risk disclaimer to subscribe")
+                                        else:
+                                            bot_id = int(selected_bot.split('|')[0])
+                                            success, msg = UserStrategySubscriptionDB.subscribe(
+                                                user_id=user_id,
+                                                strategy_id=strategy['id'],
+                                                bot_config_id=bot_id,
+                                                disclaimer_accepted=True
+                                            )
+                                            if success:
+                                                st.success(f"✅ {msg}")
+                                                st.balloons()
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ {msg}")
+
+                # Show user's current subscriptions
+                st.markdown("---")
+                st.markdown("### Your Subscriptions")
+
+                try:
+                    subscriptions = UserStrategySubscriptionDB.get_user_subscriptions(user_id)
+                except Exception:
+                    subscriptions = []
+
+                if not subscriptions:
+                    st.info("You haven't subscribed to any system strategies yet")
+                else:
+                    for sub in subscriptions:
+                        with st.container(border=True):
+                            col1, col2, col3 = st.columns([2, 2, 1])
+                            with col1:
+                                st.markdown(f"**{sub['strategy_name']}**")
+                                st.caption(f"{sub['symbol']} | {sub['timeframe']}")
+                            with col2:
+                                st.write(f"Position Size: ${float(sub['position_size']):,.0f}")
+                                st.caption(f"Subscribed: {sub['created_at']}")
+                            with col3:
+                                if st.button("🔴 Unsubscribe", key=f"unsub_list_{sub['id']}"):
+                                    UserStrategySubscriptionDB.unsubscribe(user_id, sub['strategy_id'], sub['bot_config_id'])
+                                    st.rerun()
+
+# ============================================================================
 # TAB 3: LIVE POSITIONS
 # ============================================================================
 
@@ -438,6 +614,114 @@ with tab6:
         df_display['current_value'] = df_display['current_value'].apply(lambda x: f"{float(x):.2f}%")
 
         st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+# ============================================================================
+# TAB 7: OUTGOING WEBHOOKS
+# ============================================================================
+
+with tab7:
+    st.header("🔗 Outgoing Webhooks")
+    st.caption("Forward signals to your own systems (Discord, Slack, custom APIs)")
+
+    st.markdown("""
+    Configure webhooks to receive notifications when:
+    - **Signals**: Trading signals are received (buy/sell)
+    - **Trades**: Orders are executed on Alpaca
+    """)
+
+    # Add new webhook
+    with st.expander("➕ Add New Webhook", expanded=False):
+        with st.form("add_webhook_form"):
+            webhook_name = st.text_input("Webhook Name", placeholder="e.g., My Discord Bot")
+            webhook_url = st.text_input("Webhook URL", placeholder="https://discord.com/api/webhooks/...")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                include_signals = st.checkbox("Include Signals", value=True)
+            with col2:
+                include_trades = st.checkbox("Include Trades", value=True)
+
+            st.caption("Example payload sent to your webhook:")
+            st.code("""{
+  "event": "signal",
+  "symbol": "AAPL",
+  "action": "buy",
+  "timeframe": "15 Min",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "source": "system_strategy" or "user_webhook"
+}""", language="json")
+
+            submit_webhook = st.form_submit_button("💾 Save Webhook")
+
+            if submit_webhook:
+                if not webhook_url:
+                    st.error("❌ Please enter a webhook URL")
+                elif not webhook_url.startswith('http'):
+                    st.error("❌ Webhook URL must start with http:// or https://")
+                else:
+                    success, msg = UserOutgoingWebhookDB.save_webhook(
+                        user_id=user_id,
+                        webhook_url=webhook_url,
+                        webhook_name=webhook_name or "Unnamed Webhook",
+                        include_signals=include_signals,
+                        include_trades=include_trades
+                    )
+                    if success:
+                        st.success(f"✅ {msg}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+
+    # Display existing webhooks
+    st.markdown("---")
+    st.markdown("### Your Webhooks")
+
+    try:
+        webhooks = UserOutgoingWebhookDB.get_user_webhooks(user_id, active_only=False)
+    except Exception:
+        webhooks = []
+        st.warning("⚠️ Webhooks not available. Database migration may be needed.")
+
+    if not webhooks:
+        st.info("No webhooks configured yet. Add one above to receive notifications!")
+    else:
+        for wh in webhooks:
+            with st.container(border=True):
+                col1, col2, col3 = st.columns([3, 2, 1])
+
+                with col1:
+                    status_icon = "🟢" if wh['is_active'] else "🔴"
+                    st.markdown(f"**{status_icon} {wh.get('webhook_name', 'Unnamed')}**")
+                    st.caption(f"URL: {wh['webhook_url'][:50]}...")
+
+                    # Show what's included
+                    includes = []
+                    if wh.get('include_signals'):
+                        includes.append("📊 Signals")
+                    if wh.get('include_trades'):
+                        includes.append("💰 Trades")
+                    st.write(" | ".join(includes) if includes else "Nothing selected")
+
+                with col2:
+                    st.metric("Successful Calls", wh.get('success_count', 0))
+                    st.metric("Failed Calls", wh.get('failure_count', 0))
+                    if wh.get('last_called_at'):
+                        st.caption(f"Last called: {wh['last_called_at']}")
+
+                with col3:
+                    # Toggle active status
+                    if wh['is_active']:
+                        if st.button("🔴 Disable", key=f"disable_wh_{wh['id']}"):
+                            UserOutgoingWebhookDB.toggle_webhook(user_id, wh['id'], False)
+                            st.rerun()
+                    else:
+                        if st.button("🟢 Enable", key=f"enable_wh_{wh['id']}"):
+                            UserOutgoingWebhookDB.toggle_webhook(user_id, wh['id'], True)
+                            st.rerun()
+
+                    if st.button("🗑️ Delete", key=f"delete_wh_{wh['id']}", type="secondary"):
+                        UserOutgoingWebhookDB.delete_webhook(user_id, wh['id'])
+                        st.rerun()
 
 # ============================================================================
 # FOOTER

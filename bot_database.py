@@ -413,6 +413,325 @@ class WebhookTokenDB:
                 return result[0] if result else None
 
 
+class SystemStrategyDB:
+    """Manage system-wide TradingView strategies (admin only)"""
+
+    @staticmethod
+    def create_strategy(name: str, symbol: str, timeframe: str, description: str = None,
+                       risk_warning: str = None) -> Optional[int]:
+        """Create a new system strategy"""
+        try:
+            # Generate unique webhook token for this strategy
+            token = f"sys_{secrets.token_urlsafe(32)}"
+
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO system_strategies
+                        (name, symbol, timeframe, description, risk_warning, webhook_token)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (name, symbol.upper(), timeframe, description, risk_warning, token))
+                    return cur.fetchone()[0]
+        except Exception as e:
+            print(f"Error creating system strategy: {e}")
+            return None
+
+    @staticmethod
+    def get_all_strategies(active_only: bool = True) -> List[Dict]:
+        """Get all system strategies"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                query = "SELECT * FROM system_strategies"
+                if active_only:
+                    query += " WHERE is_active = TRUE"
+                query += " ORDER BY created_at DESC"
+                cur.execute(query)
+                return [dict(row) for row in cur.fetchall()]
+
+    @staticmethod
+    def get_strategy_by_id(strategy_id: int) -> Optional[Dict]:
+        """Get a specific strategy"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM system_strategies WHERE id = %s", (strategy_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    @staticmethod
+    def get_strategy_by_token(token: str) -> Optional[Dict]:
+        """Get strategy by webhook token"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM system_strategies
+                    WHERE webhook_token = %s AND is_active = TRUE
+                """, (token,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    @staticmethod
+    def update_strategy(strategy_id: int, **kwargs) -> bool:
+        """Update strategy fields"""
+        try:
+            allowed_fields = ['name', 'symbol', 'timeframe', 'description', 'risk_warning', 'is_active']
+            updates = []
+            params = []
+
+            for field, value in kwargs.items():
+                if field in allowed_fields:
+                    updates.append(f"{field} = %s")
+                    params.append(value)
+
+            if not updates:
+                return False
+
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(strategy_id)
+
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(f"""
+                        UPDATE system_strategies
+                        SET {', '.join(updates)}
+                        WHERE id = %s
+                    """, params)
+            return True
+        except Exception as e:
+            print(f"Error updating strategy: {e}")
+            return False
+
+    @staticmethod
+    def delete_strategy(strategy_id: int) -> bool:
+        """Delete a system strategy"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM system_strategies WHERE id = %s", (strategy_id,))
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def increment_signal_count(strategy_id: int) -> bool:
+        """Increment the signal count for a strategy"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE system_strategies
+                        SET total_signals = total_signals + 1,
+                            last_signal_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (strategy_id,))
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_subscriber_count(strategy_id: int) -> int:
+        """Get number of active subscribers for a strategy"""
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COUNT(*) FROM user_strategy_subscriptions
+                    WHERE strategy_id = %s AND is_active = TRUE
+                """, (strategy_id,))
+                return cur.fetchone()[0]
+
+
+class UserStrategySubscriptionDB:
+    """Manage user subscriptions to system strategies"""
+
+    @staticmethod
+    def subscribe(user_id: int, strategy_id: int, bot_config_id: int,
+                  disclaimer_accepted: bool = False) -> Tuple[bool, str]:
+        """Subscribe user's bot to a system strategy"""
+        if not disclaimer_accepted:
+            return False, "You must accept the risk disclaimer to subscribe"
+
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    # Check if already subscribed
+                    cur.execute("""
+                        SELECT id FROM user_strategy_subscriptions
+                        WHERE user_id = %s AND strategy_id = %s AND bot_config_id = %s
+                    """, (user_id, strategy_id, bot_config_id))
+
+                    if cur.fetchone():
+                        # Update existing subscription
+                        cur.execute("""
+                            UPDATE user_strategy_subscriptions
+                            SET is_active = TRUE,
+                                disclaimer_accepted_at = CURRENT_TIMESTAMP,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = %s AND strategy_id = %s AND bot_config_id = %s
+                        """, (user_id, strategy_id, bot_config_id))
+                    else:
+                        # Create new subscription
+                        cur.execute("""
+                            INSERT INTO user_strategy_subscriptions
+                            (user_id, strategy_id, bot_config_id, disclaimer_accepted_at)
+                            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                        """, (user_id, strategy_id, bot_config_id))
+
+            return True, "Successfully subscribed to strategy"
+        except Exception as e:
+            print(f"Error subscribing to strategy: {e}")
+            return False, f"Database error: {str(e)}"
+
+    @staticmethod
+    def unsubscribe(user_id: int, strategy_id: int, bot_config_id: int) -> bool:
+        """Unsubscribe user's bot from a system strategy"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE user_strategy_subscriptions
+                        SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = %s AND strategy_id = %s AND bot_config_id = %s
+                    """, (user_id, strategy_id, bot_config_id))
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_user_subscriptions(user_id: int) -> List[Dict]:
+        """Get all subscriptions for a user"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT s.*, ss.name as strategy_name, ss.symbol, ss.timeframe,
+                           ss.description, bc.position_size
+                    FROM user_strategy_subscriptions s
+                    JOIN system_strategies ss ON s.strategy_id = ss.id
+                    JOIN user_bot_configs bc ON s.bot_config_id = bc.id
+                    WHERE s.user_id = %s AND s.is_active = TRUE
+                    ORDER BY s.created_at DESC
+                """, (user_id,))
+                return [dict(row) for row in cur.fetchall()]
+
+    @staticmethod
+    def get_strategy_subscribers(strategy_id: int) -> List[Dict]:
+        """Get all active subscribers for a strategy (for executing trades)"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT s.user_id, s.bot_config_id, bc.position_size, bc.symbol,
+                           bc.timeframe, bc.risk_limit_percent
+                    FROM user_strategy_subscriptions s
+                    JOIN user_bot_configs bc ON s.bot_config_id = bc.id
+                    WHERE s.strategy_id = %s AND s.is_active = TRUE AND bc.is_active = TRUE
+                """, (strategy_id,))
+                return [dict(row) for row in cur.fetchall()]
+
+    @staticmethod
+    def is_subscribed(user_id: int, strategy_id: int, bot_config_id: int) -> bool:
+        """Check if user's bot is subscribed to a strategy"""
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 1 FROM user_strategy_subscriptions
+                    WHERE user_id = %s AND strategy_id = %s AND bot_config_id = %s AND is_active = TRUE
+                """, (user_id, strategy_id, bot_config_id))
+                return cur.fetchone() is not None
+
+
+class UserOutgoingWebhookDB:
+    """Manage user's outgoing webhooks for signal forwarding"""
+
+    @staticmethod
+    def save_webhook(user_id: int, webhook_url: str, webhook_name: str = None,
+                    include_signals: bool = True, include_trades: bool = True) -> Tuple[bool, str]:
+        """Save or update user's outgoing webhook"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO user_outgoing_webhooks
+                        (user_id, webhook_url, webhook_name, include_signals, include_trades)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (user_id, webhook_url) DO UPDATE
+                        SET webhook_name = %s,
+                            include_signals = %s,
+                            include_trades = %s,
+                            is_active = TRUE,
+                            updated_at = CURRENT_TIMESTAMP
+                        RETURNING id
+                    """, (user_id, webhook_url, webhook_name, include_signals, include_trades,
+                          webhook_name, include_signals, include_trades))
+                    return True, "Webhook saved successfully"
+        except Exception as e:
+            print(f"Error saving outgoing webhook: {e}")
+            return False, f"Database error: {str(e)}"
+
+    @staticmethod
+    def get_user_webhooks(user_id: int, active_only: bool = True) -> List[Dict]:
+        """Get all outgoing webhooks for a user"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                query = "SELECT * FROM user_outgoing_webhooks WHERE user_id = %s"
+                if active_only:
+                    query += " AND is_active = TRUE"
+                query += " ORDER BY created_at DESC"
+                cur.execute(query, (user_id,))
+                return [dict(row) for row in cur.fetchall()]
+
+    @staticmethod
+    def delete_webhook(user_id: int, webhook_id: int) -> bool:
+        """Delete an outgoing webhook"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        DELETE FROM user_outgoing_webhooks
+                        WHERE id = %s AND user_id = %s
+                    """, (webhook_id, user_id))
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def toggle_webhook(user_id: int, webhook_id: int, is_active: bool) -> bool:
+        """Enable/disable an outgoing webhook"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE user_outgoing_webhooks
+                        SET is_active = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s AND user_id = %s
+                    """, (is_active, webhook_id, user_id))
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def increment_call_count(webhook_id: int, success: bool = True) -> bool:
+        """Increment webhook call count"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    if success:
+                        cur.execute("""
+                            UPDATE user_outgoing_webhooks
+                            SET success_count = success_count + 1,
+                                last_called_at = CURRENT_TIMESTAMP
+                            WHERE id = %s
+                        """, (webhook_id,))
+                    else:
+                        cur.execute("""
+                            UPDATE user_outgoing_webhooks
+                            SET failure_count = failure_count + 1,
+                                last_called_at = CURRENT_TIMESTAMP
+                            WHERE id = %s
+                        """, (webhook_id,))
+            return True
+        except Exception:
+            return False
+
+
 class RiskEventDB:
     """Log risk management events"""
 
