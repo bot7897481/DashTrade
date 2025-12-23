@@ -94,12 +94,13 @@ with tab1:
                     st.error("Please enter both API key and secret")
                 else:
                     with st.spinner("Saving and validating API keys..."):
-                        if BotAPIKeysDB.save_api_keys(user_id, api_key, secret_key, mode):
+                        success, error_msg = BotAPIKeysDB.save_api_keys(user_id, api_key, secret_key, mode)
+                        if success:
                             st.success("✅ API keys saved successfully!")
                             st.session_state.update_keys = False
                             st.rerun()
                         else:
-                            st.error("Failed to save API keys")
+                            st.error(f"Failed to save API keys: {error_msg}")
 
     # Webhook URL section
     if has_keys:

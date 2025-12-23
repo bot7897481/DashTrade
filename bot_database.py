@@ -16,7 +16,7 @@ class BotAPIKeysDB:
     """Manage user Alpaca API keys"""
 
     @staticmethod
-    def save_api_keys(user_id: int, api_key: str, secret_key: str, mode: str = 'paper') -> bool:
+    def save_api_keys(user_id: int, api_key: str, secret_key: str, mode: str = 'paper') -> Tuple[bool, str]:
         """
         Save or update user's Alpaca API keys (encrypted)
 
@@ -27,7 +27,7 @@ class BotAPIKeysDB:
             mode: 'paper' or 'live'
 
         Returns:
-            bool: Success status
+            Tuple[bool, str]: (Success status, error message if failed)
         """
         try:
             # Encrypt keys
@@ -47,10 +47,20 @@ class BotAPIKeysDB:
                             is_active = TRUE
                     """, (user_id, enc_api_key, enc_secret_key, mode,
                           enc_api_key, enc_secret_key, mode))
-            return True
+            return True, ""
+        except ValueError as e:
+            # Encryption key not set
+            error_msg = str(e)
+            print(f"Error saving API keys (encryption): {error_msg}")
+            if "ENCRYPTION_KEY" in error_msg:
+                return False, "Server configuration error: ENCRYPTION_KEY not set. Please contact admin."
+            return False, f"Encryption error: {error_msg}"
         except Exception as e:
-            print(f"Error saving API keys: {e}")
-            return False
+            error_msg = str(e)
+            print(f"Error saving API keys: {error_msg}")
+            if "user_api_keys" in error_msg.lower() and "does not exist" in error_msg.lower():
+                return False, "Database table missing. Please run migrations."
+            return False, f"Database error: {error_msg}"
 
     @staticmethod
     def get_api_keys(user_id: int) -> Optional[Dict]:
