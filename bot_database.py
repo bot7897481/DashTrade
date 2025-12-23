@@ -396,7 +396,7 @@ class WebhookTokenDB:
                         RETURNING user_id
                     """, (token,))
                     result = cur.fetchone()
-                    return result['user_id'] if result else None
+                    return result[0] if result else None
         except Exception:
             return None
 
@@ -410,7 +410,7 @@ class WebhookTokenDB:
                     WHERE user_id = %s AND is_active = TRUE
                 """, (user_id,))
                 result = cur.fetchone()
-                return result['token'] if result else None
+                return result[0] if result else None
 
 
 class RiskEventDB:
