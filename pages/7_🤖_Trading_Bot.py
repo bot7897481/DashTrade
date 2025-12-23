@@ -226,10 +226,12 @@ with tab2:
                     elif "Internal" in signal_source and strategy_type == "none":
                         st.error("Please select an Internal Strategy (e.g., NovAlgo Fast Signals) when using an Internal Signal Source.")
                     else:
-                        # Check if bot already exists
-                        existing = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe)
+                        # Check if bot already exists with SAME signal source
+                        # (Allow multiple bots for same symbol+timeframe with different signal sources)
+                        signal_source_key = signal_source.lower()
+                        existing = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source_key)
                         if existing:
-                            st.error(f"Bot already exists for {symbol} {timeframe}")
+                            st.error(f"Bot already exists for {symbol} {timeframe} with signal source '{signal_source}'. Choose a different signal source or edit the existing bot.")
                         else:
                             bot_id = BotConfigDB.create_bot(
                                 user_id=user_id,
@@ -239,12 +241,12 @@ with tab2:
                                 strategy_name=strategy_name if strategy_name else None,
                                 risk_limit_percent=risk_limit,
                                 daily_loss_limit=daily_loss_limit if daily_loss_limit > 0 else None,
-                                signal_source=signal_source.lower(),
+                                signal_source=signal_source_key,
                                 strategy_type=strategy_type if "Internal" in signal_source else "none"
                             )
 
                             if bot_id:
-                                st.success(f"✅ Bot created for {symbol} {timeframe}")
+                                st.success(f"✅ Bot created for {symbol} {timeframe} ({signal_source})")
                                 st.rerun()
                             else:
                                 st.error("Failed to create bot")

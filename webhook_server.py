@@ -81,8 +81,8 @@ def webhook():
 
         logger.info(f"📨 WEBHOOK: User {user_id} - {action} {symbol} {timeframe}")
 
-        # 4. Get bot configuration
-        bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe)
+        # 4. Get bot configuration (specifically for 'webhook' signal source)
+        bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
 
         if not bot_config:
             logger.info(f"ℹ️  No bot config found: {symbol} {timeframe}")

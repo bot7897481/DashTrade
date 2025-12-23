@@ -184,16 +184,46 @@ class BotConfigDB:
                 return [dict(row) for row in cur.fetchall()]
 
     @staticmethod
-    def get_bot_by_symbol_timeframe(user_id: int, symbol: str, timeframe: str) -> Optional[Dict]:
-        """Get specific bot configuration"""
+    def get_bot_by_symbol_timeframe(user_id: int, symbol: str, timeframe: str,
+                                    signal_source: str = None) -> Optional[Dict]:
+        """
+        Get specific bot configuration
+
+        Args:
+            user_id: User ID
+            symbol: Trading symbol
+            timeframe: Timeframe
+            signal_source: Optional - filter by signal source (webhook, system, internal, etc.)
+        """
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if signal_source:
+                    cur.execute("""
+                        SELECT * FROM user_bot_configs
+                        WHERE user_id = %s AND symbol = %s AND timeframe = %s AND signal_source = %s
+                    """, (user_id, symbol.upper(), timeframe, signal_source.lower()))
+                else:
+                    # For webhook lookups, prioritize 'webhook' signal source
+                    cur.execute("""
+                        SELECT * FROM user_bot_configs
+                        WHERE user_id = %s AND symbol = %s AND timeframe = %s
+                        ORDER BY CASE WHEN signal_source = 'webhook' THEN 0 ELSE 1 END
+                        LIMIT 1
+                    """, (user_id, symbol.upper(), timeframe))
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    @staticmethod
+    def get_bots_by_symbol_timeframe(user_id: int, symbol: str, timeframe: str) -> List[Dict]:
+        """Get ALL bot configurations for a symbol+timeframe (multiple signal sources)"""
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT * FROM user_bot_configs
                     WHERE user_id = %s AND symbol = %s AND timeframe = %s
+                    ORDER BY created_at DESC
                 """, (user_id, symbol.upper(), timeframe))
-                row = cur.fetchone()
-                return dict(row) if row else None
+                return [dict(row) for row in cur.fetchall()]
 
     @staticmethod
     def update_bot_status(bot_id: int, user_id: int, status: str,
