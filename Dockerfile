@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the code
 COPY . .
 
-# Expose Streamlit port
+# Expose port (Railway sets $PORT)
 EXPOSE 8501
 
-# Default command (can be overridden in Railway)
-CMD ["streamlit", "run", "app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+# Run combined server (Flask webhooks + Streamlit proxy)
+CMD ["python", "run_server.py"]
