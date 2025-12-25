@@ -2590,13 +2590,9 @@ def main():
                 st.warning("⚠️ System strategies module not available. Run migration first.")
 
             if strategies_available:
-                # Get webhook base URL
+                # Get webhook base URL - use dedicated webhook service
                 import os
-                railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
-                if railway_domain:
-                    webhook_base = f"https://{railway_domain}"
-                else:
-                    webhook_base = os.getenv('WEBHOOK_BASE_URL') or os.getenv('REPLIT_URL', 'https://novalgo.org')
+                webhook_base = os.getenv('WEBHOOK_BASE_URL', 'https://webhook.novalgo.org')
 
                 # Create new strategy section
                 with st.expander("➕ Create New System Strategy", expanded=False):

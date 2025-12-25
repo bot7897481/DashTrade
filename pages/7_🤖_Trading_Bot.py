@@ -119,28 +119,11 @@ with tab1:
                 st.rerun()
 
         if token:
-            # Determine the webhook URL - check multiple sources
-            # Railway sets RAILWAY_PUBLIC_DOMAIN automatically
-            railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
-            if railway_domain:
-                base_url = f"https://{railway_domain}"
-            else:
-                # Fall back to manually set URL or localhost
-                base_url = os.getenv('WEBHOOK_BASE_URL') or os.getenv('REPLIT_URL', 'http://localhost:8080')
-
-            webhook_url = f"{base_url}/webhook?token={token}"
+            # Webhook URL - use dedicated webhook service
+            webhook_base = os.getenv('WEBHOOK_BASE_URL', 'https://webhook.novalgo.org')
+            webhook_url = f"{webhook_base}/webhook?token={token}"
 
             st.code(webhook_url, language=None)
-
-            # Show warning if using localhost
-            if 'localhost' in base_url:
-                st.warning("""
-                ⚠️ **Webhook URL shows localhost** - TradingView cannot reach this!
-
-                **To fix:** Set `WEBHOOK_BASE_URL` in Railway environment variables:
-                - Go to Railway → Your App → Variables
-                - Add: `WEBHOOK_BASE_URL` = `https://your-app-name.up.railway.app`
-                """)
 
             st.info("""
             **How to use this webhook:**
