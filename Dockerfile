@@ -20,8 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the code
 COPY . .
 
-# Expose port (Railway sets $PORT)
+# Expose port
 EXPOSE 8501
+EXPOSE 8502
 
 # Run combined server (Flask webhooks + Streamlit proxy)
 CMD ["python", "run_server.py"]

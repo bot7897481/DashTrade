@@ -22,9 +22,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Ports
-EXTERNAL_PORT = int(os.environ.get('PORT', 5000))
-STREAMLIT_INTERNAL_PORT = EXTERNAL_PORT + 1000  # Internal only
+# Ports - Railway exposes 8501, we use that for Flask proxy
+EXTERNAL_PORT = int(os.environ.get('PORT', 8501))
+STREAMLIT_INTERNAL_PORT = 8502  # Internal Streamlit port
 
 # Create Flask app
 app = Flask(__name__)
