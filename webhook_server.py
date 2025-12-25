@@ -479,15 +479,19 @@ def internal_error(error):
 # ============================================================================
 
 if __name__ == '__main__':
+    import os
+    PORT = int(os.environ.get('PORT', 8080))
+
     logger.info("=" * 80)
-    logger.info("🤖 DASHTRADE WEBHOOK SERVER STARTING")
+    logger.info("🤖 DASHTRADE WEBHOOK SERVER")
     logger.info("=" * 80)
-    logger.info("Port: 8080")
+    logger.info(f"Port: {PORT}")
     logger.info("Endpoints:")
     logger.info("  POST /webhook?token=YOUR_TOKEN")
+    logger.info("  POST /system-webhook?token=SYS_TOKEN")
     logger.info("  GET  /health")
     logger.info("  POST /test-webhook")
     logger.info("=" * 80)
 
     # Run Flask server
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
