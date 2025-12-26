@@ -113,17 +113,42 @@ with tab1:
 
         # Get or generate webhook token
         token = WebhookTokenDB.get_user_token(user_id)
+
         if not token:
-            if st.button("Generate Webhook URL"):
+            st.info("Generate a webhook URL to receive TradingView alerts")
+            if st.button("🔗 Generate Webhook URL"):
                 token = WebhookTokenDB.generate_token(user_id)
                 st.rerun()
 
         if token:
-            # Webhook URL - use dedicated webhook service
-            webhook_base = os.getenv('WEBHOOK_BASE_URL', 'https://webhook.novalgo.org')
-            webhook_url = f"{webhook_base}/webhook?token={token}"
+            # Webhook URL - use dedicated webhook service (hardcoded for reliability)
+            webhook_url = f"https://webhook.novalgo.org/webhook?token={token}"
 
             st.code(webhook_url, language=None)
+
+            # Token management buttons
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Regenerate Token", help="Generate a new token (old URL will stop working)"):
+                    # Delete old token and generate new one
+                    WebhookTokenDB.delete_user_token(user_id)
+                    new_token = WebhookTokenDB.generate_token(user_id)
+                    if new_token:
+                        st.success("✅ New token generated! Update your TradingView alerts with the new URL.")
+                        st.rerun()
+                    else:
+                        st.error("Failed to generate new token")
+
+            with col2:
+                if st.button("🗑️ Remove Webhook", type="secondary", help="Delete your webhook token"):
+                    if st.session_state.get('confirm_delete_token', False):
+                        WebhookTokenDB.delete_user_token(user_id)
+                        st.session_state.confirm_delete_token = False
+                        st.success("Webhook token removed")
+                        st.rerun()
+                    else:
+                        st.session_state.confirm_delete_token = True
+                        st.warning("Click again to confirm deletion")
 
             st.info("""
             **How to use this webhook:**

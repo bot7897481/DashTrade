@@ -442,6 +442,37 @@ class WebhookTokenDB:
                 result = cur.fetchone()
                 return result[0] if result else None
 
+    @staticmethod
+    def delete_user_token(user_id: int) -> bool:
+        """Delete user's webhook token"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        DELETE FROM user_webhook_tokens
+                        WHERE user_id = %s
+                    """, (user_id,))
+                    return True
+        except Exception as e:
+            print(f"Error deleting token: {e}")
+            return False
+
+    @staticmethod
+    def deactivate_user_token(user_id: int) -> bool:
+        """Deactivate user's webhook token (soft delete)"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE user_webhook_tokens
+                        SET is_active = FALSE
+                        WHERE user_id = %s
+                    """, (user_id,))
+                    return True
+        except Exception as e:
+            print(f"Error deactivating token: {e}")
+            return False
+
 
 class SystemStrategyDB:
     """Manage system-wide TradingView strategies (admin only)"""
