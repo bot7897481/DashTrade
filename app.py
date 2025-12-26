@@ -390,11 +390,125 @@ def create_candlestick_chart_with_signals(df, symbol: str):
 def show_landing_page():
     """Display comprehensive NovAlgo professional landing page"""
 
+    # Initialize dark mode state
+    if 'dark_mode' not in st.session_state:
+        st.session_state.dark_mode = True  # Default to dark mode
+
+    is_dark = st.session_state.dark_mode
+
+    # Dark/Light mode color schemes
+    if is_dark:
+        colors = {
+            'bg': '#0f0f1a',
+            'bg_secondary': '#1a1a2e',
+            'bg_card': 'linear-gradient(145deg, #1e1e2f, #252538)',
+            'bg_card_hover': '#2a2a3d',
+            'text': '#ffffff',
+            'text_secondary': '#a0aec0',
+            'text_muted': '#666',
+            'border': 'rgba(255,255,255,0.1)',
+            'border_hover': '#00d9ff',
+            'section_title': '#ffffff',
+            'feature_card_bg': 'linear-gradient(145deg, #1e1e2f, #252538)',
+            'feature_title': '#ffffff',
+            'feature_desc': '#a0aec0',
+            'step_title': '#ffffff',
+            'step_desc': '#a0aec0',
+            'pricing_bg': '#1a1a2e',
+            'pricing_name': '#ffffff',
+            'pricing_price': '#ffffff',
+            'faq_bg': '#1a1a2e',
+            'faq_border': 'rgba(255,255,255,0.1)',
+        }
+    else:
+        colors = {
+            'bg': '#ffffff',
+            'bg_secondary': '#f8f9fc',
+            'bg_card': 'linear-gradient(145deg, #f8f9fc, #ffffff)',
+            'bg_card_hover': '#f0f2f5',
+            'text': '#1a1a2e',
+            'text_secondary': '#666666',
+            'text_muted': '#888',
+            'border': '#e2e8f0',
+            'border_hover': '#00d9ff',
+            'section_title': '#1a1a2e',
+            'feature_card_bg': 'linear-gradient(145deg, #f8f9fc, #ffffff)',
+            'feature_title': '#1a1a2e',
+            'feature_desc': '#666666',
+            'step_title': '#1a1a2e',
+            'step_desc': '#666666',
+            'pricing_bg': '#ffffff',
+            'pricing_name': '#1a1a2e',
+            'pricing_price': '#1a1a2e',
+            'faq_bg': '#ffffff',
+            'faq_border': '#e2e8f0',
+        }
+
     # Custom CSS for professional landing page
-    st.markdown("""
+    st.markdown(f"""
     <style>
         /* Hide default Streamlit elements for cleaner look */
-        .stApp > header {display: none;}
+        .stApp > header {{display: none;}}
+
+        /* Global dark/light mode */
+        .stApp {{
+            background-color: {colors['bg']};
+        }}
+
+        .main .block-container {{
+            background-color: {colors['bg']};
+        }}
+
+        /* Override Streamlit text colors */
+        .stMarkdown, .stMarkdown p, .stMarkdown li {{
+            color: {colors['text_secondary']} !important;
+        }}
+
+        h1, h2, h3, h4, h5, h6 {{
+            color: {colors['text']} !important;
+        }}
+
+        /* Expander styling for dark mode */
+        .streamlit-expanderHeader {{
+            background-color: {colors['faq_bg']} !important;
+            border: 1px solid {colors['faq_border']} !important;
+            border-radius: 12px !important;
+            color: {colors['text']} !important;
+        }}
+
+        .streamlit-expanderContent {{
+            background-color: {colors['faq_bg']} !important;
+            border: 1px solid {colors['faq_border']} !important;
+            color: {colors['text_secondary']} !important;
+        }}
+
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] {{
+            background-color: {colors['bg_secondary']};
+            border-radius: 10px;
+            padding: 5px;
+        }}
+
+        .stTabs [data-baseweb="tab"] {{
+            color: {colors['text_secondary']};
+        }}
+
+        .stTabs [aria-selected="true"] {{
+            color: {colors['text']} !important;
+        }}
+
+        /* Form inputs */
+        .stTextInput input {{
+            background-color: {colors['bg_secondary']} !important;
+            color: {colors['text']} !important;
+            border-color: {colors['border']} !important;
+        }}
+
+        /* Info box */
+        .stAlert {{
+            background-color: {colors['bg_secondary']} !important;
+            color: {colors['text_secondary']} !important;
+        }}
 
         /* Navigation Bar */
         .navbar {
@@ -572,88 +686,88 @@ def show_landing_page():
         }
 
         /* Section Styling */
-        .section {
+        .section {{
             padding: 4rem 0;
-        }
+        }}
 
-        .section-header {
+        .section-header {{
             text-align: center;
             margin-bottom: 3rem;
-        }
+        }}
 
-        .section-title {
+        .section-title {{
             font-size: 2.5rem;
             font-weight: 700;
-            color: #1a1a2e;
+            color: {colors['section_title']};
             margin-bottom: 1rem;
-        }
+        }}
 
-        .section-subtitle {
+        .section-subtitle {{
             font-size: 1.1rem;
-            color: #666;
+            color: {colors['text_secondary']};
             max-width: 600px;
             margin: 0 auto;
             line-height: 1.6;
-        }
+        }}
 
         /* Feature Cards */
-        .feature-grid {
+        .feature-grid {{
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 1.5rem;
             margin-top: 2rem;
-        }
+        }}
 
-        .feature-card {
-            background: linear-gradient(145deg, #f8f9fc, #ffffff);
+        .feature-card {{
+            background: {colors['feature_card_bg']};
             border-radius: 20px;
             padding: 2rem;
-            border: 1px solid #e2e8f0;
+            border: 1px solid {colors['border']};
             transition: all 0.3s;
             text-align: center;
-        }
+        }}
 
-        .feature-card:hover {
+        .feature-card:hover {{
             transform: translateY(-8px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            border-color: #00d9ff;
-        }
+            box-shadow: 0 20px 40px rgba(0, 217, 255, 0.15);
+            border-color: {colors['border_hover']};
+        }}
 
-        .feature-icon {
+        .feature-icon {{
             font-size: 3rem;
             margin-bottom: 1rem;
-        }
+        }}
 
-        .feature-title {
+        .feature-title {{
             font-size: 1.3rem;
             font-weight: 600;
-            color: #1a1a2e;
+            color: {colors['feature_title']};
             margin-bottom: 0.75rem;
-        }
+        }}
 
-        .feature-desc {
+        .feature-desc {{
             font-size: 0.95rem;
-            color: #666;
+            color: {colors['feature_desc']};
             line-height: 1.6;
-        }
+        }}
 
         /* How It Works */
-        .steps-container {
+        .steps-container {{
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             gap: 2rem;
             margin-top: 3rem;
-        }
+        }}
 
-        .step-card {
+        .step-card {{
             flex: 1;
             text-align: center;
             padding: 2rem;
             position: relative;
-        }
+        }}
 
-        .step-number {
+        .step-number {{
             width: 60px;
             height: 60px;
             background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
@@ -665,20 +779,20 @@ def show_landing_page():
             font-weight: 700;
             color: white;
             margin: 0 auto 1.5rem auto;
-        }
+        }}
 
-        .step-title {
+        .step-title {{
             font-size: 1.2rem;
             font-weight: 600;
-            color: #1a1a2e;
+            color: {colors['step_title']};
             margin-bottom: 0.75rem;
-        }
+        }}
 
-        .step-desc {
+        .step-desc {{
             font-size: 0.95rem;
-            color: #666;
+            color: {colors['step_desc']};
             line-height: 1.6;
-        }
+        }}
 
         /* Integration Section */
         .integration-card {
@@ -712,27 +826,27 @@ def show_landing_page():
         }
 
         /* Pricing Section */
-        .pricing-card {
-            background: white;
+        .pricing-card {{
+            background: {colors['pricing_bg']};
             border-radius: 24px;
             padding: 2.5rem;
-            border: 2px solid #e2e8f0;
+            border: 2px solid {colors['border']};
             text-align: center;
             transition: all 0.3s;
-        }
+        }}
 
-        .pricing-card:hover {
+        .pricing-card:hover {{
             border-color: #00d9ff;
             transform: translateY(-5px);
             box-shadow: 0 20px 40px rgba(0, 217, 255, 0.15);
-        }
+        }}
 
-        .pricing-card.featured {
+        .pricing-card.featured {{
             border-color: #00d9ff;
             position: relative;
-        }
+        }}
 
-        .pricing-badge {
+        .pricing-badge {{
             position: absolute;
             top: -12px;
             left: 50%;
@@ -743,96 +857,96 @@ def show_landing_page():
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: 600;
-        }
+        }}
 
-        .pricing-name {
+        .pricing-name {{
             font-size: 1.3rem;
             font-weight: 600;
-            color: #1a1a2e;
+            color: {colors['pricing_name']};
             margin-bottom: 0.5rem;
-        }
+        }}
 
-        .pricing-price {
+        .pricing-price {{
             font-size: 3rem;
             font-weight: 700;
-            color: #1a1a2e;
+            color: {colors['pricing_price']};
             margin: 1rem 0;
-        }
+        }}
 
-        .pricing-price span {
+        .pricing-price span {{
             font-size: 1rem;
-            color: #666;
+            color: {colors['text_secondary']};
             font-weight: 400;
-        }
+        }}
 
-        .pricing-features {
+        .pricing-features {{
             text-align: left;
             margin: 1.5rem 0;
-        }
+        }}
 
-        .pricing-feature {
+        .pricing-feature {{
             padding: 0.5rem 0;
-            color: #666;
+            color: {colors['text_secondary']};
             display: flex;
             align-items: center;
             gap: 0.5rem;
-        }
+        }}
 
-        .pricing-feature::before {
+        .pricing-feature::before {{
             content: '✓';
             color: #00d9ff;
             font-weight: 700;
-        }
+        }}
 
         /* FAQ Section */
-        .faq-item {
-            background: white;
+        .faq-item {{
+            background: {colors['faq_bg']};
             border-radius: 16px;
             padding: 1.5rem 2rem;
             margin-bottom: 1rem;
-            border: 1px solid #e2e8f0;
-        }
+            border: 1px solid {colors['faq_border']};
+        }}
 
-        .faq-question {
+        .faq-question {{
             font-size: 1.1rem;
             font-weight: 600;
-            color: #1a1a2e;
+            color: {colors['text']};
             margin-bottom: 0.75rem;
-        }
+        }}
 
-        .faq-answer {
-            color: #666;
+        .faq-answer {{
+            color: {colors['text_secondary']};
             line-height: 1.6;
-        }
+        }}
 
         /* Security Section */
-        .security-grid {
+        .security-grid {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 1.5rem;
             margin-top: 2rem;
-        }
+        }}
 
-        .security-item {
+        .security-item {{
             text-align: center;
             padding: 1.5rem;
-        }
+        }}
 
-        .security-icon {
+        .security-icon {{
             font-size: 2.5rem;
             margin-bottom: 0.75rem;
-        }
+        }}
 
-        .security-title {
+        .security-title {{
             font-weight: 600;
-            color: #1a1a2e;
+            color: {colors['text']};
             margin-bottom: 0.5rem;
-        }
+        }}
 
-        .security-desc {
+        .security-desc {{
             font-size: 0.85rem;
-            color: #666;
-        }
+            color: {colors['text_secondary']};
+        }}
 
         /* Footer */
         .footer {
@@ -923,45 +1037,82 @@ def show_landing_page():
         }
 
         /* Auth Card */
-        .auth-section {
-            background: linear-gradient(135deg, #f8f9fc 0%, #ffffff 100%);
+        .auth-section {{
+            background: {colors['bg_card']};
             border-radius: 24px;
             padding: 3rem;
-            border: 1px solid #e2e8f0;
+            border: 1px solid {colors['border']};
             max-width: 500px;
             margin: 0 auto;
-        }
+        }}
 
-        .auth-title {
+        .auth-title {{
             font-size: 1.5rem;
             font-weight: 700;
-            color: #1a1a2e;
+            color: {colors['text']};
             text-align: center;
             margin-bottom: 0.5rem;
-        }
+        }}
 
-        .auth-subtitle {
-            color: #666;
+        .auth-subtitle {{
+            color: {colors['text_secondary']};
             text-align: center;
             margin-bottom: 2rem;
-        }
+        }}
+
+        /* Dark mode toggle button styling */
+        .dark-toggle {{
+            background: {colors['bg_secondary']};
+            border: 1px solid {colors['border']};
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }}
+
+        .dark-toggle:hover {{
+            border-color: #00d9ff;
+            transform: scale(1.1);
+        }}
     </style>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # NAVIGATION
+    # NAVIGATION WITH DARK MODE TOGGLE
     # =========================================================================
-    st.markdown("""
-    <div class="navbar">
-        <div class="nav-logo">🚀 NovAlgo</div>
-        <div class="nav-links">
-            <a href="#features">Features</a>
-            <a href="#how-it-works">How It Works</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#faq">FAQ</a>
+    nav_col1, nav_col2, nav_col3 = st.columns([2, 6, 1])
+
+    with nav_col1:
+        st.markdown("""
+        <div style="font-size: 1.8rem; font-weight: 800; padding: 0.5rem 0;
+                    background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+                    -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            🚀 NovAlgo
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+
+    with nav_col2:
+        st.markdown(f"""
+        <div style="display: flex; gap: 2rem; align-items: center; padding: 0.75rem 0;">
+            <a href="#features" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">Features</a>
+            <a href="#how-it-works" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">How It Works</a>
+            <a href="#pricing" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">Pricing</a>
+            <a href="#faq" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">FAQ</a>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with nav_col3:
+        # Dark mode toggle button
+        toggle_label = "☀️" if is_dark else "🌙"
+        if st.button(toggle_label, key="dark_mode_toggle", help="Toggle dark/light mode"):
+            st.session_state.dark_mode = not st.session_state.dark_mode
+            st.rerun()
+
+    st.markdown("---")
 
     # =========================================================================
     # HERO SECTION
