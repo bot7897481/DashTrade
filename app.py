@@ -511,7 +511,7 @@ def show_landing_page():
         }}
 
         /* Navigation Bar */
-        .navbar {
+        .navbar {{
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -520,34 +520,34 @@ def show_landing_page():
             border-radius: 12px;
             margin-bottom: 2rem;
             backdrop-filter: blur(10px);
-        }
+        }}
 
-        .nav-logo {
+        .nav-logo {{
             font-size: 1.8rem;
             font-weight: 800;
             background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-        }
+        }}
 
-        .nav-links {
+        .nav-links {{
             display: flex;
             gap: 2rem;
-        }
+        }}
 
-        .nav-links a {
+        .nav-links a {{
             color: #a0aec0;
             text-decoration: none;
             font-weight: 500;
             transition: color 0.3s;
-        }
+        }}
 
-        .nav-links a:hover {
+        .nav-links a:hover {{
             color: #00d9ff;
-        }
+        }}
 
         /* Hero Section */
-        .hero-section {
+        .hero-section {{
             text-align: center;
             padding: 4rem 2rem;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -555,9 +555,9 @@ def show_landing_page():
             margin-bottom: 3rem;
             position: relative;
             overflow: hidden;
-        }
+        }}
 
-        .hero-section::before {
+        .hero-section::before {{
             content: '';
             position: absolute;
             top: 0;
@@ -566,9 +566,9 @@ def show_landing_page():
             bottom: 0;
             background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
             opacity: 0.5;
-        }
+        }}
 
-        .hero-badge {
+        .hero-badge {{
             display: inline-block;
             background: rgba(0, 217, 255, 0.15);
             color: #00d9ff;
@@ -578,9 +578,9 @@ def show_landing_page():
             font-weight: 600;
             margin-bottom: 1.5rem;
             border: 1px solid rgba(0, 217, 255, 0.3);
-        }
+        }}
 
-        .hero-title {
+        .hero-title {{
             font-size: 4rem;
             font-weight: 800;
             margin-bottom: 1rem;
@@ -589,15 +589,15 @@ def show_landing_page():
             -webkit-text-fill-color: transparent;
             position: relative;
             z-index: 1;
-        }
+        }}
 
-        .hero-highlight {
+        .hero-highlight {{
             background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 50%, #ff6b9d 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-        }
+        }}
 
-        .hero-subtitle {
+        .hero-subtitle {{
             font-size: 1.3rem;
             color: #a0aec0;
             margin-bottom: 2rem;
@@ -607,18 +607,18 @@ def show_landing_page():
             line-height: 1.7;
             position: relative;
             z-index: 1;
-        }
+        }}
 
-        .hero-buttons {
+        .hero-buttons {{
             display: flex;
             justify-content: center;
             gap: 1rem;
             margin-bottom: 3rem;
             position: relative;
             z-index: 1;
-        }
+        }}
 
-        .btn-primary {
+        .btn-primary {{
             background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
             color: white;
             padding: 1rem 2.5rem;
@@ -629,14 +629,14 @@ def show_landing_page():
             cursor: pointer;
             transition: transform 0.3s, box-shadow 0.3s;
             text-decoration: none;
-        }
+        }}
 
-        .btn-primary:hover {
+        .btn-primary:hover {{
             transform: translateY(-3px);
             box-shadow: 0 10px 30px rgba(0, 217, 255, 0.4);
-        }
+        }}
 
-        .btn-secondary {
+        .btn-secondary {{
             background: transparent;
             color: white;
             padding: 1rem 2.5rem;
@@ -647,15 +647,15 @@ def show_landing_page():
             cursor: pointer;
             transition: all 0.3s;
             text-decoration: none;
-        }
+        }}
 
-        .btn-secondary:hover {
+        .btn-secondary:hover {{
             background: rgba(255,255,255,0.1);
             border-color: rgba(255,255,255,0.5);
-        }
+        }}
 
         /* Stats Bar */
-        .stats-container {
+        .stats-container {{
             display: flex;
             justify-content: center;
             gap: 4rem;
@@ -665,25 +665,25 @@ def show_landing_page():
             margin: 0 2rem;
             position: relative;
             z-index: 1;
-        }
+        }}
 
-        .stat-item {
+        .stat-item {{
             text-align: center;
-        }
+        }}
 
-        .stat-number {
+        .stat-number {{
             font-size: 2.5rem;
             font-weight: 700;
             color: #00d9ff;
             margin-bottom: 0.25rem;
-        }
+        }}
 
-        .stat-label {
+        .stat-label {{
             font-size: 0.9rem;
             color: #a0aec0;
             text-transform: uppercase;
             letter-spacing: 1px;
-        }
+        }}
 
         /* Section Styling */
         .section {{
@@ -795,35 +795,35 @@ def show_landing_page():
         }}
 
         /* Integration Section */
-        .integration-card {
+        .integration-card {{
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             border-radius: 24px;
             padding: 3rem;
             color: white;
             margin: 3rem 0;
-        }
+        }}
 
-        .integration-logos {
+        .integration-logos {{
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 3rem;
             margin-top: 2rem;
-        }
+        }}
 
-        .integration-item {
+        .integration-item {{
             text-align: center;
             padding: 1.5rem 2rem;
             background: rgba(255,255,255,0.05);
             border-radius: 16px;
             border: 1px solid rgba(255,255,255,0.1);
-        }
+        }}
 
-        .integration-name {
+        .integration-name {{
             font-size: 1.1rem;
             font-weight: 600;
             margin-top: 0.5rem;
-        }
+        }}
 
         /* Pricing Section */
         .pricing-card {{
@@ -949,63 +949,63 @@ def show_landing_page():
         }}
 
         /* Footer */
-        .footer {
+        .footer {{
             background: #1a1a2e;
             color: white;
             padding: 4rem 2rem 2rem 2rem;
             border-radius: 24px 24px 0 0;
             margin-top: 4rem;
-        }
+        }}
 
-        .footer-grid {
+        .footer-grid {{
             display: grid;
             grid-template-columns: 2fr 1fr 1fr 1fr;
             gap: 3rem;
             margin-bottom: 3rem;
-        }
+        }}
 
-        .footer-brand {
+        .footer-brand {{
             font-size: 1.8rem;
             font-weight: 800;
             background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 1rem;
-        }
+        }}
 
-        .footer-desc {
+        .footer-desc {{
             color: #a0aec0;
             line-height: 1.6;
             margin-bottom: 1.5rem;
-        }
+        }}
 
-        .footer-heading {
+        .footer-heading {{
             font-weight: 600;
             margin-bottom: 1rem;
             color: white;
-        }
+        }}
 
-        .footer-links {
+        .footer-links {{
             list-style: none;
             padding: 0;
             margin: 0;
-        }
+        }}
 
-        .footer-links li {
+        .footer-links li {{
             margin-bottom: 0.75rem;
-        }
+        }}
 
-        .footer-links a {
+        .footer-links a {{
             color: #a0aec0;
             text-decoration: none;
             transition: color 0.3s;
-        }
+        }}
 
-        .footer-links a:hover {
+        .footer-links a:hover {{
             color: #00d9ff;
-        }
+        }}
 
-        .footer-bottom {
+        .footer-bottom {{
             border-top: 1px solid rgba(255,255,255,0.1);
             padding-top: 2rem;
             display: flex;
@@ -1013,28 +1013,28 @@ def show_landing_page():
             align-items: center;
             color: #a0aec0;
             font-size: 0.9rem;
-        }
+        }}
 
         /* Risk Warning */
-        .risk-warning {
+        .risk-warning {{
             background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
             border-left: 4px solid #ffc107;
             padding: 1.5rem;
             border-radius: 12px;
             margin: 2rem 0;
-        }
+        }}
 
-        .risk-warning-title {
+        .risk-warning-title {{
             font-weight: 700;
             color: #856404;
             margin-bottom: 0.5rem;
-        }
+        }}
 
-        .risk-warning-text {
+        .risk-warning-text {{
             color: #856404;
             font-size: 0.95rem;
             line-height: 1.6;
-        }
+        }}
 
         /* Auth Card */
         .auth-section {{
