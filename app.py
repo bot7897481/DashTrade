@@ -388,78 +388,169 @@ def create_candlestick_chart_with_signals(df, symbol: str):
 
 # Main App
 def show_landing_page():
-    """Display NovAlgo landing page with features and login/register"""
+    """Display comprehensive NovAlgo professional landing page"""
 
-    # Custom CSS for landing page
+    # Custom CSS for professional landing page
     st.markdown("""
     <style>
-        /* Landing page specific styles */
+        /* Hide default Streamlit elements for cleaner look */
+        .stApp > header {display: none;}
+
+        /* Navigation Bar */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: rgba(26, 26, 46, 0.95);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            color: #a0aec0;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #00d9ff;
+        }
+
+        /* Hero Section */
         .hero-section {
             text-align: center;
-            padding: 3rem 1rem;
+            padding: 4rem 2rem;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            border-radius: 24px;
+            margin-bottom: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.5;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: rgba(0, 217, 255, 0.15);
+            color: #00d9ff;
+            padding: 0.5rem 1rem;
             border-radius: 20px;
-            margin-bottom: 2rem;
-            color: white;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(0, 217, 255, 0.3);
         }
 
         .hero-title {
-            font-size: 3.5rem;
+            font-size: 4rem;
             font-weight: 800;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #ffffff 0%, #a0aec0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-highlight {
             background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 50%, #ff6b9d 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            background-clip: text;
         }
 
         .hero-subtitle {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             color: #a0aec0;
             margin-bottom: 2rem;
-            font-weight: 300;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
         }
 
-        .feature-card {
-            background: linear-gradient(145deg, #1e1e2f, #252538);
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin: 0.5rem 0;
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 40px rgba(0, 217, 255, 0.2);
-        }
-
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #ffffff;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature-desc {
-            font-size: 0.9rem;
-            color: #a0aec0;
-            line-height: 1.5;
-        }
-
-        .stats-bar {
+        .hero-buttons {
             display: flex;
             justify-content: center;
-            gap: 3rem;
-            padding: 1.5rem;
-            background: rgba(0, 217, 255, 0.1);
-            border-radius: 12px;
-            margin: 2rem 0;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+            color: white;
+            padding: 1rem 2.5rem;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 1rem;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0, 217, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            padding: 1rem 2.5rem;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 1rem;
+            border: 2px solid rgba(255,255,255,0.3);
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.5);
+        }
+
+        /* Stats Bar */
+        .stats-container {
+            display: flex;
+            justify-content: center;
+            gap: 4rem;
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            margin: 0 2rem;
+            position: relative;
+            z-index: 1;
         }
 
         .stat-item {
@@ -467,89 +558,496 @@ def show_landing_page():
         }
 
         .stat-number {
-            font-size: 2rem;
+            font-size: 2.5rem;
             font-weight: 700;
             color: #00d9ff;
+            margin-bottom: 0.25rem;
         }
 
         .stat-label {
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             color: #a0aec0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .auth-card {
-            background: white;
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        /* Section Styling */
+        .section {
+            padding: 4rem 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 3rem;
         }
 
         .section-title {
-            font-size: 2rem;
+            font-size: 2.5rem;
             font-weight: 700;
-            text-align: center;
-            margin: 2rem 0 1rem 0;
             color: #1a1a2e;
+            margin-bottom: 1rem;
         }
 
         .section-subtitle {
-            text-align: center;
+            font-size: 1.1rem;
             color: #666;
-            margin-bottom: 2rem;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
         }
 
-        .footer-section {
+        /* Feature Cards */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .feature-card {
+            background: linear-gradient(145deg, #f8f9fc, #ffffff);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border-color: #00d9ff;
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.75rem;
+        }
+
+        .feature-desc {
+            font-size: 0.95rem;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* How It Works */
+        .steps-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .step-card {
+            flex: 1;
             text-align: center;
             padding: 2rem;
-            margin-top: 3rem;
-            border-top: 1px solid #e0e0e0;
+            position: relative;
+        }
+
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            margin: 0 auto 1.5rem auto;
+        }
+
+        .step-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.75rem;
+        }
+
+        .step-desc {
+            font-size: 0.95rem;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Integration Section */
+        .integration-card {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 24px;
+            padding: 3rem;
+            color: white;
+            margin: 3rem 0;
+        }
+
+        .integration-logos {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3rem;
+            margin-top: 2rem;
+        }
+
+        .integration-item {
+            text-align: center;
+            padding: 1.5rem 2rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .integration-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        /* Pricing Section */
+        .pricing-card {
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            border: 2px solid #e2e8f0;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .pricing-card:hover {
+            border-color: #00d9ff;
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 217, 255, 0.15);
+        }
+
+        .pricing-card.featured {
+            border-color: #00d9ff;
+            position: relative;
+        }
+
+        .pricing-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+            color: white;
+            padding: 0.4rem 1.5rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .pricing-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.5rem;
+        }
+
+        .pricing-price {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin: 1rem 0;
+        }
+
+        .pricing-price span {
+            font-size: 1rem;
+            color: #666;
+            font-weight: 400;
+        }
+
+        .pricing-features {
+            text-align: left;
+            margin: 1.5rem 0;
+        }
+
+        .pricing-feature {
+            padding: 0.5rem 0;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pricing-feature::before {
+            content: '✓';
+            color: #00d9ff;
+            font-weight: 700;
+        }
+
+        /* FAQ Section */
+        .faq-item {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem 2rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .faq-question {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.75rem;
+        }
+
+        .faq-answer {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Security Section */
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .security-item {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .security-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .security-title {
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.5rem;
+        }
+
+        .security-desc {
+            font-size: 0.85rem;
             color: #666;
         }
 
-        .cta-button {
-            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+        /* Footer */
+        .footer {
+            background: #1a1a2e;
             color: white;
-            padding: 0.8rem 2rem;
-            border-radius: 30px;
+            padding: 4rem 2rem 2rem 2rem;
+            border-radius: 24px 24px 0 0;
+            margin-top: 4rem;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-brand {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .footer-desc {
+            color: #a0aec0;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .footer-heading {
             font-weight: 600;
-            border: none;
-            cursor: pointer;
-            display: inline-block;
-            margin: 0.5rem;
+            margin-bottom: 1rem;
+            color: white;
+        }
+
+        .footer-links {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.75rem;
+        }
+
+        .footer-links a {
+            color: #a0aec0;
             text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: #00d9ff;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+
+        /* Risk Warning */
+        .risk-warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+            border-left: 4px solid #ffc107;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin: 2rem 0;
+        }
+
+        .risk-warning-title {
+            font-weight: 700;
+            color: #856404;
+            margin-bottom: 0.5rem;
+        }
+
+        .risk-warning-text {
+            color: #856404;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* Auth Card */
+        .auth-section {
+            background: linear-gradient(135deg, #f8f9fc 0%, #ffffff 100%);
+            border-radius: 24px;
+            padding: 3rem;
+            border: 1px solid #e2e8f0;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .auth-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 2rem;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # Hero Section
+    # =========================================================================
+    # NAVIGATION
+    # =========================================================================
+    st.markdown("""
+    <div class="navbar">
+        <div class="nav-logo">🚀 NovAlgo</div>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#faq">FAQ</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # =========================================================================
+    # HERO SECTION
+    # =========================================================================
     st.markdown("""
     <div class="hero-section">
-        <div class="hero-title">NovAlgo</div>
-        <div class="hero-subtitle">AI-Powered Automated Trading Made Simple</div>
-        <p style="color: #cbd5e0; max-width: 600px; margin: 0 auto 2rem auto; line-height: 1.6;">
-            Connect your TradingView alerts. Execute trades automatically.
-            Track performance in real-time. All in one powerful platform.
+        <div class="hero-badge">🎯 Trusted by Traders Worldwide</div>
+        <h1 class="hero-title">
+            Automate Your<br><span class="hero-highlight">Trading Strategy</span>
+        </h1>
+        <p class="hero-subtitle">
+            Connect TradingView alerts to execute trades automatically through Alpaca.
+            Set up once, trade 24/7. No coding required.
         </p>
-        <div class="stats-bar">
+        <div class="stats-container">
             <div class="stat-item">
                 <div class="stat-number">24/7</div>
-                <div class="stat-label">Automated Trading</div>
+                <div class="stat-label">Automated</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">&lt;1s</div>
-                <div class="stat-label">Execution Speed</div>
+                <div class="stat-number">&lt;100ms</div>
+                <div class="stat-label">Execution</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">100%</div>
-                <div class="stat-label">Secure & Encrypted</div>
+                <div class="stat-number">256-bit</div>
+                <div class="stat-label">Encryption</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">$0</div>
+                <div class="stat-label">Commission</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Features Section
-    st.markdown("<h2 class='section-title'>Why Choose NovAlgo?</h2>", unsafe_allow_html=True)
-    st.markdown("<p class='section-subtitle'>Everything you need to automate your trading strategy</p>", unsafe_allow_html=True)
+    # =========================================================================
+    # WHAT IS NOVALGO
+    # =========================================================================
+    st.markdown("""
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">What is NovAlgo?</h2>
+            <p class="section-subtitle">
+                NovAlgo is an automated trading platform that bridges TradingView and Alpaca,
+                allowing you to execute trades automatically when your TradingView strategies generate signals.
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+        ### The Problem
+        - Manually monitoring charts 24/7 is impossible
+        - Missing trade entries while sleeping or working
+        - Emotional decisions override your strategy
+        - Slow execution leads to missed opportunities
+        - Managing multiple strategies is overwhelming
+        """)
+
+    with col2:
+        st.markdown("""
+        ### The Solution
+        - **Automated Execution**: Trades execute instantly when signals fire
+        - **24/7 Operation**: Works while you sleep, work, or travel
+        - **Emotion-Free**: Sticks to your strategy without hesitation
+        - **Lightning Fast**: Sub-100ms execution through Alpaca
+        - **Multi-Strategy**: Run unlimited bots simultaneously
+        """)
+
+    # =========================================================================
+    # FEATURES SECTION
+    # =========================================================================
+    st.markdown('<div id="features"></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Powerful Features</h2>
+            <p class="section-subtitle">
+                Everything you need to automate and optimize your trading
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
 
@@ -559,7 +1057,8 @@ def show_landing_page():
             <div class="feature-icon">📡</div>
             <div class="feature-title">TradingView Webhooks</div>
             <div class="feature-desc">
-                Connect your TradingView alerts directly. When your strategy signals, NovAlgo executes instantly.
+                Connect any TradingView strategy or indicator. When an alert fires,
+                NovAlgo receives the webhook and executes your trade instantly.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -569,7 +1068,8 @@ def show_landing_page():
             <div class="feature-icon">🤖</div>
             <div class="feature-title">System Strategies</div>
             <div class="feature-desc">
-                Subscribe to NovAlgo's proven TradingView strategies. Automatic signals, automatic execution.
+                Subscribe to NovAlgo's curated TradingView strategies.
+                Professional signals, automatic execution, full transparency.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -578,9 +1078,33 @@ def show_landing_page():
         st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">⚡</div>
-            <div class="feature-title">Lightning Fast</div>
+            <div class="feature-title">Instant Execution</div>
             <div class="feature-desc">
-                Trades execute in milliseconds via Alpaca API. Never miss an entry or exit again.
+                Trades execute in under 100 milliseconds via Alpaca's API.
+                Market orders fill immediately at the best available price.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">Real-Time Dashboard</div>
+            <div class="feature-desc">
+                Monitor positions, P&L, and trade history in real-time.
+                Beautiful charts and comprehensive analytics at your fingertips.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <div class="feature-title">Risk Management</div>
+            <div class="feature-desc">
+                Set position limits, stop-losses, and daily loss caps.
+                Protect your capital with built-in risk controls.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -590,88 +1114,326 @@ def show_landing_page():
             <div class="feature-icon">🔗</div>
             <div class="feature-title">Outgoing Webhooks</div>
             <div class="feature-desc">
-                Forward signals to Discord, Slack, or any custom endpoint. Stay informed everywhere.
+                Forward signals to Discord, Slack, Telegram, or any webhook endpoint.
+                Stay informed on every trade, anywhere.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # =========================================================================
+    # HOW IT WORKS
+    # =========================================================================
+    st.markdown('<div id="how-it-works"></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-subtitle">
+                Get started in minutes with our simple 4-step process
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-title">Create Account</div>
+            <div class="step-desc">
+                Sign up for free in seconds. No credit card required to start.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-title">Connect Alpaca</div>
+            <div class="step-desc">
+                Link your Alpaca brokerage account with API keys. Paper or live trading.
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
         st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <div class="feature-title">Real-Time Analytics</div>
-            <div class="feature-desc">
-                Track P&L, positions, and performance. Beautiful charts and detailed trade history.
+        <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-title">Configure Bots</div>
+            <div class="step-desc">
+                Create trading bots for each symbol with your position size and risk limits.
             </div>
         </div>
         """, unsafe_allow_html=True)
 
+    with col4:
         st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">🛡️</div>
-            <div class="feature-title">Risk Management</div>
-            <div class="feature-desc">
-                Set stop-losses, position limits, and daily loss caps. Trade with confidence.
+        <div class="step-card">
+            <div class="step-number">4</div>
+            <div class="step-title">Add Webhook</div>
+            <div class="step-desc">
+                Copy your webhook URL to TradingView alerts. Trades execute automatically!
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-    # How It Works
-    st.markdown("<h2 class='section-title'>How It Works</h2>", unsafe_allow_html=True)
-    st.markdown("<p class='section-subtitle'>Get started in 3 simple steps</p>", unsafe_allow_html=True)
+    # =========================================================================
+    # INTEGRATIONS
+    # =========================================================================
+    st.markdown("""
+    <div class="integration-card">
+        <div class="section-header">
+            <h2 style="color: white; font-size: 2rem; margin-bottom: 0.5rem;">Seamless Integrations</h2>
+            <p style="color: #a0aec0;">Works with the tools you already use</p>
+        </div>
+        <div class="integration-logos">
+            <div class="integration-item">
+                <div style="font-size: 2.5rem;">📺</div>
+                <div class="integration-name">TradingView</div>
+            </div>
+            <div class="integration-item">
+                <div style="font-size: 2.5rem;">🦙</div>
+                <div class="integration-name">Alpaca</div>
+            </div>
+            <div class="integration-item">
+                <div style="font-size: 2.5rem;">💬</div>
+                <div class="integration-name">Discord</div>
+            </div>
+            <div class="integration-item">
+                <div style="font-size: 2.5rem;">📱</div>
+                <div class="integration-name">Slack</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # =========================================================================
+    # SECURITY
+    # =========================================================================
+    st.markdown("""
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Bank-Level Security</h2>
+            <p class="section-subtitle">
+                Your API keys and data are protected with enterprise-grade security
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown("""
+        <div class="security-item">
+            <div class="security-icon">🔐</div>
+            <div class="security-title">256-bit Encryption</div>
+            <div class="security-desc">API keys encrypted with Fernet symmetric encryption</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div class="security-item">
+            <div class="security-icon">🔒</div>
+            <div class="security-title">Secure Storage</div>
+            <div class="security-desc">Keys never stored in plain text, only encrypted hashes</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div class="security-item">
+            <div class="security-icon">🛡️</div>
+            <div class="security-title">No Withdrawals</div>
+            <div class="security-desc">API keys only have trading permissions, not withdrawal</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col4:
+        st.markdown("""
+        <div class="security-item">
+            <div class="security-icon">✅</div>
+            <div class="security-title">Your Control</div>
+            <div class="security-desc">Revoke access anytime from your Alpaca dashboard</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # =========================================================================
+    # PRICING
+    # =========================================================================
+    st.markdown('<div id="pricing"></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Simple Pricing</h2>
+            <p class="section-subtitle">
+                Start for free, upgrade when you're ready
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown("""
-        <div style="text-align: center; padding: 1.5rem;">
-            <div style="font-size: 3rem; margin-bottom: 1rem;">1️⃣</div>
-            <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">Connect Alpaca</h3>
-            <p style="color: #666;">Link your Alpaca brokerage account with API keys. Paper or live trading supported.</p>
+        <div class="pricing-card">
+            <div class="pricing-name">Paper Trading</div>
+            <div class="pricing-price">$0<span>/month</span></div>
+            <div class="pricing-features">
+                <div class="pricing-feature">Unlimited paper trades</div>
+                <div class="pricing-feature">All bot features</div>
+                <div class="pricing-feature">Real-time dashboard</div>
+                <div class="pricing-feature">TradingView webhooks</div>
+                <div class="pricing-feature">System strategies</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
         st.markdown("""
-        <div style="text-align: center; padding: 1.5rem;">
-            <div style="font-size: 3rem; margin-bottom: 1rem;">2️⃣</div>
-            <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">Configure Bots</h3>
-            <p style="color: #666;">Create trading bots for each symbol. Set position sizes and risk parameters.</p>
+        <div class="pricing-card featured">
+            <div class="pricing-badge">MOST POPULAR</div>
+            <div class="pricing-name">Live Trading</div>
+            <div class="pricing-price">$0<span>/month</span></div>
+            <div class="pricing-features">
+                <div class="pricing-feature">Everything in Paper</div>
+                <div class="pricing-feature">Live market execution</div>
+                <div class="pricing-feature">Priority webhook processing</div>
+                <div class="pricing-feature">Outgoing webhooks</div>
+                <div class="pricing-feature">Email support</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
         st.markdown("""
-        <div style="text-align: center; padding: 1.5rem;">
-            <div style="font-size: 3rem; margin-bottom: 1rem;">3️⃣</div>
-            <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">Start Trading</h3>
-            <p style="color: #666;">Add webhook URL to TradingView or subscribe to system strategies. Done!</p>
+        <div class="pricing-card">
+            <div class="pricing-name">Enterprise</div>
+            <div class="pricing-price">Contact<span> us</span></div>
+            <div class="pricing-features">
+                <div class="pricing-feature">Everything in Live</div>
+                <div class="pricing-feature">Custom integrations</div>
+                <div class="pricing-feature">Dedicated support</div>
+                <div class="pricing-feature">SLA guarantee</div>
+                <div class="pricing-feature">White-label options</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("---")
+    st.info("💡 **Note:** Alpaca charges $0 commission on stock trades. NovAlgo is currently free during beta.")
 
-    # Login/Register Section
-    st.markdown("<h2 class='section-title'>Get Started</h2>", unsafe_allow_html=True)
+    # =========================================================================
+    # FAQ
+    # =========================================================================
+    st.markdown('<div id="faq"></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Frequently Asked Questions</h2>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.expander("What is NovAlgo?"):
+        st.write("""
+        NovAlgo is an automated trading platform that connects TradingView to Alpaca brokerage.
+        When your TradingView strategy generates a buy or sell signal, NovAlgo receives a webhook
+        and automatically executes the trade in your Alpaca account. No manual intervention required.
+        """)
+
+    with st.expander("Is my money safe?"):
+        st.write("""
+        Yes. Your funds are held in your Alpaca account, not with NovAlgo. We only receive API keys
+        with trading permissions - we cannot withdraw funds. Your API keys are encrypted with 256-bit
+        encryption and never stored in plain text. You can revoke access at any time from Alpaca.
+        """)
+
+    with st.expander("What is Alpaca?"):
+        st.write("""
+        Alpaca is a commission-free stock trading brokerage designed for algorithmic trading.
+        They provide a powerful API that allows platforms like NovAlgo to execute trades on your behalf.
+        Alpaca is regulated by FINRA and SEC, and accounts are SIPC insured up to $500,000.
+        """)
+
+    with st.expander("Do I need coding experience?"):
+        st.write("""
+        No coding required! Simply create an alert in TradingView, paste your NovAlgo webhook URL,
+        and configure the JSON message format. NovAlgo handles the rest automatically.
+        """)
+
+    with st.expander("What markets can I trade?"):
+        st.write("""
+        NovAlgo supports all US stocks and ETFs available on Alpaca. This includes major exchanges
+        like NYSE and NASDAQ. Crypto trading through Alpaca is also supported where available.
+        """)
+
+    with st.expander("Can I use my own TradingView strategies?"):
+        st.write("""
+        Absolutely! Any TradingView strategy or indicator that can generate alerts can be connected
+        to NovAlgo. You have full control over your trading logic - we just execute the signals.
+        """)
+
+    with st.expander("What are System Strategies?"):
+        st.write("""
+        System Strategies are curated TradingView strategies run by NovAlgo. You can subscribe
+        to receive their signals automatically. Each strategy includes a risk disclaimer,
+        and you maintain full control over position sizing and can unsubscribe at any time.
+        """)
+
+    with st.expander("How fast are trade executions?"):
+        st.write("""
+        Trades typically execute in under 100 milliseconds from when we receive the webhook.
+        Market orders fill immediately at the best available price. We use Alpaca's high-performance
+        trading API for maximum speed and reliability.
+        """)
+
+    # =========================================================================
+    # RISK WARNING
+    # =========================================================================
+    st.markdown("""
+    <div class="risk-warning">
+        <div class="risk-warning-title">⚠️ Risk Disclosure</div>
+        <div class="risk-warning-text">
+            <strong>Trading involves substantial risk of loss and is not suitable for all investors.</strong>
+            Past performance is not indicative of future results. Automated trading systems, including NovAlgo,
+            carry additional risks including system failures, connectivity issues, and the possibility of
+            executing trades at unintended prices. You should only trade with money you can afford to lose.
+            Consider consulting a financial advisor before making investment decisions.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # =========================================================================
+    # GET STARTED / AUTH SECTION
+    # =========================================================================
+    st.markdown("---")
+    st.markdown("""
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Ready to Automate Your Trading?</h2>
+            <p class="section-subtitle">
+                Join traders who are already executing their strategies automatically
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        tab1, tab2 = st.tabs(["🔐 Sign In", "✨ Create Account"])
+        tab1, tab2 = st.tabs(["🔐 Sign In", "✨ Create Free Account"])
 
         with tab1:
+            st.markdown("#### Welcome Back")
             with st.form("login_form", clear_on_submit=False):
-                username = st.text_input(
-                    "Username",
-                    key="login_username",
-                    placeholder="Enter your username"
-                )
-                password = st.text_input(
-                    "Password",
-                    type="password",
-                    key="login_password",
-                    placeholder="Enter your password"
-                )
+                username = st.text_input("Username", placeholder="Enter your username")
+                password = st.text_input("Password", type="password", placeholder="Enter your password")
 
                 submit = st.form_submit_button("Sign In", use_container_width=True, type="primary")
 
@@ -679,9 +1441,8 @@ def show_landing_page():
                     if not username or not password:
                         st.error("Please enter both username and password")
                     else:
-                        with st.spinner("Authenticating..."):
+                        with st.spinner("Signing in..."):
                             result = UserDB.authenticate_user(username, password)
-
                             if result['success']:
                                 st.session_state['authenticated'] = True
                                 st.session_state['user'] = result['user']
@@ -692,42 +1453,15 @@ def show_landing_page():
                                 st.error(result.get('error', 'Login failed'))
 
         with tab2:
+            st.markdown("#### Start Trading in Minutes")
             with st.form("register_form", clear_on_submit=False):
-                reg_username = st.text_input(
-                    "Username",
-                    key="reg_username",
-                    placeholder="Choose a username (min 3 characters)"
-                )
-                reg_email = st.text_input(
-                    "Email",
-                    key="reg_email",
-                    placeholder="your.email@example.com"
-                )
-                reg_fullname = st.text_input(
-                    "Full Name (optional)",
-                    key="reg_fullname",
-                    placeholder="Your full name"
-                )
-                reg_password = st.text_input(
-                    "Password",
-                    type="password",
-                    key="reg_password",
-                    placeholder="Create a strong password (min 6 characters)"
-                )
-                reg_password_confirm = st.text_input(
-                    "Confirm Password",
-                    type="password",
-                    key="reg_password_confirm",
-                    placeholder="Re-enter your password"
-                )
+                reg_username = st.text_input("Username", key="reg_user", placeholder="Choose a username")
+                reg_email = st.text_input("Email", key="reg_email", placeholder="your@email.com")
+                reg_fullname = st.text_input("Full Name (optional)", key="reg_name", placeholder="John Doe")
+                reg_password = st.text_input("Password", type="password", key="reg_pass", placeholder="Min 6 characters")
+                reg_password_confirm = st.text_input("Confirm Password", type="password", key="reg_pass2", placeholder="Re-enter password")
 
-                with st.expander("Admin Registration (Optional)"):
-                    admin_code = st.text_input(
-                        "Admin Activation Code",
-                        placeholder="1234-5678-9012-3456",
-                        max_chars=19,
-                        help="Enter a 16-digit code to create an admin account"
-                    )
+                st.caption("By creating an account, you agree to our Terms of Service and Privacy Policy.")
 
                 submit_reg = st.form_submit_button("Create Account", use_container_width=True, type="primary")
 
@@ -741,38 +1475,62 @@ def show_landing_page():
                     elif len(reg_username) < 3:
                         st.error("Username must be at least 3 characters")
                     else:
-                        admin_code_to_use = None
-                        if admin_code and admin_code.strip():
-                            admin_code_clean = admin_code.strip().replace('-', '').replace(' ', '')
-                            if len(admin_code_clean) == 16 and admin_code_clean.isdigit():
-                                admin_code_to_use = f"{admin_code_clean[:4]}-{admin_code_clean[4:8]}-{admin_code_clean[8:12]}-{admin_code_clean[12:16]}"
-
                         with st.spinner("Creating your account..."):
                             try:
-                                result = UserDB.register_user(
-                                    reg_username, reg_email, reg_password,
-                                    reg_fullname, admin_code=admin_code_to_use
-                                )
+                                result = UserDB.register_user(reg_username, reg_email, reg_password, reg_fullname)
                                 if result['success']:
-                                    role_msg = "admin" if result.get('role') == 'admin' else "user"
-                                    st.success(f"Account created as {role_msg}! You can now sign in.")
+                                    st.success("Account created! You can now sign in.")
                                     st.balloons()
                                 else:
                                     st.error(result.get('error', 'Registration failed'))
                             except Exception as e:
-                                st.error(f"Registration error: {str(e)}")
+                                st.error(f"Error: {str(e)}")
 
-    # Footer
+    # =========================================================================
+    # FOOTER
+    # =========================================================================
     st.markdown("""
-    <div class="footer-section">
-        <p style="margin-bottom: 0.5rem;"><strong>NovAlgo</strong> - Automated Trading Platform</p>
-        <p style="font-size: 0.85rem;">
-            Trading involves substantial risk. Only trade with money you can afford to lose.
-            <br>Past performance is not indicative of future results.
-        </p>
-        <p style="font-size: 0.8rem; margin-top: 1rem; color: #999;">
-            © 2024 NovAlgo. All rights reserved.
-        </p>
+    <div class="footer">
+        <div class="footer-grid">
+            <div>
+                <div class="footer-brand">🚀 NovAlgo</div>
+                <p class="footer-desc">
+                    Automated trading platform connecting TradingView strategies to Alpaca execution.
+                    Trade smarter, not harder.
+                </p>
+            </div>
+            <div>
+                <div class="footer-heading">Product</div>
+                <ul class="footer-links">
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#how-it-works">How It Works</a></li>
+                    <li><a href="#pricing">Pricing</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                </ul>
+            </div>
+            <div>
+                <div class="footer-heading">Resources</div>
+                <ul class="footer-links">
+                    <li><a href="#">Documentation</a></li>
+                    <li><a href="#">API Reference</a></li>
+                    <li><a href="#">Webhook Guide</a></li>
+                    <li><a href="#">TradingView Setup</a></li>
+                </ul>
+            </div>
+            <div>
+                <div class="footer-heading">Company</div>
+                <ul class="footer-links">
+                    <li><a href="#">About Us</a></li>
+                    <li><a href="#">Contact</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div>© 2024 NovAlgo. All rights reserved.</div>
+            <div>Made with ❤️ for traders</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
