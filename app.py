@@ -26,8 +26,8 @@ from ai_assistant import AIAssistant, LLMKeysDB
 
 # Page configuration
 st.set_page_config(
-    page_title="NovAlgo Trading Signals",
-    page_icon="📈",
+    page_title="NovAlgo - Automated Trading Platform",
+    page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -387,113 +387,394 @@ def create_candlestick_chart_with_signals(df, symbol: str):
     return fig
 
 # Main App
-def show_login_page():
-    """Display modern login page"""
-    # Background gradient
+def show_landing_page():
+    """Display NovAlgo landing page with features and login/register"""
+
+    # Custom CSS for landing page
     st.markdown("""
-    <div style='position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                z-index: -1;'></div>
+    <style>
+        /* Landing page specific styles */
+        .hero-section {
+            text-align: center;
+            padding: 3rem 1rem;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            color: white;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 50%, #ff6b9d 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 1.4rem;
+            color: #a0aec0;
+            margin-bottom: 2rem;
+            font-weight: 300;
+        }
+
+        .feature-card {
+            background: linear-gradient(145deg, #1e1e2f, #252538);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 0.5rem 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0, 217, 255, 0.2);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #a0aec0;
+            line-height: 1.5;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            padding: 1.5rem;
+            background: rgba(0, 217, 255, 0.1);
+            border-radius: 12px;
+            margin: 2rem 0;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #00d9ff;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #a0aec0;
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 2rem 0 1rem 0;
+            color: #1a1a2e;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 2rem;
+        }
+
+        .footer-section {
+            text-align: center;
+            padding: 2rem;
+            margin-top: 3rem;
+            border-top: 1px solid #e0e0e0;
+            color: #666;
+        }
+
+        .cta-button {
+            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+            color: white;
+            padding: 0.8rem 2rem;
+            border-radius: 30px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: inline-block;
+            margin: 0.5rem;
+            text-decoration: none;
+        }
+    </style>
     """, unsafe_allow_html=True)
-    
-    # Center the login card
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
+
+    # Hero Section
+    st.markdown("""
+    <div class="hero-section">
+        <div class="hero-title">NovAlgo</div>
+        <div class="hero-subtitle">AI-Powered Automated Trading Made Simple</div>
+        <p style="color: #cbd5e0; max-width: 600px; margin: 0 auto 2rem auto; line-height: 1.6;">
+            Connect your TradingView alerts. Execute trades automatically.
+            Track performance in real-time. All in one powerful platform.
+        </p>
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-number">24/7</div>
+                <div class="stat-label">Automated Trading</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">&lt;1s</div>
+                <div class="stat-label">Execution Speed</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">100%</div>
+                <div class="stat-label">Secure & Encrypted</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Features Section
+    st.markdown("<h2 class='section-title'>Why Choose NovAlgo?</h2>", unsafe_allow_html=True)
+    st.markdown("<p class='section-subtitle'>Everything you need to automate your trading strategy</p>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📡</div>
+            <div class="feature-title">TradingView Webhooks</div>
+            <div class="feature-desc">
+                Connect your TradingView alerts directly. When your strategy signals, NovAlgo executes instantly.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <div class="feature-title">System Strategies</div>
+            <div class="feature-desc">
+                Subscribe to NovAlgo's proven TradingView strategies. Automatic signals, automatic execution.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     with col2:
-        # Login Card
         st.markdown("""
-        <div style='background: white; border-radius: 20px; padding: 3rem; 
-                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); margin: 2rem 0;'>
-            <h1 style='text-align: center; font-size: 2.5rem; margin-bottom: 0.5rem; 
-                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                       background-clip: text;'>
-                📈 DashTrade
-            </h1>
-            <p style='text-align: center; color: #666; margin-bottom: 2rem; font-size: 1rem;'>
-                Welcome back! Sign in to access your trading dashboard
-            </p>
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">Lightning Fast</div>
+            <div class="feature-desc">
+                Trades execute in milliseconds via Alpaca API. Never miss an entry or exit again.
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Login Form
-        with st.form("login_form", clear_on_submit=False):
-            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
-            username = st.text_input(
-                "👤 Username", 
-                key="login_username",
-                placeholder="Enter your username",
-                help="Username is case-insensitive"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            st.markdown("<div style='margin-bottom: 1.5rem;'>", unsafe_allow_html=True)
-            password = st.text_input(
-                "🔒 Password", 
-                type="password", 
-                key="login_password",
-                placeholder="Enter your password"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            submit = st.form_submit_button(
-                "🚀 Sign In", 
-                use_container_width=True,
-                type="primary"
-            )
-            
-            if submit:
-                if not username or not password:
-                    st.markdown("""
-                    <div class='error-message'>
-                        <strong>⚠️ Error:</strong> Please enter both username and password
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    with st.spinner("🔐 Authenticating..."):
-                        result = UserDB.authenticate_user(username, password)
-                        
-                        if result['success']:
-                            st.session_state['authenticated'] = True
-                            st.session_state['user'] = result['user']
-                            st.markdown(f"""
-                            <div class='success-message'>
-                                <strong>✅ Success!</strong> Welcome back, {result['user']['username']}!
-                            </div>
-                            """, unsafe_allow_html=True)
-                            st.balloons()
-                            st.rerun()
-                        else:
-                            error_msg = result.get('error', 'Login failed')
-                            st.markdown(f"""
-                            <div class='error-message'>
-                                <strong>❌ Login Failed:</strong> {error_msg}
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            # Show helpful hints
-                            if 'Invalid username or password' in error_msg:
-                                st.markdown("""
-                                <div class='info-message'>
-                                    <strong>💡 Tip:</strong> Username is case-insensitive. 
-                                    Make sure your password is correct. If you forgot your password, 
-                                    contact your administrator.
-                                </div>
-                                """, unsafe_allow_html=True)
-        
-        # Register link
+
         st.markdown("""
-        <div style='text-align: center; margin-top: 2rem; padding-top: 1.5rem; 
-                    border-top: 1px solid #e0e0e0;'>
-            <p style='color: #666; margin-bottom: 0.5rem; font-size: 0.95rem;'>
-                Don't have an account?
-            </p>
+        <div class="feature-card">
+            <div class="feature-icon">🔗</div>
+            <div class="feature-title">Outgoing Webhooks</div>
+            <div class="feature-desc">
+                Forward signals to Discord, Slack, or any custom endpoint. Stay informed everywhere.
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        
-        if st.button("✨ Create New Account", use_container_width=True, type="secondary"):
-            st.session_state['show_register'] = True
-            st.rerun()
+
+    with col3:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">Real-Time Analytics</div>
+            <div class="feature-desc">
+                Track P&L, positions, and performance. Beautiful charts and detailed trade history.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <div class="feature-title">Risk Management</div>
+            <div class="feature-desc">
+                Set stop-losses, position limits, and daily loss caps. Trade with confidence.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # How It Works
+    st.markdown("<h2 class='section-title'>How It Works</h2>", unsafe_allow_html=True)
+    st.markdown("<p class='section-subtitle'>Get started in 3 simple steps</p>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        <div style="text-align: center; padding: 1.5rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">1️⃣</div>
+            <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">Connect Alpaca</h3>
+            <p style="color: #666;">Link your Alpaca brokerage account with API keys. Paper or live trading supported.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div style="text-align: center; padding: 1.5rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">2️⃣</div>
+            <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">Configure Bots</h3>
+            <p style="color: #666;">Create trading bots for each symbol. Set position sizes and risk parameters.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div style="text-align: center; padding: 1.5rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">3️⃣</div>
+            <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">Start Trading</h3>
+            <p style="color: #666;">Add webhook URL to TradingView or subscribe to system strategies. Done!</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # Login/Register Section
+    st.markdown("<h2 class='section-title'>Get Started</h2>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+
+    with col2:
+        tab1, tab2 = st.tabs(["🔐 Sign In", "✨ Create Account"])
+
+        with tab1:
+            with st.form("login_form", clear_on_submit=False):
+                username = st.text_input(
+                    "Username",
+                    key="login_username",
+                    placeholder="Enter your username"
+                )
+                password = st.text_input(
+                    "Password",
+                    type="password",
+                    key="login_password",
+                    placeholder="Enter your password"
+                )
+
+                submit = st.form_submit_button("Sign In", use_container_width=True, type="primary")
+
+                if submit:
+                    if not username or not password:
+                        st.error("Please enter both username and password")
+                    else:
+                        with st.spinner("Authenticating..."):
+                            result = UserDB.authenticate_user(username, password)
+
+                            if result['success']:
+                                st.session_state['authenticated'] = True
+                                st.session_state['user'] = result['user']
+                                st.success(f"Welcome back, {result['user']['username']}!")
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error(result.get('error', 'Login failed'))
+
+        with tab2:
+            with st.form("register_form", clear_on_submit=False):
+                reg_username = st.text_input(
+                    "Username",
+                    key="reg_username",
+                    placeholder="Choose a username (min 3 characters)"
+                )
+                reg_email = st.text_input(
+                    "Email",
+                    key="reg_email",
+                    placeholder="your.email@example.com"
+                )
+                reg_fullname = st.text_input(
+                    "Full Name (optional)",
+                    key="reg_fullname",
+                    placeholder="Your full name"
+                )
+                reg_password = st.text_input(
+                    "Password",
+                    type="password",
+                    key="reg_password",
+                    placeholder="Create a strong password (min 6 characters)"
+                )
+                reg_password_confirm = st.text_input(
+                    "Confirm Password",
+                    type="password",
+                    key="reg_password_confirm",
+                    placeholder="Re-enter your password"
+                )
+
+                with st.expander("Admin Registration (Optional)"):
+                    admin_code = st.text_input(
+                        "Admin Activation Code",
+                        placeholder="1234-5678-9012-3456",
+                        max_chars=19,
+                        help="Enter a 16-digit code to create an admin account"
+                    )
+
+                submit_reg = st.form_submit_button("Create Account", use_container_width=True, type="primary")
+
+                if submit_reg:
+                    if not reg_username or not reg_email or not reg_password:
+                        st.error("Please fill in all required fields")
+                    elif reg_password != reg_password_confirm:
+                        st.error("Passwords do not match")
+                    elif len(reg_password) < 6:
+                        st.error("Password must be at least 6 characters")
+                    elif len(reg_username) < 3:
+                        st.error("Username must be at least 3 characters")
+                    else:
+                        admin_code_to_use = None
+                        if admin_code and admin_code.strip():
+                            admin_code_clean = admin_code.strip().replace('-', '').replace(' ', '')
+                            if len(admin_code_clean) == 16 and admin_code_clean.isdigit():
+                                admin_code_to_use = f"{admin_code_clean[:4]}-{admin_code_clean[4:8]}-{admin_code_clean[8:12]}-{admin_code_clean[12:16]}"
+
+                        with st.spinner("Creating your account..."):
+                            try:
+                                result = UserDB.register_user(
+                                    reg_username, reg_email, reg_password,
+                                    reg_fullname, admin_code=admin_code_to_use
+                                )
+                                if result['success']:
+                                    role_msg = "admin" if result.get('role') == 'admin' else "user"
+                                    st.success(f"Account created as {role_msg}! You can now sign in.")
+                                    st.balloons()
+                                else:
+                                    st.error(result.get('error', 'Registration failed'))
+                            except Exception as e:
+                                st.error(f"Registration error: {str(e)}")
+
+    # Footer
+    st.markdown("""
+    <div class="footer-section">
+        <p style="margin-bottom: 0.5rem;"><strong>NovAlgo</strong> - Automated Trading Platform</p>
+        <p style="font-size: 0.85rem;">
+            Trading involves substantial risk. Only trade with money you can afford to lose.
+            <br>Past performance is not indicative of future results.
+        </p>
+        <p style="font-size: 0.8rem; margin-top: 1rem; color: #999;">
+            © 2024 NovAlgo. All rights reserved.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 def show_register_page():
     """Display modern registration page"""
@@ -718,8 +999,8 @@ def main():
     username = st.session_state['user']['username']
 
     # Header
-    st.markdown('<h1 class="main-header">📈 NovAlgo Trading Signals</h1>', unsafe_allow_html=True)
-    st.markdown("### Comprehensive Stock Technical Analysis Dashboard with Portfolio Tracking")
+    st.markdown('<h1 class="main-header">🚀 NovAlgo</h1>', unsafe_allow_html=True)
+    st.markdown("### AI-Powered Trading Signals & Automation")
     st.markdown("---")
 
     # Load user preferences
@@ -727,7 +1008,7 @@ def main():
 
     # Sidebar
     with st.sidebar:
-        st.title("📈 NovAlgo")
+        st.title("🚀 NovAlgo")
         st.caption(f"👤 {username}")
         if st.button("🚪 Logout", use_container_width=True):
             st.session_state.clear()
@@ -2825,8 +3106,5 @@ if __name__ == "__main__":
         # User is logged in, show main app
         main()
     else:
-        # User not logged in, show login or register page
-        if st.session_state.get('show_register', False):
-            show_register_page()
-        else:
-            show_login_page()
+        # User not logged in, show landing page with login/register
+        show_landing_page()
