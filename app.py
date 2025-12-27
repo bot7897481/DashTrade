@@ -1090,6 +1090,290 @@ def show_landing_page():
             border-color: #00d9ff;
             transform: scale(1.1);
         }}
+
+        /* ============================================= */
+        /* MOBILE RESPONSIVE STYLES */
+        /* ============================================= */
+
+        /* Tablets and smaller (max-width: 992px) */
+        @media (max-width: 992px) {{
+            .hero-title {{
+                font-size: 2.8rem;
+            }}
+
+            .hero-subtitle {{
+                font-size: 1.1rem;
+                padding: 0 1rem;
+            }}
+
+            .stats-container {{
+                flex-wrap: wrap;
+                gap: 2rem;
+                padding: 1.5rem 1rem;
+                margin: 0 1rem;
+            }}
+
+            .stat-item {{
+                flex: 1 1 40%;
+            }}
+
+            .section-title {{
+                font-size: 2rem;
+            }}
+
+            .feature-card {{
+                padding: 1.5rem;
+            }}
+
+            .step-card {{
+                padding: 1rem;
+            }}
+
+            .footer-grid {{
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+            }}
+
+            .integration-logos {{
+                flex-wrap: wrap;
+                gap: 1.5rem;
+            }}
+        }}
+
+        /* Mobile phones (max-width: 768px) */
+        @media (max-width: 768px) {{
+            .hero-section {{
+                padding: 2.5rem 1rem;
+                border-radius: 16px;
+            }}
+
+            .hero-title {{
+                font-size: 2.2rem;
+                line-height: 1.2;
+            }}
+
+            .hero-subtitle {{
+                font-size: 1rem;
+                margin-bottom: 1.5rem;
+            }}
+
+            .hero-badge {{
+                font-size: 0.75rem;
+                padding: 0.4rem 0.8rem;
+            }}
+
+            .stats-container {{
+                flex-direction: column;
+                gap: 1.5rem;
+                padding: 1.5rem;
+                margin: 0;
+                border-radius: 12px;
+            }}
+
+            .stat-item {{
+                flex: 1 1 100%;
+            }}
+
+            .stat-number {{
+                font-size: 2rem;
+            }}
+
+            .stat-label {{
+                font-size: 0.8rem;
+            }}
+
+            .section {{
+                padding: 2rem 0;
+            }}
+
+            .section-title {{
+                font-size: 1.6rem;
+                padding: 0 1rem;
+            }}
+
+            .section-subtitle {{
+                font-size: 0.95rem;
+                padding: 0 1rem;
+            }}
+
+            .feature-card {{
+                padding: 1.25rem;
+                margin: 0.25rem 0;
+            }}
+
+            .feature-icon {{
+                font-size: 2.5rem;
+            }}
+
+            .feature-title {{
+                font-size: 1.1rem;
+            }}
+
+            .feature-desc {{
+                font-size: 0.9rem;
+            }}
+
+            .step-number {{
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+            }}
+
+            .step-title {{
+                font-size: 1.1rem;
+            }}
+
+            .step-desc {{
+                font-size: 0.9rem;
+            }}
+
+            .integration-card {{
+                padding: 2rem 1rem;
+                border-radius: 16px;
+            }}
+
+            .integration-logos {{
+                flex-direction: column;
+                gap: 1rem;
+            }}
+
+            .integration-item {{
+                padding: 1rem 1.5rem;
+            }}
+
+            .pricing-card {{
+                padding: 1.5rem;
+                border-radius: 16px;
+            }}
+
+            .pricing-name {{
+                font-size: 1.1rem;
+            }}
+
+            .pricing-price {{
+                font-size: 2.5rem;
+            }}
+
+            .pricing-feature {{
+                font-size: 0.9rem;
+            }}
+
+            .security-item {{
+                padding: 1rem 0.5rem;
+            }}
+
+            .security-icon {{
+                font-size: 2rem;
+            }}
+
+            .security-title {{
+                font-size: 0.95rem;
+            }}
+
+            .security-desc {{
+                font-size: 0.8rem;
+            }}
+
+            .risk-warning {{
+                padding: 1rem;
+                margin: 1.5rem 0;
+            }}
+
+            .risk-warning-title {{
+                font-size: 0.95rem;
+            }}
+
+            .risk-warning-text {{
+                font-size: 0.85rem;
+            }}
+
+            .footer {{
+                padding: 2.5rem 1rem 1.5rem 1rem;
+                border-radius: 16px 16px 0 0;
+            }}
+
+            .footer-grid {{
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+                text-align: center;
+            }}
+
+            .footer-brand {{
+                font-size: 1.5rem;
+            }}
+
+            .footer-desc {{
+                font-size: 0.9rem;
+            }}
+
+            .footer-heading {{
+                margin-top: 1rem;
+            }}
+
+            .footer-bottom {{
+                flex-direction: column;
+                gap: 0.5rem;
+                text-align: center;
+                font-size: 0.8rem;
+            }}
+
+            /* Hide nav links on mobile - just show logo and toggle */
+            .nav-links {{
+                display: none !important;
+            }}
+        }}
+
+        /* Very small phones (max-width: 480px) */
+        @media (max-width: 480px) {{
+            .hero-title {{
+                font-size: 1.8rem;
+            }}
+
+            .hero-subtitle {{
+                font-size: 0.9rem;
+            }}
+
+            .stats-container {{
+                padding: 1rem;
+            }}
+
+            .stat-number {{
+                font-size: 1.8rem;
+            }}
+
+            .section-title {{
+                font-size: 1.4rem;
+            }}
+
+            .feature-card {{
+                padding: 1rem;
+            }}
+
+            .feature-icon {{
+                font-size: 2rem;
+            }}
+
+            .feature-title {{
+                font-size: 1rem;
+            }}
+
+            .pricing-price {{
+                font-size: 2rem;
+            }}
+
+            .btn-primary, .btn-secondary {{
+                padding: 0.8rem 1.5rem;
+                font-size: 0.9rem;
+            }}
+        }}
+
+        /* Improve touch targets on mobile */
+        @media (hover: none) {{
+            .feature-card:hover,
+            .pricing-card:hover {{
+                transform: none;
+            }}
+        }}
     </style>
     """, unsafe_allow_html=True)
 
