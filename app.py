@@ -1378,9 +1378,9 @@ def show_landing_page():
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # NAVIGATION WITH DARK MODE TOGGLE
+    # NAVIGATION WITH LOGIN BUTTON
     # =========================================================================
-    nav_col1, nav_col2, nav_col3 = st.columns([2, 6, 1])
+    nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([2, 5, 1.5, 0.5])
 
     with nav_col1:
         st.markdown("""
@@ -1402,6 +1402,27 @@ def show_landing_page():
         """, unsafe_allow_html=True)
 
     with nav_col3:
+        # Login button - styled link to login section
+        st.markdown(f"""
+        <a href="#login-section" style="
+            display: inline-block;
+            width: 100%;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 0.25rem;
+        " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';"
+           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+            🔐 Sign In
+        </a>
+        """, unsafe_allow_html=True)
+
+    with nav_col4:
         # Dark mode toggle button
         toggle_label = "☀️" if is_dark else "🌙"
         if st.button(toggle_label, key="dark_mode_toggle", help="Toggle dark/light mode"):
@@ -1860,6 +1881,10 @@ def show_landing_page():
     # GET STARTED / AUTH SECTION
     # =========================================================================
     st.markdown("---")
+
+    # Anchor for Sign In button navigation
+    st.markdown('<div id="login-section"></div>', unsafe_allow_html=True)
+
     st.markdown("""
     <div class="section">
         <div class="section-header">
