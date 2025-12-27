@@ -29,7 +29,7 @@ st.set_page_config(
     page_title="NovAlgo - Automated Trading Platform",
     page_icon="🚀",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Custom CSS
@@ -389,6 +389,18 @@ def create_candlestick_chart_with_signals(df, symbol: str):
 # Main App
 def show_landing_page():
     """Display comprehensive NovAlgo professional landing page"""
+
+    # Hide sidebar completely on landing page
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {display: none;}
+        [data-testid="stSidebarNav"] {display: none;}
+        section[data-testid="stSidebar"] {display: none;}
+        .css-1d391kg {display: none;}
+        .css-1lcbmhc {display: none;}
+        [data-testid="collapsedControl"] {display: none;}
+    </style>
+    """, unsafe_allow_html=True)
 
     # Initialize dark mode state
     if 'dark_mode' not in st.session_state:

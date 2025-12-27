@@ -19,7 +19,16 @@ from bot_engine import TradingEngine
 
 # Check authentication
 if 'authenticated' not in st.session_state or not st.session_state.authenticated:
-    st.error("Please log in to access the Trading Bot")
+    # Hide sidebar for non-authenticated users
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {display: none;}
+        [data-testid="stSidebarNav"] {display: none;}
+        [data-testid="collapsedControl"] {display: none;}
+    </style>
+    """, unsafe_allow_html=True)
+    st.warning("Please log in to access the Trading Bot")
+    st.markdown("### [← Go to Home Page](/) to sign in")
     st.stop()
 
 # Get user info from session state (stored in 'user' dict)
