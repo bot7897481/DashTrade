@@ -388,24 +388,25 @@ def create_candlestick_chart_with_signals(df, symbol: str):
 
 # Main App
 def show_landing_page():
-    """Display Robinhood-inspired NovAlgo landing page"""
+    """Display NovAlgo landing page - Robinhood Gold inspired design"""
 
-    # Hide sidebar completely on landing page
+    # Hide sidebar and Streamlit elements
     st.markdown("""
     <style>
         [data-testid="stSidebar"] {display: none;}
         [data-testid="stSidebarNav"] {display: none;}
         section[data-testid="stSidebar"] {display: none;}
         [data-testid="collapsedControl"] {display: none;}
-        .block-container {padding-top: 0 !important; max-width: 100% !important;}
+        .block-container {padding-top: 0 !important; max-width: 100% !important; padding-left: 0 !important; padding-right: 0 !important;}
         header {visibility: hidden;}
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
+        .stApp {background: hsl(220, 15%, 5%);}
     </style>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # ROBINHOOD-INSPIRED CSS
+    # DESIGN SPEC CSS - Gold/Cyan Theme
     # =========================================================================
     st.markdown("""
     <style>
