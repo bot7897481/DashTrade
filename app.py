@@ -730,13 +730,6 @@ def show_landing_page():
             margin-top: 2rem;
         }}
 
-        .features-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }}
-
         .feature-card {{
             background: {colors['feature_card_bg']};
             border-radius: 20px;
@@ -775,13 +768,6 @@ def show_landing_page():
         }}
 
         /* How It Works */
-        .steps-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }}
-
         .step-card {{
             text-align: center;
             padding: 2rem;
@@ -847,14 +833,6 @@ def show_landing_page():
         }}
 
         /* Pricing Section */
-        .pricing-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.5rem;
-            margin-top: 2rem;
-            align-items: stretch;
-        }}
-
         .pricing-card {{
             background: {colors['pricing_bg']};
             border-radius: 24px;
@@ -1145,10 +1123,6 @@ def show_landing_page():
                 padding: 1.5rem;
             }}
 
-            .steps-grid {{
-                grid-template-columns: repeat(2, 1fr);
-            }}
-
             .step-card {{
                 padding: 1rem;
             }}
@@ -1220,11 +1194,6 @@ def show_landing_page():
                 padding: 0 1rem;
             }}
 
-            .features-grid {{
-                grid-template-columns: repeat(2, 1fr);
-                gap: 1rem;
-            }}
-
             .feature-card {{
                 padding: 1.25rem;
                 margin: 0.25rem 0;
@@ -1240,11 +1209,6 @@ def show_landing_page():
 
             .feature-desc {{
                 font-size: 0.9rem;
-            }}
-
-            .steps-grid {{
-                grid-template-columns: repeat(2, 1fr);
-                gap: 1rem;
             }}
 
             .step-number {{
@@ -1273,11 +1237,6 @@ def show_landing_page():
 
             .integration-item {{
                 padding: 1rem 1.5rem;
-            }}
-
-            .pricing-grid {{
-                grid-template-columns: 1fr;
-                gap: 1rem;
             }}
 
             .pricing-card {{
@@ -1382,14 +1341,6 @@ def show_landing_page():
 
             .section-title {{
                 font-size: 1.4rem;
-            }}
-
-            .features-grid {{
-                grid-template-columns: 1fr;
-            }}
-
-            .steps-grid {{
-                grid-template-columns: 1fr;
             }}
 
             .feature-card {{
@@ -1553,7 +1504,7 @@ def show_landing_page():
     # FEATURES SECTION
     # =========================================================================
     st.markdown('<div id="features"></div>', unsafe_allow_html=True)
-    st.markdown(f"""
+    st.markdown("""
     <div class="section">
         <div class="section-header">
             <h2 class="section-title">Powerful Features</h2>
@@ -1562,8 +1513,13 @@ def show_landing_page():
             </p>
         </div>
     </div>
+    """, unsafe_allow_html=True)
 
-    <div class="features-grid">
+    # Feature cards - Row 1
+    feat_col1, feat_col2, feat_col3 = st.columns(3)
+
+    with feat_col1:
+        st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">📡</div>
             <div class="feature-title">TradingView Webhooks</div>
@@ -1572,7 +1528,10 @@ def show_landing_page():
                 NovAlgo receives the webhook and executes your trade instantly.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with feat_col2:
+        st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">⚡</div>
             <div class="feature-title">Instant Execution</div>
@@ -1581,7 +1540,10 @@ def show_landing_page():
                 Market orders fill immediately at the best available price.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with feat_col3:
+        st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">🛡️</div>
             <div class="feature-title">Risk Management</div>
@@ -1590,7 +1552,13 @@ def show_landing_page():
                 Protect your capital with built-in risk controls.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    # Feature cards - Row 2
+    feat_col4, feat_col5, feat_col6 = st.columns(3)
+
+    with feat_col4:
+        st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">🤖</div>
             <div class="feature-title">System Strategies</div>
@@ -1599,7 +1567,10 @@ def show_landing_page():
                 Professional signals, automatic execution, full transparency.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with feat_col5:
+        st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">📊</div>
             <div class="feature-title">Real-Time Dashboard</div>
@@ -1608,7 +1579,10 @@ def show_landing_page():
                 Beautiful charts and comprehensive analytics at your fingertips.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with feat_col6:
+        st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">🔗</div>
             <div class="feature-title">Outgoing Webhooks</div>
@@ -1617,8 +1591,7 @@ def show_landing_page():
                 Stay informed on every trade, anywhere.
             </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     # =========================================================================
     # HOW IT WORKS
@@ -1633,8 +1606,12 @@ def show_landing_page():
             </p>
         </div>
     </div>
+    """, unsafe_allow_html=True)
 
-    <div class="steps-grid">
+    step_col1, step_col2, step_col3, step_col4 = st.columns(4)
+
+    with step_col1:
+        st.markdown("""
         <div class="step-card">
             <div class="step-number">1</div>
             <div class="step-title">Create Account</div>
@@ -1642,7 +1619,10 @@ def show_landing_page():
                 Sign up for free in seconds. No credit card required to start.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with step_col2:
+        st.markdown("""
         <div class="step-card">
             <div class="step-number">2</div>
             <div class="step-title">Connect Alpaca</div>
@@ -1650,7 +1630,10 @@ def show_landing_page():
                 Link your Alpaca brokerage account with API keys. Paper or live trading.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with step_col3:
+        st.markdown("""
         <div class="step-card">
             <div class="step-number">3</div>
             <div class="step-title">Configure Bots</div>
@@ -1658,7 +1641,10 @@ def show_landing_page():
                 Create trading bots for each symbol with your position size and risk limits.
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with step_col4:
+        st.markdown("""
         <div class="step-card">
             <div class="step-number">4</div>
             <div class="step-title">Add Webhook</div>
@@ -1666,8 +1652,7 @@ def show_landing_page():
                 Copy your webhook URL to TradingView alerts. Trades execute automatically!
             </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     # =========================================================================
     # INTEGRATIONS
@@ -1764,8 +1749,12 @@ def show_landing_page():
             </p>
         </div>
     </div>
+    """, unsafe_allow_html=True)
 
-    <div class="pricing-grid">
+    price_col1, price_col2, price_col3 = st.columns(3)
+
+    with price_col1:
+        st.markdown("""
         <div class="pricing-card">
             <div class="pricing-name">Paper Trading</div>
             <div class="pricing-price">$0<span>/month</span></div>
@@ -1777,7 +1766,10 @@ def show_landing_page():
                 <div class="pricing-feature">System strategies</div>
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with price_col2:
+        st.markdown("""
         <div class="pricing-card featured">
             <div class="pricing-badge">MOST POPULAR</div>
             <div class="pricing-name">Live Trading</div>
@@ -1790,7 +1782,10 @@ def show_landing_page():
                 <div class="pricing-feature">Email support</div>
             </div>
         </div>
+        """, unsafe_allow_html=True)
 
+    with price_col3:
+        st.markdown("""
         <div class="pricing-card">
             <div class="pricing-name">Enterprise</div>
             <div class="pricing-price">Contact<span> us</span></div>
@@ -1802,8 +1797,7 @@ def show_landing_page():
                 <div class="pricing-feature">White-label options</div>
             </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     st.info("💡 **Note:** Alpaca charges $0 commission on stock trades. NovAlgo is currently free during beta.")
 
