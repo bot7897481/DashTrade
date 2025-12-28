@@ -401,31 +401,89 @@ def show_landing_page():
         header {visibility: hidden;}
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
-        .stApp {background: hsl(220, 15%, 5%);}
     </style>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # DESIGN SPEC CSS - Gold/Cyan Theme
+    # DESIGN SPEC CSS - Gold/Cream/Cyan Theme
     # =========================================================================
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
-        /* Global Reset */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --background: hsl(220, 15%, 5%);
+            --foreground: hsl(45, 20%, 92%);
+            --card: hsl(220, 15%, 8%);
+            --muted: hsl(220, 15%, 15%);
+            --muted-foreground: hsl(220, 10%, 55%);
+            --border: hsl(220, 15%, 15%);
+            --primary: hsl(185, 90%, 50%);
+            --secondary: hsl(40, 60%, 55%);
+            --gold: hsl(40, 70%, 55%);
         }
 
-        /* Main Container */
-        .main-container {
-            background: #0a0a0f;
-            color: #ffffff;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            overflow-x: hidden;
+        .stApp {
+            background: var(--background) !important;
         }
+
+        /* Typography */
+        .serif {
+            font-family: 'Playfair Display', Georgia, serif;
+        }
+
+        .sans {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* Gradient Effects */
+        .text-gradient-gold {
+            background: linear-gradient(135deg, hsl(45, 30%, 90%) 0%, hsl(40, 70%, 55%) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .text-gradient-cyan {
+            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .glow-cyan {
+            box-shadow: 0 0 40px hsla(185, 90%, 50%, 0.3), 0 0 80px hsla(185, 90%, 50%, 0.1);
+        }
+
+        .glow-gold {
+            box-shadow: 0 0 40px hsla(40, 70%, 55%, 0.3), 0 0 80px hsla(40, 70%, 55%, 0.1);
+        }
+
+        /* Animations */
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes glow {
+            0% { box-shadow: 0 0 20px hsla(185, 90%, 50%, 0.2); }
+            100% { box-shadow: 0 0 40px hsla(185, 90%, 50%, 0.4); }
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .animate-pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        .animate-glow { animation: glow 3s ease-in-out infinite alternate; }
 
         /* Navigation */
         .nav-bar {
@@ -434,9 +492,10 @@ def show_landing_page():
             left: 0;
             right: 0;
             height: 72px;
-            background: rgba(10, 10, 15, 0.95);
+            background: hsla(220, 15%, 5%, 0.9);
             backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255,255,255,0.08);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid hsla(220, 15%, 20%, 0.5);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -445,13 +504,29 @@ def show_landing_page():
         }
 
         .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .nav-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .nav-logo-text {
             font-family: 'Playfair Display', serif;
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: 600;
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: hsl(45, 20%, 92%);
         }
 
         .nav-links {
@@ -460,31 +535,64 @@ def show_landing_page():
         }
 
         .nav-links a {
-            color: rgba(255,255,255,0.7);
+            color: hsla(45, 20%, 92%, 0.7);
             text-decoration: none;
+            font-family: 'Inter', sans-serif;
             font-size: 0.95rem;
             font-weight: 500;
             transition: color 0.3s ease;
         }
 
         .nav-links a:hover {
-            color: #00d9ff;
+            color: hsl(45, 20%, 92%);
         }
 
-        .nav-cta {
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
-            color: #000;
-            padding: 12px 28px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 0.95rem;
+        .nav-buttons {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid hsla(220, 15%, 25%, 1);
+            color: hsl(45, 20%, 92%);
+            padding: 10px 24px;
+            border-radius: 9999px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
             text-decoration: none;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .nav-cta:hover {
+        .btn-outline:hover {
+            border-color: hsl(45, 20%, 92%);
+        }
+
+        .btn-primary {
+            background: hsl(45, 30%, 90%);
+            color: hsl(220, 15%, 5%);
+            padding: 10px 24px;
+            border-radius: 9999px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(0, 217, 255, 0.3);
+            box-shadow: 0 10px 30px hsla(45, 30%, 90%, 0.2);
+        }
+
+        .btn-large {
+            padding: 16px 32px;
+            font-size: 1rem;
         }
 
         /* Hero Section */
@@ -495,10 +603,8 @@ def show_landing_page():
             justify-content: center;
             align-items: center;
             text-align: center;
-            padding: 120px 5% 80px;
-            background: radial-gradient(ellipse at top, rgba(0, 217, 255, 0.08) 0%, transparent 50%),
-                        radial-gradient(ellipse at bottom right, rgba(168, 85, 247, 0.08) 0%, transparent 50%),
-                        #0a0a0f;
+            padding: 140px 5% 100px;
+            background: var(--background);
             position: relative;
             overflow: hidden;
         }
@@ -510,148 +616,135 @@ def show_landing_page():
             left: 0;
             right: 0;
             bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
-            opacity: 0.5;
+            background: 
+                radial-gradient(ellipse at 20% 20%, hsla(185, 90%, 50%, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, hsla(40, 70%, 55%, 0.06) 0%, transparent 50%);
+            pointer-events: none;
         }
 
         .hero-badge {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            background: rgba(0, 217, 255, 0.1);
-            border: 1px solid rgba(0, 217, 255, 0.3);
-            padding: 8px 20px;
-            border-radius: 50px;
-            font-size: 0.85rem;
-            color: #00d9ff;
+            gap: 10px;
+            background: hsla(185, 90%, 50%, 0.1);
+            border: 1px solid hsla(185, 90%, 50%, 0.3);
+            padding: 10px 20px;
+            border-radius: 9999px;
             margin-bottom: 2rem;
             position: relative;
             z-index: 1;
         }
 
+        .hero-badge-dot {
+            width: 8px;
+            height: 8px;
+            background: hsl(185, 90%, 50%);
+            border-radius: 50%;
+            animation: pulse-slow 2s ease-in-out infinite;
+        }
+
+        .hero-badge-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            color: hsl(185, 90%, 50%);
+        }
+
         .hero-title {
             font-family: 'Playfair Display', serif;
-            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-size: clamp(3rem, 8vw, 5rem);
             font-weight: 600;
             line-height: 1.1;
+            color: hsl(45, 20%, 92%);
             margin-bottom: 1.5rem;
             position: relative;
             z-index: 1;
         }
 
-        .hero-title .gradient-text {
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 50%, #00d9ff 100%);
-            background-size: 200% auto;
+        .hero-title .gold {
+            background: linear-gradient(135deg, hsl(45, 30%, 90%) 0%, hsl(40, 70%, 55%) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            animation: gradientShift 5s ease infinite;
+            position: relative;
+            cursor: default;
         }
 
-        @keyframes gradientShift {
-            0% { background-position: 0% center; }
-            50% { background-position: 100% center; }
-            100% { background-position: 0% center; }
+        .hero-title .gold:hover {
+            animation: gradient-shift 2s ease infinite;
+            background-size: 200% 200%;
         }
 
         .hero-subtitle {
+            font-family: 'Inter', sans-serif;
             font-size: 1.25rem;
-            color: rgba(255,255,255,0.6);
+            color: hsl(220, 10%, 55%);
             max-width: 600px;
-            margin: 0 auto 3rem;
+            margin: 0 auto 2.5rem;
             line-height: 1.7;
             position: relative;
             z-index: 1;
         }
 
-        .hero-cta-group {
+        .hero-cta {
             display: flex;
             gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 4rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 3rem;
             justify-content: center;
             flex-wrap: wrap;
             position: relative;
             z-index: 1;
         }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
-            color: #000;
-            padding: 16px 40px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 1rem;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(0, 217, 255, 0.4);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: #fff;
-            padding: 16px 40px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 1rem;
-            text-decoration: none;
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .btn-secondary:hover {
-            border-color: #00d9ff;
-            color: #00d9ff;
-        }
-
-        /* Stats Bar */
-        .stats-bar {
+        .hero-stat {
             display: flex;
-            justify-content: center;
-            gap: 4rem;
-            padding: 4rem 5%;
-            background: linear-gradient(180deg, #0a0a0f 0%, #0f0f18 100%);
-            border-top: 1px solid rgba(255,255,255,0.05);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            color: hsl(220, 10%, 55%);
         }
 
-        .stat-item {
-            text-align: center;
+        .hero-stat-icon {
+            color: hsl(185, 90%, 50%);
         }
 
-        .stat-value {
-            font-family: 'Playfair Display', serif;
-            font-size: 3rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        /* Floating Cards (decorative) */
+        .floating-cards {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
         }
 
-        .stat-label {
-            font-size: 0.9rem;
-            color: rgba(255,255,255,0.5);
-            margin-top: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        .floating-card {
+            position: absolute;
+            background: hsla(220, 15%, 10%, 0.8);
+            border: 1px solid hsla(220, 15%, 20%, 0.5);
+            border-radius: 16px;
+            padding: 1rem;
+            backdrop-filter: blur(10px);
+            animation: float 6s ease-in-out infinite;
         }
 
-        /* Section Styles */
+        .floating-card:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
+        .floating-card:nth-child(2) { top: 30%; right: 10%; animation-delay: 1s; }
+        .floating-card:nth-child(3) { bottom: 30%; left: 15%; animation-delay: 2s; }
+        .floating-card:nth-child(4) { bottom: 20%; right: 15%; animation-delay: 3s; }
+
+        /* Features Section */
         .section {
             padding: 100px 5%;
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
-        }
-
-        .section-dark {
-            background: #0f0f18;
         }
 
         .section-header {
@@ -660,8 +753,9 @@ def show_landing_page():
         }
 
         .section-label {
+            font-family: 'Inter', sans-serif;
             font-size: 0.85rem;
-            color: #00d9ff;
+            color: hsl(40, 70%, 55%);
             text-transform: uppercase;
             letter-spacing: 2px;
             margin-bottom: 1rem;
@@ -669,142 +763,130 @@ def show_landing_page():
 
         .section-title {
             font-family: 'Playfair Display', serif;
-            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-size: clamp(2rem, 5vw, 3rem);
             font-weight: 600;
+            color: hsl(45, 20%, 92%);
             margin-bottom: 1rem;
         }
 
+        .section-title .gold {
+            background: linear-gradient(135deg, hsl(45, 30%, 90%) 0%, hsl(40, 70%, 55%) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
         .section-subtitle {
+            font-family: 'Inter', sans-serif;
             font-size: 1.1rem;
-            color: rgba(255,255,255,0.6);
+            color: hsl(220, 10%, 55%);
             max-width: 600px;
             margin: 0 auto;
         }
 
-        /* Alternating Feature Sections */
-        .feature-row {
-            display: flex;
-            align-items: center;
-            gap: 80px;
-            margin-bottom: 120px;
-        }
-
-        .feature-row.reverse {
-            flex-direction: row-reverse;
-        }
-
-        .feature-content {
-            flex: 1;
-        }
-
-        .feature-visual {
-            flex: 1;
-            background: linear-gradient(145deg, rgba(0, 217, 255, 0.1), rgba(168, 85, 247, 0.1));
-            border-radius: 24px;
-            padding: 40px;
-            border: 1px solid rgba(255,255,255,0.08);
-            min-height: 400px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 5rem;
-        }
-
-        .feature-label {
-            font-size: 0.8rem;
-            color: #00d9ff;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 1rem;
-        }
-
-        .feature-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            line-height: 1.2;
-        }
-
-        .feature-desc {
-            font-size: 1.1rem;
-            color: rgba(255,255,255,0.6);
-            line-height: 1.8;
-            margin-bottom: 2rem;
-        }
-
-        .feature-list {
-            list-style: none;
-        }
-
-        .feature-list li {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 1rem;
-            color: rgba(255,255,255,0.8);
-        }
-
-        .feature-list li::before {
-            content: '✓';
-            color: #00d9ff;
-            font-weight: bold;
-        }
-
-        /* Feature Cards Grid */
+        /* Feature Cards - 2x2 Grid */
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 2rem;
         }
 
         .feature-card {
-            background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-            border: 1px solid rgba(255,255,255,0.08);
+            background: linear-gradient(180deg, hsl(220, 15%, 10%) 0%, hsl(220, 15%, 6%) 100%);
+            border: 1px solid hsla(220, 15%, 20%, 0.5);
             border-radius: 20px;
             padding: 2.5rem;
-            transition: all 0.4s ease;
+            transition: all 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, hsl(185, 90%, 50%), hsl(40, 70%, 55%));
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
 
         .feature-card:hover {
-            border-color: rgba(0, 217, 255, 0.3);
             transform: translateY(-8px);
-            box-shadow: 0 20px 60px rgba(0, 217, 255, 0.1);
+            box-shadow: 0 20px 60px hsla(0, 0%, 0%, 0.4);
+            border-color: hsla(185, 90%, 50%, 0.3);
         }
 
-        .feature-card-icon {
-            font-size: 2.5rem;
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            background: hsl(220, 15%, 15%);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
             margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
         }
 
-        .feature-card-title {
-            font-size: 1.3rem;
+        .feature-card:hover .feature-icon {
+            background: hsla(185, 90%, 50%, 0.15);
+        }
+
+        .feature-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
             font-weight: 600;
+            color: hsl(45, 20%, 92%);
             margin-bottom: 1rem;
         }
 
-        .feature-card-desc {
+        .feature-desc {
+            font-family: 'Inter', sans-serif;
             font-size: 0.95rem;
-            color: rgba(255,255,255,0.6);
+            color: hsl(220, 10%, 55%);
             line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            color: hsl(185, 90%, 50%);
+            text-decoration: none;
+            transition: gap 0.3s ease;
+        }
+
+        .feature-link:hover {
+            gap: 12px;
         }
 
         /* How It Works */
         .steps-container {
             display: flex;
             justify-content: space-between;
-            gap: 2rem;
             position: relative;
+            gap: 2rem;
         }
 
         .steps-container::before {
             content: '';
             position: absolute;
             top: 40px;
-            left: 10%;
-            right: 10%;
+            left: 15%;
+            right: 15%;
             height: 2px;
-            background: linear-gradient(90deg, #00d9ff, #a855f7);
+            background: linear-gradient(90deg, hsl(185, 90%, 50%), hsl(40, 70%, 55%));
             z-index: 0;
         }
 
@@ -818,117 +900,73 @@ def show_landing_page():
         .step-number {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
+            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-family: 'Playfair Display', serif;
-            font-size: 2rem;
+            font-size: 1.8rem;
             font-weight: 600;
-            color: #000;
+            color: hsl(220, 15%, 5%);
             margin: 0 auto 1.5rem;
+            box-shadow: 0 0 30px hsla(185, 90%, 50%, 0.3);
+        }
+
+        .step-icon {
+            width: 60px;
+            height: 60px;
+            background: hsla(40, 70%, 55%, 0.15);
+            border: 1px solid hsla(40, 70%, 55%, 0.3);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin: 0 auto 1rem;
         }
 
         .step-title {
+            font-family: 'Playfair Display', serif;
             font-size: 1.2rem;
             font-weight: 600;
+            color: hsl(45, 20%, 92%);
             margin-bottom: 0.75rem;
         }
 
         .step-desc {
-            font-size: 0.95rem;
-            color: rgba(255,255,255,0.6);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            color: hsl(220, 10%, 55%);
             line-height: 1.6;
         }
 
-        /* Integrations */
-        .integrations-grid {
-            display: flex;
-            justify-content: center;
-            gap: 3rem;
-            flex-wrap: wrap;
-        }
-
-        .integration-item {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px;
-            padding: 2rem 3rem;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .integration-item:hover {
-            border-color: rgba(0, 217, 255, 0.3);
-            background: rgba(0, 217, 255, 0.05);
-        }
-
-        .integration-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        .integration-name {
-            font-weight: 600;
-            color: rgba(255,255,255,0.8);
-        }
-
-        /* Security Section */
-        .security-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 2rem;
-        }
-
-        .security-item {
-            text-align: center;
-            padding: 2rem;
-        }
-
-        .security-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        .security-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .security-desc {
-            font-size: 0.9rem;
-            color: rgba(255,255,255,0.5);
-        }
-
-        /* Pricing */
+        /* Pricing Section */
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 2rem;
-            max-width: 1100px;
+            max-width: 900px;
             margin: 0 auto;
         }
 
         .pricing-card {
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: hsl(220, 15%, 8%);
+            border: 1px solid hsla(220, 15%, 20%, 0.5);
             border-radius: 24px;
             padding: 3rem 2rem;
             text-align: center;
-            transition: all 0.3s ease;
             position: relative;
-        }
-
-        .pricing-card:hover {
-            border-color: rgba(0, 217, 255, 0.3);
-            transform: translateY(-5px);
+            transition: all 0.3s ease;
         }
 
         .pricing-card.featured {
-            border-color: #00d9ff;
-            background: linear-gradient(145deg, rgba(0, 217, 255, 0.08), rgba(168, 85, 247, 0.08));
+            border-color: hsl(185, 90%, 50%);
+            box-shadow: 0 0 40px hsla(185, 90%, 50%, 0.2);
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px);
         }
 
         .pricing-badge {
@@ -936,32 +974,39 @@ def show_landing_page():
             top: -14px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
-            color: #000;
-            padding: 6px 20px;
-            border-radius: 50px;
+            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
+            color: hsl(220, 15%, 5%);
+            padding: 6px 16px;
+            border-radius: 9999px;
+            font-family: 'Inter', sans-serif;
             font-size: 0.75rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .pricing-name {
-            font-size: 1.3rem;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
             font-weight: 600;
+            color: hsl(45, 20%, 92%);
             margin-bottom: 1rem;
         }
 
         .pricing-price {
             font-family: 'Playfair Display', serif;
-            font-size: 3.5rem;
+            font-size: 4rem;
             font-weight: 600;
+            color: hsl(45, 20%, 92%);
             margin-bottom: 0.5rem;
         }
 
         .pricing-price span {
             font-size: 1rem;
-            color: rgba(255,255,255,0.5);
+            color: hsl(220, 10%, 55%);
             font-family: 'Inter', sans-serif;
         }
 
@@ -973,28 +1018,51 @@ def show_landing_page():
         .pricing-feature {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             margin-bottom: 1rem;
-            color: rgba(255,255,255,0.7);
+            font-family: 'Inter', sans-serif;
             font-size: 0.95rem;
+            color: hsl(220, 10%, 70%);
         }
 
-        .pricing-feature::before {
-            content: '✓';
-            color: #00d9ff;
+        .pricing-feature-icon {
+            color: hsl(185, 90%, 50%);
         }
 
-        /* FAQ */
-        .faq-container {
-            max-width: 800px;
-            margin: 0 auto;
+        .pricing-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 9999px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .pricing-btn-primary {
+            background: hsl(45, 30%, 90%);
+            color: hsl(220, 15%, 5%);
+            border: none;
+        }
+
+        .pricing-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px hsla(45, 30%, 90%, 0.2);
+        }
+
+        .pricing-btn-disabled {
+            background: hsl(220, 15%, 15%);
+            color: hsl(220, 10%, 55%);
+            border: none;
+            cursor: not-allowed;
         }
 
         /* CTA Section */
         .cta-section {
             text-align: center;
             padding: 100px 5%;
-            background: linear-gradient(180deg, #0a0a0f 0%, #0f0f18 50%, #0a0a0f 100%);
+            background: hsl(220, 15%, 6%);
             position: relative;
             overflow: hidden;
         }
@@ -1002,27 +1070,35 @@ def show_landing_page():
         .cta-section::before {
             content: '';
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(0, 217, 255, 0.1) 0%, transparent 70%);
+            top: -50%;
+            left: -20%;
+            width: 140%;
+            height: 200%;
+            background: repeating-linear-gradient(
+                -45deg,
+                transparent,
+                transparent 50px,
+                hsla(220, 15%, 10%, 0.5) 50px,
+                hsla(220, 15%, 10%, 0.5) 51px
+            );
             pointer-events: none;
         }
 
         .cta-title {
             font-family: 'Playfair Display', serif;
-            font-size: clamp(2rem, 5vw, 3.5rem);
-            margin-bottom: 1.5rem;
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 600;
+            color: hsl(45, 20%, 92%);
+            margin-bottom: 1rem;
             position: relative;
             z-index: 1;
         }
 
         .cta-subtitle {
+            font-family: 'Inter', sans-serif;
             font-size: 1.1rem;
-            color: rgba(255,255,255,0.6);
-            margin-bottom: 2.5rem;
+            color: hsl(220, 10%, 55%);
+            margin-bottom: 2rem;
             position: relative;
             z-index: 1;
         }
@@ -1031,18 +1107,18 @@ def show_landing_page():
         .auth-section {
             max-width: 450px;
             margin: 0 auto;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: hsl(220, 15%, 8%);
+            border: 1px solid hsla(220, 15%, 20%, 0.5);
             border-radius: 24px;
-            padding: 3rem;
+            padding: 2.5rem;
             position: relative;
             z-index: 1;
         }
 
         /* Footer */
         .footer {
-            background: #0a0a0f;
-            border-top: 1px solid rgba(255,255,255,0.08);
+            background: hsl(220, 15%, 5%);
+            border-top: 1px solid hsla(220, 15%, 15%, 0.5);
             padding: 60px 5% 30px;
         }
 
@@ -1050,34 +1126,57 @@ def show_landing_page():
             display: grid;
             grid-template-columns: 2fr 1fr 1fr 1fr;
             gap: 4rem;
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto 3rem;
         }
 
         .footer-brand {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
             margin-bottom: 1rem;
-            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
         }
 
-        .footer-desc {
-            color: rgba(255,255,255,0.5);
+        .footer-brand-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .footer-brand-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: hsl(45, 20%, 92%);
+        }
+
+        .footer-tagline {
+            font-family: 'Inter', sans-serif;
             font-size: 0.95rem;
+            color: hsl(220, 10%, 55%);
             line-height: 1.7;
         }
 
-        .footer-title {
+        .footer-col-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
             font-weight: 600;
+            color: hsl(45, 20%, 92%);
             margin-bottom: 1.5rem;
-            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .footer-links {
             list-style: none;
+            padding: 0;
+            margin: 0;
         }
 
         .footer-links li {
@@ -1085,67 +1184,56 @@ def show_landing_page():
         }
 
         .footer-links a {
-            color: rgba(255,255,255,0.5);
-            text-decoration: none;
+            font-family: 'Inter', sans-serif;
             font-size: 0.9rem;
+            color: hsl(220, 10%, 55%);
+            text-decoration: none;
             transition: color 0.3s ease;
         }
 
         .footer-links a:hover {
-            color: #00d9ff;
+            color: hsl(185, 90%, 50%);
         }
 
         .footer-bottom {
-            text-align: center;
+            border-top: 1px solid hsla(220, 15%, 15%, 0.5);
             padding-top: 2rem;
-            border-top: 1px solid rgba(255,255,255,0.05);
-            color: rgba(255,255,255,0.4);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-copyright {
+            font-family: 'Inter', sans-serif;
             font-size: 0.85rem;
+            color: hsl(220, 10%, 45%);
+            margin-bottom: 1rem;
         }
 
-        /* Risk Warning */
-        .risk-warning {
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 2rem auto;
-            max-width: 900px;
-        }
-
-        .risk-warning-title {
-            color: #ffc107;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .risk-warning-text {
-            color: rgba(255,255,255,0.7);
-            font-size: 0.85rem;
+        .footer-disclaimer {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: hsl(220, 10%, 40%);
             line-height: 1.6;
         }
 
         /* Responsive */
         @media (max-width: 1024px) {
-            .feature-row {
-                flex-direction: column !important;
-                gap: 40px;
-            }
-
             .features-grid {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: 1fr;
             }
 
-            .security-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .steps-container {
+                flex-direction: column;
+                gap: 3rem;
+            }
+
+            .steps-container::before {
+                display: none;
             }
 
             .pricing-grid {
                 grid-template-columns: 1fr;
-                max-width: 400px;
+                max-width: 450px;
             }
 
             .footer-grid {
@@ -1160,36 +1248,20 @@ def show_landing_page():
             }
 
             .hero {
-                padding: 100px 5% 60px;
+                padding: 120px 5% 60px;
             }
 
-            .stats-bar {
-                gap: 2rem;
-            }
-
-            .stat-value {
-                font-size: 2rem;
+            .hero-stats {
+                flex-direction: column;
+                gap: 1.5rem;
             }
 
             .section {
                 padding: 60px 5%;
             }
 
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .steps-container {
-                flex-direction: column;
-                gap: 3rem;
-            }
-
-            .steps-container::before {
+            .floating-cards {
                 display: none;
-            }
-
-            .security-grid {
-                grid-template-columns: 1fr;
             }
 
             .footer-grid {
@@ -1205,14 +1277,20 @@ def show_landing_page():
     # =========================================================================
     st.markdown("""
     <div class="nav-bar">
-        <div class="nav-logo">NovAlgo</div>
+        <a href="#" class="nav-logo">
+            <div class="nav-logo-icon">⚡</div>
+            <span class="nav-logo-text">NovAlgo</span>
+        </a>
         <div class="nav-links">
             <a href="#features">Features</a>
-            <a href="#how-it-works">How It Works</a>
+            <a href="#how-it-works">How it Works</a>
             <a href="#pricing">Pricing</a>
             <a href="#faq">FAQ</a>
         </div>
-        <a href="#get-started" class="nav-cta">Get Started</a>
+        <div class="nav-buttons">
+            <a href="#get-started" class="btn-outline">Log in</a>
+            <a href="#get-started" class="btn-primary">Get Started</a>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1221,157 +1299,102 @@ def show_landing_page():
     # =========================================================================
     st.markdown("""
     <div class="hero">
+        <div class="floating-cards">
+            <div class="floating-card">🤖</div>
+            <div class="floating-card">📈</div>
+            <div class="floating-card">🛡️</div>
+            <div class="floating-card">⚡</div>
+        </div>
+
         <div class="hero-badge">
-            <span>🚀</span> Trusted by Traders Worldwide
+            <div class="hero-badge-dot"></div>
+            <span class="hero-badge-text">Now in Public Beta — Free to Use</span>
         </div>
+
         <h1 class="hero-title">
-            Automate Your<br><span class="gradient-text">Trading Strategy</span>
+            <span class="gold">Trade</span> Smarter,<br>Not <span class="gold">Harder</span>
         </h1>
+
         <p class="hero-subtitle">
-            Connect TradingView alerts to Alpaca and execute trades automatically.
-            Set up once, trade 24/7. No coding required.
+            Connect TradingView to Alpaca and execute your strategies automatically.
+            No coding required. Set up once, trade 24/7.
         </p>
-        <div class="hero-cta-group">
-            <a href="#get-started" class="btn-primary">Start Trading Free</a>
-            <a href="#how-it-works" class="btn-secondary">See How It Works</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
-    # =========================================================================
-    # STATS BAR
-    # =========================================================================
-    st.markdown("""
-    <div class="stats-bar">
-        <div class="stat-item">
-            <div class="stat-value">24/7</div>
-            <div class="stat-label">Automated Trading</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">&lt;100ms</div>
-            <div class="stat-label">Execution Speed</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">256-bit</div>
-            <div class="stat-label">Encryption</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">$0</div>
-            <div class="stat-label">Commission</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # =========================================================================
-    # PROBLEM / SOLUTION SECTIONS
-    # =========================================================================
-    st.markdown("""
-    <div class="section">
-        <div class="feature-row">
-            <div class="feature-content">
-                <div class="feature-label">The Problem</div>
-                <h2 class="feature-title">Manual Trading<br>Is Holding You Back</h2>
-                <p class="feature-desc">
-                    You've built a winning strategy on TradingView, but executing it manually
-                    is exhausting. You miss trades while sleeping, let emotions override your
-                    system, and can't scale to multiple strategies.
-                </p>
-                <ul class="feature-list">
-                    <li>Missing entries while sleeping or working</li>
-                    <li>Emotional decisions override your strategy</li>
-                    <li>Slow execution leads to missed opportunities</li>
-                    <li>Managing multiple strategies is overwhelming</li>
-                </ul>
-            </div>
-            <div class="feature-visual">
-                😫
-            </div>
+        <div class="hero-cta">
+            <a href="#get-started" class="btn-primary btn-large">Start Trading Free →</a>
+            <a href="#how-it-works" class="btn-outline btn-large">Watch Demo</a>
         </div>
 
-        <div class="feature-row reverse">
-            <div class="feature-content">
-                <div class="feature-label">The Solution</div>
-                <h2 class="feature-title">Fully Automated<br>Trade Execution</h2>
-                <p class="feature-desc">
-                    NovAlgo bridges TradingView and Alpaca, executing your trades instantly
-                    when alerts fire. Your strategy runs 24/7 without emotion, hesitation,
-                    or manual intervention.
-                </p>
-                <ul class="feature-list">
-                    <li>Trades execute in under 100 milliseconds</li>
-                    <li>Works while you sleep, work, or travel</li>
-                    <li>Sticks to your strategy without hesitation</li>
-                    <li>Run unlimited bots simultaneously</li>
-                </ul>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <span class="hero-stat-icon">⚡</span>
+                <span>24/7 Automated Trading</span>
             </div>
-            <div class="feature-visual">
-                🤖
+            <div class="hero-stat">
+                <span class="hero-stat-icon">🚀</span>
+                <span>0.1s Execution Speed</span>
+            </div>
+            <div class="hero-stat">
+                <span class="hero-stat-icon">✓</span>
+                <span>100% Strategy Compliant</span>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # FEATURES GRID
+    # FEATURES SECTION
     # =========================================================================
     st.markdown('<div id="features"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section section-dark">
+    <div class="section">
         <div class="section-header">
             <div class="section-label">Features</div>
-            <h2 class="section-title">Everything You Need</h2>
+            <h2 class="section-title">Start trading <span class="gold">like a pro</span></h2>
             <p class="section-subtitle">
-                Powerful tools to automate and optimize your trading
+                Everything you need to automate your trading strategies
             </p>
         </div>
 
         <div class="features-grid">
             <div class="feature-card">
-                <div class="feature-card-icon">📡</div>
-                <div class="feature-card-title">TradingView Webhooks</div>
-                <p class="feature-card-desc">
-                    Connect any TradingView strategy. When alerts fire, trades execute instantly.
+                <div class="feature-icon">🤖</div>
+                <h3 class="feature-title">Automated Execution</h3>
+                <p class="feature-desc">
+                    Connect your TradingView alerts to Alpaca and let NovAlgo execute 
+                    trades automatically. No manual intervention needed.
                 </p>
+                <a href="#" class="feature-link">Learn more →</a>
             </div>
 
             <div class="feature-card">
-                <div class="feature-card-icon">⚡</div>
-                <div class="feature-card-title">Instant Execution</div>
-                <p class="feature-card-desc">
-                    Sub-100ms trade execution via Alpaca's API at the best available price.
+                <div class="feature-icon">⚡</div>
+                <h3 class="feature-title">Lightning Fast</h3>
+                <p class="feature-desc">
+                    Trades execute in under 100 milliseconds. Never miss an entry 
+                    or exit again with our high-speed infrastructure.
                 </p>
+                <a href="#" class="feature-link">Learn more →</a>
             </div>
 
             <div class="feature-card">
-                <div class="feature-card-icon">🛡️</div>
-                <div class="feature-card-title">Risk Management</div>
-                <p class="feature-card-desc">
-                    Set position limits, stop-losses, and daily caps to protect your capital.
+                <div class="feature-icon">🛡️</div>
+                <h3 class="feature-title">Bank-Grade Security</h3>
+                <p class="feature-desc">
+                    Your API keys are encrypted with 256-bit encryption. We never 
+                    have withdrawal access to your funds.
                 </p>
+                <a href="#" class="feature-link">Learn more →</a>
             </div>
 
             <div class="feature-card">
-                <div class="feature-card-icon">📊</div>
-                <div class="feature-card-title">Real-Time Dashboard</div>
-                <p class="feature-card-desc">
-                    Monitor positions, P&L, and trade history with beautiful analytics.
+                <div class="feature-icon">📊</div>
+                <h3 class="feature-title">Real-Time Dashboard</h3>
+                <p class="feature-desc">
+                    Monitor all your positions, P&L, and trade history in real-time 
+                    with our beautiful analytics dashboard.
                 </p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-card-icon">🤖</div>
-                <div class="feature-card-title">System Strategies</div>
-                <p class="feature-card-desc">
-                    Subscribe to curated strategies with automatic execution.
-                </p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-card-icon">🔗</div>
-                <div class="feature-card-title">Outgoing Webhooks</div>
-                <p class="feature-card-desc">
-                    Forward signals to Discord, Slack, Telegram, or any endpoint.
-                </p>
+                <a href="#" class="feature-link">Learn more →</a>
             </div>
         </div>
     </div>
@@ -1382,271 +1405,229 @@ def show_landing_page():
     # =========================================================================
     st.markdown('<div id="how-it-works"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section">
-        <div class="section-header">
-            <div class="section-label">How It Works</div>
-            <h2 class="section-title">Start in Minutes</h2>
-            <p class="section-subtitle">
-                Four simple steps to automate your trading
-            </p>
-        </div>
-
-        <div class="steps-container">
-            <div class="step">
-                <div class="step-number">1</div>
-                <div class="step-title">Create Account</div>
-                <p class="step-desc">Sign up free in seconds. No credit card required.</p>
+    <div class="section" style="background: hsl(220, 15%, 6%); max-width: 100%; padding-left: 5%; padding-right: 5%;">
+        <div style="max-width: 1200px; margin: 0 auto;">
+            <div class="section-header">
+                <div class="section-label">Process</div>
+                <h2 class="section-title">How it <span class="gold">works</span></h2>
+                <p class="section-subtitle">
+                    Get started in minutes with our simple 4-step process
+                </p>
             </div>
 
-            <div class="step">
-                <div class="step-number">2</div>
-                <div class="step-title">Connect Alpaca</div>
-                <p class="step-desc">Link your Alpaca account with API keys.</p>
-            </div>
+            <div class="steps-container">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-icon">👤</div>
+                    <h4 class="step-title">Create Account</h4>
+                    <p class="step-desc">Sign up for free in seconds. No credit card required.</p>
+                </div>
 
-            <div class="step">
-                <div class="step-number">3</div>
-                <div class="step-title">Configure Bots</div>
-                <p class="step-desc">Set up bots with your symbols and position sizes.</p>
-            </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-icon">🔗</div>
+                    <h4 class="step-title">Connect Alpaca</h4>
+                    <p class="step-desc">Link your Alpaca brokerage account with API keys.</p>
+                </div>
 
-            <div class="step">
-                <div class="step-number">4</div>
-                <div class="step-title">Add Webhook</div>
-                <p class="step-desc">Copy webhook URL to TradingView. Done!</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-icon">🤖</div>
+                    <h4 class="step-title">Configure Bots</h4>
+                    <p class="step-desc">Set up trading bots with your symbols and position sizes.</p>
+                </div>
 
-    # =========================================================================
-    # INTEGRATIONS
-    # =========================================================================
-    st.markdown("""
-    <div class="section section-dark">
-        <div class="section-header">
-            <div class="section-label">Integrations</div>
-            <h2 class="section-title">Works With Your Tools</h2>
-        </div>
-
-        <div class="integrations-grid">
-            <div class="integration-item">
-                <div class="integration-icon">📺</div>
-                <div class="integration-name">TradingView</div>
-            </div>
-            <div class="integration-item">
-                <div class="integration-icon">🦙</div>
-                <div class="integration-name">Alpaca</div>
-            </div>
-            <div class="integration-item">
-                <div class="integration-icon">💬</div>
-                <div class="integration-name">Discord</div>
-            </div>
-            <div class="integration-item">
-                <div class="integration-icon">📱</div>
-                <div class="integration-name">Slack</div>
-            </div>
-            <div class="integration-item">
-                <div class="integration-icon">✈️</div>
-                <div class="integration-name">Telegram</div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <div class="step-icon">🚀</div>
+                    <h4 class="step-title">Automate Trading</h4>
+                    <p class="step-desc">Add webhook to TradingView and start trading automatically!</p>
+                </div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # SECURITY
-    # =========================================================================
-    st.markdown("""
-    <div class="section">
-        <div class="section-header">
-            <div class="section-label">Security</div>
-            <h2 class="section-title">Bank-Level Protection</h2>
-            <p class="section-subtitle">
-                Your API keys and data are protected with enterprise-grade security
-            </p>
-        </div>
-
-        <div class="security-grid">
-            <div class="security-item">
-                <div class="security-icon">🔐</div>
-                <div class="security-title">256-bit Encryption</div>
-                <p class="security-desc">API keys encrypted with Fernet symmetric encryption</p>
-            </div>
-            <div class="security-item">
-                <div class="security-icon">🔒</div>
-                <div class="security-title">Secure Storage</div>
-                <p class="security-desc">Keys never stored in plain text</p>
-            </div>
-            <div class="security-item">
-                <div class="security-icon">🛡️</div>
-                <div class="security-title">No Withdrawals</div>
-                <p class="security-desc">API keys have trading permissions only</p>
-            </div>
-            <div class="security-item">
-                <div class="security-icon">✅</div>
-                <div class="security-title">Your Control</div>
-                <p class="security-desc">Revoke access anytime from Alpaca</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # =========================================================================
-    # PRICING
+    # PRICING SECTION
     # =========================================================================
     st.markdown('<div id="pricing"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section section-dark">
+    <div class="section">
         <div class="section-header">
             <div class="section-label">Pricing</div>
-            <h2 class="section-title">Simple, Transparent Pricing</h2>
+            <h2 class="section-title">Simple, <span class="gold">transparent</span> pricing</h2>
             <p class="section-subtitle">
-                Start for free, upgrade when you're ready
+                Start for free, upgrade when you need more
             </p>
         </div>
 
         <div class="pricing-grid">
-            <div class="pricing-card">
-                <div class="pricing-name">Paper Trading</div>
-                <div class="pricing-price">$0<span>/month</span></div>
-                <div class="pricing-features">
-                    <div class="pricing-feature">Unlimited paper trades</div>
-                    <div class="pricing-feature">All bot features</div>
-                    <div class="pricing-feature">Real-time dashboard</div>
-                    <div class="pricing-feature">TradingView webhooks</div>
-                    <div class="pricing-feature">System strategies</div>
-                </div>
-            </div>
-
             <div class="pricing-card featured">
-                <div class="pricing-badge">Most Popular</div>
-                <div class="pricing-name">Live Trading</div>
+                <div class="pricing-badge">✨ Popular</div>
+                <div class="pricing-name">Free Beta</div>
                 <div class="pricing-price">$0<span>/month</span></div>
                 <div class="pricing-features">
-                    <div class="pricing-feature">Everything in Paper</div>
-                    <div class="pricing-feature">Live market execution</div>
-                    <div class="pricing-feature">Priority processing</div>
-                    <div class="pricing-feature">Outgoing webhooks</div>
-                    <div class="pricing-feature">Email support</div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Unlimited paper trades</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Live market execution</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>TradingView webhooks</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Real-time dashboard</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Bank-grade encryption</span>
+                    </div>
                 </div>
+                <a href="#get-started" class="pricing-btn pricing-btn-primary">Start Free</a>
             </div>
 
             <div class="pricing-card">
-                <div class="pricing-name">Enterprise</div>
-                <div class="pricing-price">Custom</div>
+                <div class="pricing-name">Pro</div>
+                <div class="pricing-price">$29<span>/month</span></div>
                 <div class="pricing-features">
-                    <div class="pricing-feature">Everything in Live</div>
-                    <div class="pricing-feature">Custom integrations</div>
-                    <div class="pricing-feature">Dedicated support</div>
-                    <div class="pricing-feature">SLA guarantee</div>
-                    <div class="pricing-feature">White-label options</div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Everything in Free</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Priority execution</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Advanced analytics</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Outgoing webhooks</span>
+                    </div>
+                    <div class="pricing-feature">
+                        <span class="pricing-feature-icon">✓</span>
+                        <span>Priority support</span>
+                    </div>
                 </div>
+                <button class="pricing-btn pricing-btn-disabled" disabled>Coming Soon</button>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.info("💡 **Note:** Alpaca charges $0 commission on stock trades. NovAlgo is currently free during beta.")
-
     # =========================================================================
-    # FAQ
+    # FAQ SECTION
     # =========================================================================
     st.markdown('<div id="faq"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section">
-        <div class="section-header">
-            <div class="section-label">FAQ</div>
-            <h2 class="section-title">Common Questions</h2>
+    <div class="section" style="background: hsl(220, 15%, 6%); max-width: 100%; padding-left: 5%; padding-right: 5%;">
+        <div style="max-width: 800px; margin: 0 auto;">
+            <div class="section-header">
+                <div class="section-label">FAQ</div>
+                <h2 class="section-title">Get to know all <span class="gold">the benefits</span></h2>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
+    # FAQ using Streamlit expanders
     with st.container():
-        with st.expander("What is NovAlgo?"):
-            st.write("""
-            NovAlgo is an automated trading platform that connects TradingView to Alpaca brokerage.
-            When your TradingView strategy generates a buy or sell signal, NovAlgo receives a webhook
-            and automatically executes the trade through your Alpaca account.
-            """)
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col2:
+            with st.expander("What is NovAlgo?"):
+                st.write("""
+                NovAlgo is an automated trading platform that connects TradingView to Alpaca brokerage.
+                When your TradingView strategy generates a signal, NovAlgo receives the webhook and 
+                automatically executes the trade through your Alpaca account.
+                """)
 
-        with st.expander("Is my money safe?"):
-            st.write("""
-            Yes. NovAlgo never has access to your funds. We only store encrypted API keys with
-            trading permissions - no withdrawal access. Your money stays in your Alpaca account,
-            which is SIPC protected.
-            """)
+            with st.expander("Is my money safe? Can you withdraw my funds?"):
+                st.write("""
+                Your money is completely safe. NovAlgo never has access to withdraw your funds. 
+                We only store encrypted API keys with trading permissions - no withdrawal access.
+                Your money stays in your SIPC-protected Alpaca account.
+                """)
 
-        with st.expander("What is Alpaca?"):
-            st.write("""
-            Alpaca is a commission-free stock brokerage with a powerful API for algorithmic trading.
-            They're regulated by FINRA and SEC, and accounts are SIPC protected up to $500,000.
-            """)
+            with st.expander("Do I need any coding experience?"):
+                st.write("""
+                No coding required! If you can create an alert in TradingView, you can use NovAlgo.
+                Just copy your webhook URL and paste it into TradingView's alert settings.
+                """)
 
-        with st.expander("Do I need coding experience?"):
-            st.write("""
-            No coding required! If you can create an alert in TradingView, you can use NovAlgo.
-            Just copy your webhook URL and paste it into TradingView.
-            """)
+            with st.expander("Can I practice with paper trading first?"):
+                st.write("""
+                Absolutely! We recommend starting with paper trading. Alpaca provides free paper
+                trading accounts with real-time data so you can test your strategies risk-free.
+                """)
 
-        with st.expander("What markets can I trade?"):
-            st.write("""
-            Through Alpaca, you can trade US stocks and ETFs during market hours (9:30 AM - 4:00 PM ET)
-            and extended hours. Crypto trading is also available 24/7.
-            """)
+            with st.expander("How fast are trade executions?"):
+                st.write("""
+                Trades typically execute in under 100 milliseconds from when we receive the webhook.
+                Market orders fill immediately at the best available price through Alpaca.
+                """)
 
-        with st.expander("Can I use my own TradingView strategies?"):
-            st.write("""
-            Absolutely! Any TradingView strategy or indicator that can generate alerts can be
-            connected to NovAlgo. Just configure the alert webhook URL and message format.
-            """)
+            with st.expander("What happens if NovAlgo goes down?"):
+                st.write("""
+                Your existing positions remain safely in your Alpaca account. You can always 
+                manage your positions directly through Alpaca's app or website. We maintain 
+                99.9% uptime with redundant infrastructure.
+                """)
 
-        with st.expander("What are System Strategies?"):
-            st.write("""
-            System Strategies are curated TradingView strategies managed by NovAlgo. You can
-            subscribe to these strategies and trades will execute automatically when signals fire.
-            """)
+            with st.expander("Is the free tier really free forever?"):
+                st.write("""
+                During our public beta, all features are completely free. We'll always offer a 
+                generous free tier. Pro features will be available for power users who need 
+                advanced analytics and priority support.
+                """)
 
-        with st.expander("How fast are trade executions?"):
-            st.write("""
-            Trades typically execute in under 100 milliseconds from when we receive the webhook.
-            Market orders fill immediately at the best available price.
-            """)
-
-    # =========================================================================
-    # RISK WARNING
-    # =========================================================================
-    st.markdown("""
-    <div class="risk-warning">
-        <div class="risk-warning-title">⚠️ Risk Disclosure</div>
-        <p class="risk-warning-text">
-            Trading involves substantial risk of loss and is not suitable for all investors.
-            Past performance is not indicative of future results. Automated trading systems
-            carry additional risks including system failures and connectivity issues.
-            Only trade with money you can afford to lose.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+            with st.expander("What brokerages do you support?"):
+                st.write("""
+                We currently support Alpaca, which offers commission-free trading for US stocks 
+                and ETFs. Alpaca is regulated by FINRA and SEC, with accounts protected by SIPC 
+                up to $500,000.
+                """)
 
     # =========================================================================
-    # CTA SECTION & AUTH
+    # CTA SECTION
     # =========================================================================
-    st.markdown('<div id="get-started"></div>', unsafe_allow_html=True)
     st.markdown("""
     <div class="cta-section">
-        <h2 class="cta-title">Ready to Automate Your Trading?</h2>
-        <p class="cta-subtitle">Join traders who execute their strategies automatically</p>
+        <h2 class="cta-title">Discover the power of automation</h2>
+        <p class="cta-subtitle">Join thousands of traders automating their strategies with NovAlgo</p>
+        <a href="#get-started" class="btn-primary btn-large" style="position: relative; z-index: 1;">Start Trading Free →</a>
     </div>
     """, unsafe_allow_html=True)
 
-    # Auth tabs
+    # =========================================================================
+    # AUTH SECTION
+    # =========================================================================
+    st.markdown('<div id="get-started"></div>', unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        tab1, tab2 = st.tabs(["🔐 Sign In", "✨ Create Account"])
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="font-family: 'Playfair Display', serif; font-size: 2rem; color: hsl(45, 20%, 92%); margin-bottom: 0.5rem;">
+                Get Started
+            </h2>
+            <p style="font-family: 'Inter', sans-serif; color: hsl(220, 10%, 55%);">
+                Create your account or sign in
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        tab1, tab2 = st.tabs(["Sign In", "Create Account"])
 
         with tab1:
-            st.markdown("#### Welcome Back")
             with st.form("login_form", clear_on_submit=False):
                 username = st.text_input("Username", placeholder="Enter your username")
                 password = st.text_input("Password", type="password", placeholder="Enter your password")
@@ -1669,12 +1650,11 @@ def show_landing_page():
                                 st.error(result.get('error', 'Invalid credentials'))
 
         with tab2:
-            st.markdown("#### Create Your Account")
             with st.form("register_form", clear_on_submit=False):
                 new_username = st.text_input("Username", placeholder="Choose a username", key="reg_user")
                 new_email = st.text_input("Email", placeholder="your@email.com", key="reg_email")
                 new_password = st.text_input("Password", type="password", placeholder="Create a password", key="reg_pass")
-                confirm_password = st.text_input("Confirm Password", type="password", placeholder="Confirm your password", key="reg_confirm")
+                confirm_password = st.text_input("Confirm Password", type="password", placeholder="Confirm password", key="reg_confirm")
 
                 agree = st.checkbox("I agree to the Terms of Service and Privacy Policy")
 
@@ -1705,46 +1685,51 @@ def show_landing_page():
     <div class="footer">
         <div class="footer-grid">
             <div>
-                <div class="footer-brand">NovAlgo</div>
-                <p class="footer-desc">
-                    Automated trading platform connecting TradingView strategies
+                <div class="footer-brand">
+                    <div class="footer-brand-icon">⚡</div>
+                    <span class="footer-brand-text">NovAlgo</span>
+                </div>
+                <p class="footer-tagline">
+                    Automated trading platform connecting TradingView strategies 
                     to Alpaca execution. Trade smarter, not harder.
                 </p>
             </div>
             <div>
-                <div class="footer-title">Product</div>
+                <div class="footer-col-title">Product</div>
                 <ul class="footer-links">
                     <li><a href="#features">Features</a></li>
-                    <li><a href="#how-it-works">How It Works</a></li>
                     <li><a href="#pricing">Pricing</a></li>
+                    <li><a href="#how-it-works">How it Works</a></li>
                     <li><a href="#faq">FAQ</a></li>
                 </ul>
             </div>
             <div>
-                <div class="footer-title">Resources</div>
+                <div class="footer-col-title">Company</div>
                 <ul class="footer-links">
-                    <li><a href="#">Documentation</a></li>
-                    <li><a href="#">Webhook Guide</a></li>
-                    <li><a href="#">TradingView Setup</a></li>
-                    <li><a href="#">API Reference</a></li>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Blog</a></li>
+                    <li><a href="#">Careers</a></li>
+                    <li><a href="#">Contact</a></li>
                 </ul>
             </div>
             <div>
-                <div class="footer-title">Company</div>
+                <div class="footer-col-title">Legal</div>
                 <ul class="footer-links">
-                    <li><a href="#">About Us</a></li>
-                    <li><a href="#">Contact</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
                     <li><a href="#">Terms of Service</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Risk Disclosure</a></li>
                 </ul>
             </div>
         </div>
         <div class="footer-bottom">
-            © 2024 NovAlgo. All rights reserved. Made with ❤️ for traders.
+            <p class="footer-copyright">© 2024 NovAlgo. All rights reserved.</p>
+            <p class="footer-disclaimer">
+                Trading involves substantial risk of loss. Past performance is not indicative of future results.
+                Automated trading systems carry additional risks. Only trade with money you can afford to lose.
+            </p>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
 
 
 def show_register_page():
