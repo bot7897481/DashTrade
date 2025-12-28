@@ -388,7 +388,7 @@ def create_candlestick_chart_with_signals(df, symbol: str):
 
 # Main App
 def show_landing_page():
-    """Display comprehensive NovAlgo professional landing page"""
+    """Display Robinhood-inspired NovAlgo landing page"""
 
     # Hide sidebar completely on landing page
     st.markdown("""
@@ -396,1202 +396,985 @@ def show_landing_page():
         [data-testid="stSidebar"] {display: none;}
         [data-testid="stSidebarNav"] {display: none;}
         section[data-testid="stSidebar"] {display: none;}
-        .css-1d391kg {display: none;}
-        .css-1lcbmhc {display: none;}
         [data-testid="collapsedControl"] {display: none;}
+        .block-container {padding-top: 0 !important; max-width: 100% !important;}
+        header {visibility: hidden;}
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-    # Initialize dark mode state
-    if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = True  # Default to dark mode
-
-    is_dark = st.session_state.dark_mode
-
-    # Dark/Light mode color schemes
-    if is_dark:
-        colors = {
-            'bg': '#0f0f1a',
-            'bg_secondary': '#1a1a2e',
-            'bg_card': 'linear-gradient(145deg, #1e1e2f, #252538)',
-            'bg_card_hover': '#2a2a3d',
-            'text': '#ffffff',
-            'text_secondary': '#a0aec0',
-            'text_muted': '#666',
-            'border': 'rgba(255,255,255,0.1)',
-            'border_hover': '#00d9ff',
-            'section_title': '#ffffff',
-            'feature_card_bg': 'linear-gradient(145deg, #1e1e2f, #252538)',
-            'feature_title': '#ffffff',
-            'feature_desc': '#a0aec0',
-            'step_title': '#ffffff',
-            'step_desc': '#a0aec0',
-            'pricing_bg': '#1a1a2e',
-            'pricing_name': '#ffffff',
-            'pricing_price': '#ffffff',
-            'faq_bg': '#1a1a2e',
-            'faq_border': 'rgba(255,255,255,0.1)',
-        }
-    else:
-        colors = {
-            'bg': '#ffffff',
-            'bg_secondary': '#f8f9fc',
-            'bg_card': 'linear-gradient(145deg, #f8f9fc, #ffffff)',
-            'bg_card_hover': '#f0f2f5',
-            'text': '#1a1a2e',
-            'text_secondary': '#666666',
-            'text_muted': '#888',
-            'border': '#e2e8f0',
-            'border_hover': '#00d9ff',
-            'section_title': '#1a1a2e',
-            'feature_card_bg': 'linear-gradient(145deg, #f8f9fc, #ffffff)',
-            'feature_title': '#1a1a2e',
-            'feature_desc': '#666666',
-            'step_title': '#1a1a2e',
-            'step_desc': '#666666',
-            'pricing_bg': '#ffffff',
-            'pricing_name': '#1a1a2e',
-            'pricing_price': '#1a1a2e',
-            'faq_bg': '#ffffff',
-            'faq_border': '#e2e8f0',
-        }
-
-    # Custom CSS for professional landing page
-    st.markdown(f"""
+    # =========================================================================
+    # ROBINHOOD-INSPIRED CSS
+    # =========================================================================
+    st.markdown("""
     <style>
-        /* Hide default Streamlit elements for cleaner look */
-        .stApp > header {{display: none;}}
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
-        /* Global dark/light mode */
-        .stApp {{
-            background-color: {colors['bg']};
-        }}
+        /* Global Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-        .main .block-container {{
-            background-color: {colors['bg']};
-        }}
+        /* Main Container */
+        .main-container {
+            background: #0a0a0f;
+            color: #ffffff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow-x: hidden;
+        }
 
-        /* Override Streamlit text colors */
-        .stMarkdown, .stMarkdown p, .stMarkdown li {{
-            color: {colors['text_secondary']} !important;
-        }}
-
-        h1, h2, h3, h4, h5, h6 {{
-            color: {colors['text']} !important;
-        }}
-
-        /* Expander styling for dark mode */
-        .streamlit-expanderHeader {{
-            background-color: {colors['faq_bg']} !important;
-            border: 1px solid {colors['faq_border']} !important;
-            border-radius: 12px !important;
-            color: {colors['text']} !important;
-        }}
-
-        .streamlit-expanderContent {{
-            background-color: {colors['faq_bg']} !important;
-            border: 1px solid {colors['faq_border']} !important;
-            color: {colors['text_secondary']} !important;
-        }}
-
-        /* Tab styling */
-        .stTabs [data-baseweb="tab-list"] {{
-            background-color: {colors['bg_secondary']};
-            border-radius: 10px;
-            padding: 5px;
-        }}
-
-        .stTabs [data-baseweb="tab"] {{
-            color: {colors['text_secondary']};
-        }}
-
-        .stTabs [aria-selected="true"] {{
-            color: {colors['text']} !important;
-        }}
-
-        /* Form inputs */
-        .stTextInput input {{
-            background-color: {colors['bg_secondary']} !important;
-            color: {colors['text']} !important;
-            border-color: {colors['border']} !important;
-        }}
-
-        /* Info box */
-        .stAlert {{
-            background-color: {colors['bg_secondary']} !important;
-            color: {colors['text_secondary']} !important;
-        }}
-
-        /* Navigation Bar */
-        .navbar {{
+        /* Navigation */
+        .nav-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 72px;
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 1rem 2rem;
-            background: rgba(26, 26, 46, 0.95);
-            border-radius: 12px;
-            margin-bottom: 2rem;
-            backdrop-filter: blur(10px);
-        }}
+            justify-content: space-between;
+            padding: 0 5%;
+            z-index: 1000;
+        }
 
-        .nav-logo {{
-            font-size: 1.8rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+        .nav-logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.6rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-        }}
+            background-clip: text;
+        }
 
-        .nav-links {{
+        .nav-links {
             display: flex;
-            gap: 2rem;
-        }}
+            gap: 2.5rem;
+        }
 
-        .nav-links a {{
-            color: #a0aec0;
+        .nav-links a {
+            color: rgba(255,255,255,0.7);
             text-decoration: none;
+            font-size: 0.95rem;
             font-weight: 500;
-            transition: color 0.3s;
-        }}
+            transition: color 0.3s ease;
+        }
 
-        .nav-links a:hover {{
+        .nav-links a:hover {
             color: #00d9ff;
-        }}
+        }
+
+        .nav-cta {
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
+            color: #000;
+            padding: 12px 28px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 217, 255, 0.3);
+        }
 
         /* Hero Section */
-        .hero-section {{
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             text-align: center;
-            padding: 4rem 2rem;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            border-radius: 24px;
-            margin-bottom: 3rem;
+            padding: 120px 5% 80px;
+            background: radial-gradient(ellipse at top, rgba(0, 217, 255, 0.08) 0%, transparent 50%),
+                        radial-gradient(ellipse at bottom right, rgba(168, 85, 247, 0.08) 0%, transparent 50%),
+                        #0a0a0f;
             position: relative;
             overflow: hidden;
-        }}
+        }
 
-        .hero-section::before {{
+        .hero::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
             opacity: 0.5;
-        }}
+        }
 
-        .hero-badge {{
-            display: inline-block;
-            background: rgba(0, 217, 255, 0.15);
-            color: #00d9ff;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 217, 255, 0.1);
             border: 1px solid rgba(0, 217, 255, 0.3);
-        }}
-
-        .hero-title {{
-            font-size: 4rem;
-            font-weight: 800;
-            margin-bottom: 1rem;
-            background: linear-gradient(135deg, #ffffff 0%, #a0aec0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: #00d9ff;
+            margin-bottom: 2rem;
             position: relative;
             z-index: 1;
-        }}
+        }
 
-        .hero-highlight {{
-            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 50%, #ff6b9d 100%);
+        .hero-title {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 600;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-title .gradient-text {
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 50%, #00d9ff 100%);
+            background-size: 200% auto;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-        }}
+            background-clip: text;
+            animation: gradientShift 5s ease infinite;
+        }
 
-        .hero-subtitle {{
-            font-size: 1.3rem;
-            color: #a0aec0;
-            margin-bottom: 2rem;
-            max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
+        @keyframes gradientShift {
+            0% { background-position: 0% center; }
+            50% { background-position: 100% center; }
+            100% { background-position: 0% center; }
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: rgba(255,255,255,0.6);
+            max-width: 600px;
+            margin: 0 auto 3rem;
             line-height: 1.7;
             position: relative;
             z-index: 1;
-        }}
+        }
 
-        .hero-buttons {{
+        .hero-cta-group {
             display: flex;
-            justify-content: center;
             gap: 1rem;
-            margin-bottom: 3rem;
+            justify-content: center;
+            flex-wrap: wrap;
             position: relative;
             z-index: 1;
-        }}
+        }
 
-        .btn-primary {{
-            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
-            color: white;
-            padding: 1rem 2.5rem;
-            border-radius: 30px;
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
+            color: #000;
+            padding: 16px 40px;
+            border-radius: 50px;
             font-weight: 600;
             font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.3s ease;
             border: none;
             cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-            text-decoration: none;
-        }}
+        }
 
-        .btn-primary:hover {{
+        .btn-primary:hover {
             transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(0, 217, 255, 0.4);
-        }}
+            box-shadow: 0 15px 40px rgba(0, 217, 255, 0.4);
+        }
 
-        .btn-secondary {{
+        .btn-secondary {
             background: transparent;
-            color: white;
-            padding: 1rem 2.5rem;
-            border-radius: 30px;
+            color: #fff;
+            padding: 16px 40px;
+            border-radius: 50px;
             font-weight: 600;
             font-size: 1rem;
-            border: 2px solid rgba(255,255,255,0.3);
-            cursor: pointer;
-            transition: all 0.3s;
             text-decoration: none;
-        }}
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
 
-        .btn-secondary:hover {{
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.5);
-        }}
+        .btn-secondary:hover {
+            border-color: #00d9ff;
+            color: #00d9ff;
+        }
 
         /* Stats Bar */
-        .stats-container {{
+        .stats-bar {
             display: flex;
             justify-content: center;
             gap: 4rem;
-            padding: 2rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 16px;
-            margin: 0 2rem;
-            position: relative;
-            z-index: 1;
-        }}
+            padding: 4rem 5%;
+            background: linear-gradient(180deg, #0a0a0f 0%, #0f0f18 100%);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-wrap: wrap;
+        }
 
-        .stat-item {{
+        .stat-item {
             text-align: center;
-        }}
+        }
 
-        .stat-number {{
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #00d9ff;
-            margin-bottom: 0.25rem;
-        }}
-
-        .stat-label {{
-            font-size: 0.9rem;
-            color: #a0aec0;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }}
-
-        /* Section Styling */
-        .section {{
-            padding: 4rem 0;
-        }}
-
-        .section-header {{
-            text-align: center;
-            margin-bottom: 3rem;
-        }}
-
-        .section-title {{
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: {colors['section_title']};
-            margin-bottom: 1rem;
-        }}
-
-        .section-subtitle {{
-            font-size: 1.1rem;
-            color: {colors['text_secondary']};
-            max-width: 600px;
-            margin: 0 auto;
-            line-height: 1.6;
-        }}
-
-        /* Feature Cards */
-        .feature-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }}
-
-        .feature-card {{
-            background: {colors['feature_card_bg']};
-            border-radius: 20px;
-            padding: 2rem;
-            border: 1px solid {colors['border']};
-            transition: all 0.3s;
-            text-align: center;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }}
-
-        .feature-card:hover {{
-            transform: translateY(-8px);
-            box-shadow: 0 20px 40px rgba(0, 217, 255, 0.15);
-            border-color: {colors['border_hover']};
-        }}
-
-        .feature-icon {{
+        .stat-value {
+            font-family: 'Playfair Display', serif;
             font-size: 3rem;
-            margin-bottom: 1rem;
-        }}
-
-        .feature-title {{
-            font-size: 1.3rem;
             font-weight: 600;
-            color: {colors['feature_title']};
-            margin-bottom: 0.75rem;
-        }}
-
-        .feature-desc {{
-            font-size: 0.95rem;
-            color: {colors['feature_desc']};
-            line-height: 1.6;
-        }}
-
-        /* How It Works */
-        .step-card {{
-            text-align: center;
-            padding: 2rem;
-            position: relative;
-        }}
-
-        .step-number {{
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: white;
-            margin: 0 auto 1.5rem auto;
-        }}
-
-        .step-title {{
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: {colors['step_title']};
-            margin-bottom: 0.75rem;
-        }}
-
-        .step-desc {{
-            font-size: 0.95rem;
-            color: {colors['step_desc']};
-            line-height: 1.6;
-        }}
-
-        /* Integration Section */
-        .integration-card {{
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 24px;
-            padding: 3rem;
-            color: white;
-            margin: 3rem 0;
-        }}
-
-        .integration-logos {{
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 3rem;
-            margin-top: 2rem;
-        }}
-
-        .integration-item {{
-            text-align: center;
-            padding: 1.5rem 2rem;
-            background: rgba(255,255,255,0.05);
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }}
-
-        .integration-name {{
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-top: 0.5rem;
-        }}
-
-        /* Pricing Section */
-        .pricing-card {{
-            background: {colors['pricing_bg']};
-            border-radius: 24px;
-            padding: 2.5rem;
-            border: 2px solid {colors['border']};
-            text-align: center;
-            transition: all 0.3s;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }}
-
-        .pricing-card:hover {{
-            border-color: #00d9ff;
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(0, 217, 255, 0.15);
-        }}
-
-        .pricing-card.featured {{
-            border-color: #00d9ff;
-            position: relative;
-        }}
-
-        .pricing-badge {{
-            position: absolute;
-            top: -12px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
-            color: white;
-            padding: 0.4rem 1.5rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }}
-
-        .pricing-name {{
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: {colors['pricing_name']};
-            margin-bottom: 0.5rem;
-        }}
-
-        .pricing-price {{
-            font-size: 3rem;
-            font-weight: 700;
-            color: {colors['pricing_price']};
-            margin: 1rem 0;
-        }}
-
-        .pricing-price span {{
-            font-size: 1rem;
-            color: {colors['text_secondary']};
-            font-weight: 400;
-        }}
-
-        .pricing-features {{
-            text-align: left;
-            margin: 1.5rem 0;
-        }}
-
-        .pricing-feature {{
-            padding: 0.5rem 0;
-            color: {colors['text_secondary']};
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }}
-
-        .pricing-feature::before {{
-            content: '✓';
-            color: #00d9ff;
-            font-weight: 700;
-        }}
-
-        /* FAQ Section */
-        .faq-item {{
-            background: {colors['faq_bg']};
-            border-radius: 16px;
-            padding: 1.5rem 2rem;
-            margin-bottom: 1rem;
-            border: 1px solid {colors['faq_border']};
-        }}
-
-        .faq-question {{
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: {colors['text']};
-            margin-bottom: 0.75rem;
-        }}
-
-        .faq-answer {{
-            color: {colors['text_secondary']};
-            line-height: 1.6;
-        }}
-
-        /* Security Section */
-        .security-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }}
-
-        .security-item {{
-            text-align: center;
-            padding: 1.5rem;
-        }}
-
-        .security-icon {{
-            font-size: 2.5rem;
-            margin-bottom: 0.75rem;
-        }}
-
-        .security-title {{
-            font-weight: 600;
-            color: {colors['text']};
-            margin-bottom: 0.5rem;
-        }}
-
-        .security-desc {{
-            font-size: 0.85rem;
-            color: {colors['text_secondary']};
-        }}
-
-        /* Footer */
-        .footer {{
-            background: #1a1a2e;
-            color: white;
-            padding: 4rem 2rem 2rem 2rem;
-            border-radius: 24px 24px 0 0;
-            margin-top: 4rem;
-        }}
-
-        .footer-grid {{
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr;
-            gap: 3rem;
-            margin-bottom: 3rem;
-        }}
-
-        .footer-brand {{
-            font-size: 1.8rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.5);
+            margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Section Styles */
+        .section {
+            padding: 100px 5%;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-dark {
+            background: #0f0f18;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-label {
+            font-size: 0.85rem;
+            color: #00d9ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
             margin-bottom: 1rem;
-        }}
+        }
 
-        .footer-desc {{
-            color: #a0aec0;
-            line-height: 1.6;
-            margin-bottom: 1.5rem;
-        }}
-
-        .footer-heading {{
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2rem, 5vw, 3.5rem);
             font-weight: 600;
             margin-bottom: 1rem;
-            color: white;
-        }}
+        }
 
-        .footer-links {{
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }}
-
-        .footer-links li {{
-            margin-bottom: 0.75rem;
-        }}
-
-        .footer-links a {{
-            color: #a0aec0;
-            text-decoration: none;
-            transition: color 0.3s;
-        }}
-
-        .footer-links a:hover {{
-            color: #00d9ff;
-        }}
-
-        .footer-bottom {{
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #a0aec0;
-            font-size: 0.9rem;
-        }}
-
-        /* Risk Warning */
-        .risk-warning {{
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
-            border-left: 4px solid #ffc107;
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin: 2rem 0;
-        }}
-
-        .risk-warning-title {{
-            font-weight: 700;
-            color: #856404;
-            margin-bottom: 0.5rem;
-        }}
-
-        .risk-warning-text {{
-            color: #856404;
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }}
-
-        /* Auth Card */
-        .auth-section {{
-            background: {colors['bg_card']};
-            border-radius: 24px;
-            padding: 3rem;
-            border: 1px solid {colors['border']};
-            max-width: 500px;
+        .section-subtitle {
+            font-size: 1.1rem;
+            color: rgba(255,255,255,0.6);
+            max-width: 600px;
             margin: 0 auto;
-        }}
+        }
 
-        .auth-title {{
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: {colors['text']};
-            text-align: center;
-            margin-bottom: 0.5rem;
-        }}
+        /* Alternating Feature Sections */
+        .feature-row {
+            display: flex;
+            align-items: center;
+            gap: 80px;
+            margin-bottom: 120px;
+        }
 
-        .auth-subtitle {{
-            color: {colors['text_secondary']};
-            text-align: center;
-            margin-bottom: 2rem;
-        }}
+        .feature-row.reverse {
+            flex-direction: row-reverse;
+        }
 
-        /* Dark mode toggle button styling */
-        .dark-toggle {{
-            background: {colors['bg_secondary']};
-            border: 1px solid {colors['border']};
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-visual {
+            flex: 1;
+            background: linear-gradient(145deg, rgba(0, 217, 255, 0.1), rgba(168, 85, 247, 0.1));
+            border-radius: 24px;
+            padding: 40px;
+            border: 1px solid rgba(255,255,255,0.08);
+            min-height: 400px;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }}
+            font-size: 5rem;
+        }
 
-        .dark-toggle:hover {{
+        .feature-label {
+            font-size: 0.8rem;
+            color: #00d9ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .feature-desc {
+            font-size: 1.1rem;
+            color: rgba(255,255,255,0.6);
+            line-height: 1.8;
+            margin-bottom: 2rem;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1rem;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .feature-list li::before {
+            content: '✓';
+            color: #00d9ff;
+            font-weight: bold;
+        }
+
+        /* Feature Cards Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 2.5rem;
+            transition: all 0.4s ease;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(0, 217, 255, 0.3);
+            transform: translateY(-8px);
+            box-shadow: 0 20px 60px rgba(0, 217, 255, 0.1);
+        }
+
+        .feature-card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card-desc {
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.6);
+            line-height: 1.7;
+        }
+
+        /* How It Works */
+        .steps-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 2rem;
+            position: relative;
+        }
+
+        .steps-container::before {
+            content: '';
+            position: absolute;
+            top: 40px;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: linear-gradient(90deg, #00d9ff, #a855f7);
+            z-index: 0;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-number {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 600;
+            color: #000;
+            margin: 0 auto 1.5rem;
+        }
+
+        .step-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .step-desc {
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.6);
+            line-height: 1.6;
+        }
+
+        /* Integrations */
+        .integrations-grid {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .integration-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 2rem 3rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .integration-item:hover {
+            border-color: rgba(0, 217, 255, 0.3);
+            background: rgba(0, 217, 255, 0.05);
+        }
+
+        .integration-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .integration-name {
+            font-weight: 600;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* Security Section */
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+        }
+
+        .security-item {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .security-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .security-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .security-desc {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.5);
+        }
+
+        /* Pricing */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .pricing-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px;
+            padding: 3rem 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .pricing-card:hover {
+            border-color: rgba(0, 217, 255, 0.3);
+            transform: translateY(-5px);
+        }
+
+        .pricing-card.featured {
             border-color: #00d9ff;
-            transform: scale(1.1);
-        }}
+            background: linear-gradient(145deg, rgba(0, 217, 255, 0.08), rgba(168, 85, 247, 0.08));
+        }
 
-        /* ============================================= */
-        /* MOBILE RESPONSIVE STYLES */
-        /* ============================================= */
+        .pricing-badge {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
+            color: #000;
+            padding: 6px 20px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
 
-        /* Tablets and smaller (max-width: 992px) */
-        @media (max-width: 992px) {{
-            .hero-title {{
-                font-size: 2.8rem;
-            }}
+        .pricing-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
 
-            .hero-subtitle {{
-                font-size: 1.1rem;
-                padding: 0 1rem;
-            }}
+        .pricing-price {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
 
-            .stats-container {{
-                flex-wrap: wrap;
-                gap: 2rem;
-                padding: 1.5rem 1rem;
-                margin: 0 1rem;
-            }}
+        .pricing-price span {
+            font-size: 1rem;
+            color: rgba(255,255,255,0.5);
+            font-family: 'Inter', sans-serif;
+        }
 
-            .stat-item {{
-                flex: 1 1 40%;
-            }}
+        .pricing-features {
+            margin: 2rem 0;
+            text-align: left;
+        }
 
-            .section-title {{
-                font-size: 2rem;
-            }}
+        .pricing-feature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1rem;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.95rem;
+        }
 
-            .feature-card {{
-                padding: 1.5rem;
-            }}
+        .pricing-feature::before {
+            content: '✓';
+            color: #00d9ff;
+        }
 
-            .step-card {{
-                padding: 1rem;
-            }}
+        /* FAQ */
+        .faq-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
 
-            .footer-grid {{
+        /* CTA Section */
+        .cta-section {
+            text-align: center;
+            padding: 100px 5%;
+            background: linear-gradient(180deg, #0a0a0f 0%, #0f0f18 50%, #0a0a0f 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 217, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .cta-title {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-subtitle {
+            font-size: 1.1rem;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 2.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Auth Section */
+        .auth-section {
+            max-width: 450px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px;
+            padding: 3rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Footer */
+        .footer {
+            background: #0a0a0f;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding: 60px 5% 30px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 4rem;
+            max-width: 1400px;
+            margin: 0 auto 3rem;
+        }
+
+        .footer-brand {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #00d9ff 0%, #a855f7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .footer-desc {
+            color: rgba(255,255,255,0.5);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        .footer-title {
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.75rem;
+        }
+
+        .footer-links a {
+            color: rgba(255,255,255,0.5);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: #00d9ff;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.4);
+            font-size: 0.85rem;
+        }
+
+        /* Risk Warning */
+        .risk-warning {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem auto;
+            max-width: 900px;
+        }
+
+        .risk-warning-title {
+            color: #ffc107;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .risk-warning-text {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .feature-row {
+                flex-direction: column !important;
+                gap: 40px;
+            }
+
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .security-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .pricing-grid {
+                grid-template-columns: 1fr;
+                max-width: 400px;
+            }
+
+            .footer-grid {
                 grid-template-columns: 1fr 1fr;
                 gap: 2rem;
-            }}
+            }
+        }
 
-            .integration-logos {{
-                flex-wrap: wrap;
-                gap: 1.5rem;
-            }}
-        }}
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
 
-        /* Mobile phones (max-width: 768px) */
-        @media (max-width: 768px) {{
-            .hero-section {{
-                padding: 2.5rem 1rem;
-                border-radius: 16px;
-            }}
+            .hero {
+                padding: 100px 5% 60px;
+            }
 
-            .hero-title {{
-                font-size: 2.2rem;
-                line-height: 1.2;
-            }}
+            .stats-bar {
+                gap: 2rem;
+            }
 
-            .hero-subtitle {{
-                font-size: 1rem;
-                margin-bottom: 1.5rem;
-            }}
-
-            .hero-badge {{
-                font-size: 0.75rem;
-                padding: 0.4rem 0.8rem;
-            }}
-
-            .stats-container {{
-                flex-direction: column;
-                gap: 1.5rem;
-                padding: 1.5rem;
-                margin: 0;
-                border-radius: 12px;
-            }}
-
-            .stat-item {{
-                flex: 1 1 100%;
-            }}
-
-            .stat-number {{
+            .stat-value {
                 font-size: 2rem;
-            }}
+            }
 
-            .stat-label {{
-                font-size: 0.8rem;
-            }}
+            .section {
+                padding: 60px 5%;
+            }
 
-            .section {{
-                padding: 2rem 0;
-            }}
-
-            .section-title {{
-                font-size: 1.6rem;
-                padding: 0 1rem;
-            }}
-
-            .section-subtitle {{
-                font-size: 0.95rem;
-                padding: 0 1rem;
-            }}
-
-            .feature-card {{
-                padding: 1.25rem;
-                margin: 0.25rem 0;
-            }}
-
-            .feature-icon {{
-                font-size: 2.5rem;
-            }}
-
-            .feature-title {{
-                font-size: 1.1rem;
-            }}
-
-            .feature-desc {{
-                font-size: 0.9rem;
-            }}
-
-            .step-number {{
-                width: 50px;
-                height: 50px;
-                font-size: 1.2rem;
-            }}
-
-            .step-title {{
-                font-size: 1.1rem;
-            }}
-
-            .step-desc {{
-                font-size: 0.9rem;
-            }}
-
-            .integration-card {{
-                padding: 2rem 1rem;
-                border-radius: 16px;
-            }}
-
-            .integration-logos {{
-                flex-direction: column;
-                gap: 1rem;
-            }}
-
-            .integration-item {{
-                padding: 1rem 1.5rem;
-            }}
-
-            .pricing-card {{
-                padding: 1.5rem;
-                border-radius: 16px;
-            }}
-
-            .pricing-name {{
-                font-size: 1.1rem;
-            }}
-
-            .pricing-price {{
-                font-size: 2.5rem;
-            }}
-
-            .pricing-feature {{
-                font-size: 0.9rem;
-            }}
-
-            .security-item {{
-                padding: 1rem 0.5rem;
-            }}
-
-            .security-icon {{
-                font-size: 2rem;
-            }}
-
-            .security-title {{
-                font-size: 0.95rem;
-            }}
-
-            .security-desc {{
-                font-size: 0.8rem;
-            }}
-
-            .risk-warning {{
-                padding: 1rem;
-                margin: 1.5rem 0;
-            }}
-
-            .risk-warning-title {{
-                font-size: 0.95rem;
-            }}
-
-            .risk-warning-text {{
-                font-size: 0.85rem;
-            }}
-
-            .footer {{
-                padding: 2.5rem 1rem 1.5rem 1rem;
-                border-radius: 16px 16px 0 0;
-            }}
-
-            .footer-grid {{
+            .features-grid {
                 grid-template-columns: 1fr;
-                gap: 1.5rem;
-                text-align: center;
-            }}
+            }
 
-            .footer-brand {{
-                font-size: 1.5rem;
-            }}
-
-            .footer-desc {{
-                font-size: 0.9rem;
-            }}
-
-            .footer-heading {{
-                margin-top: 1rem;
-            }}
-
-            .footer-bottom {{
+            .steps-container {
                 flex-direction: column;
-                gap: 0.5rem;
+                gap: 3rem;
+            }
+
+            .steps-container::before {
+                display: none;
+            }
+
+            .security-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
                 text-align: center;
-                font-size: 0.8rem;
-            }}
-
-            /* Hide nav links on mobile - just show logo and toggle */
-            .nav-links {{
-                display: none !important;
-            }}
-        }}
-
-        /* Very small phones (max-width: 480px) */
-        @media (max-width: 480px) {{
-            .hero-title {{
-                font-size: 1.8rem;
-            }}
-
-            .hero-subtitle {{
-                font-size: 0.9rem;
-            }}
-
-            .stats-container {{
-                padding: 1rem;
-            }}
-
-            .stat-number {{
-                font-size: 1.8rem;
-            }}
-
-            .section-title {{
-                font-size: 1.4rem;
-            }}
-
-            .feature-card {{
-                padding: 1rem;
-            }}
-
-            .feature-icon {{
-                font-size: 2rem;
-            }}
-
-            .feature-title {{
-                font-size: 1rem;
-            }}
-
-            .pricing-price {{
-                font-size: 2rem;
-            }}
-
-            .btn-primary, .btn-secondary {{
-                padding: 0.8rem 1.5rem;
-                font-size: 0.9rem;
-            }}
-        }}
-
-        /* Improve touch targets on mobile */
-        @media (hover: none) {{
-            .feature-card:hover,
-            .pricing-card:hover {{
-                transform: none;
-            }}
-        }}
+            }
+        }
     </style>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # NAVIGATION WITH LOGIN BUTTON
+    # NAVIGATION
     # =========================================================================
-    nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([2, 5, 1.5, 0.5])
-
-    with nav_col1:
-        st.markdown("""
-        <div style="font-size: 1.8rem; font-weight: 800; padding: 0.5rem 0;
-                    background: linear-gradient(135deg, #00d9ff 0%, #7b68ee 100%);
-                    -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            🚀 NovAlgo
+    st.markdown("""
+    <div class="nav-bar">
+        <div class="nav-logo">NovAlgo</div>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#faq">FAQ</a>
         </div>
-        """, unsafe_allow_html=True)
-
-    with nav_col2:
-        st.markdown(f"""
-        <div style="display: flex; gap: 2rem; align-items: center; padding: 0.75rem 0;">
-            <a href="#features" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">Features</a>
-            <a href="#how-it-works" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">How It Works</a>
-            <a href="#pricing" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">Pricing</a>
-            <a href="#faq" style="color: {colors['text_secondary']}; text-decoration: none; font-weight: 500;">FAQ</a>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with nav_col3:
-        # Login button - styled link to login section
-        st.markdown(f"""
-        <a href="#login-section" style="
-            display: inline-block;
-            width: 100%;
-            padding: 0.5rem 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-top: 0.25rem;
-        " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-            🔐 Sign In
-        </a>
-        """, unsafe_allow_html=True)
-
-    with nav_col4:
-        # Dark mode toggle button
-        toggle_label = "☀️" if is_dark else "🌙"
-        if st.button(toggle_label, key="dark_mode_toggle", help="Toggle dark/light mode"):
-            st.session_state.dark_mode = not st.session_state.dark_mode
-            st.rerun()
-
-    st.markdown("---")
+        <a href="#get-started" class="nav-cta">Get Started</a>
+    </div>
+    """, unsafe_allow_html=True)
 
     # =========================================================================
     # HERO SECTION
     # =========================================================================
     st.markdown("""
-    <div class="hero-section">
-        <div class="hero-badge">🎯 Trusted by Traders Worldwide</div>
+    <div class="hero">
+        <div class="hero-badge">
+            <span>🚀</span> Trusted by Traders Worldwide
+        </div>
         <h1 class="hero-title">
-            Automate Your<br><span class="hero-highlight">Trading Strategy</span>
+            Automate Your<br><span class="gradient-text">Trading Strategy</span>
         </h1>
         <p class="hero-subtitle">
-            Connect TradingView alerts to execute trades automatically through Alpaca.
+            Connect TradingView alerts to Alpaca and execute trades automatically.
             Set up once, trade 24/7. No coding required.
         </p>
-        <div class="stats-container">
-            <div class="stat-item">
-                <div class="stat-number">24/7</div>
-                <div class="stat-label">Automated</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">&lt;100ms</div>
-                <div class="stat-label">Execution</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">256-bit</div>
-                <div class="stat-label">Encryption</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">$0</div>
-                <div class="stat-label">Commission</div>
-            </div>
+        <div class="hero-cta-group">
+            <a href="#get-started" class="btn-primary">Start Trading Free</a>
+            <a href="#how-it-works" class="btn-secondary">See How It Works</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # WHAT IS NOVALGO
+    # STATS BAR
+    # =========================================================================
+    st.markdown("""
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-value">24/7</div>
+            <div class="stat-label">Automated Trading</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">&lt;100ms</div>
+            <div class="stat-label">Execution Speed</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">256-bit</div>
+            <div class="stat-label">Encryption</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">$0</div>
+            <div class="stat-label">Commission</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # =========================================================================
+    # PROBLEM / SOLUTION SECTIONS
     # =========================================================================
     st.markdown("""
     <div class="section">
-        <div class="section-header">
-            <h2 class="section-title">What is NovAlgo?</h2>
-            <p class="section-subtitle">
-                NovAlgo is an automated trading platform that bridges TradingView and Alpaca,
-                allowing you to execute trades automatically when your TradingView strategies generate signals.
-            </p>
+        <div class="feature-row">
+            <div class="feature-content">
+                <div class="feature-label">The Problem</div>
+                <h2 class="feature-title">Manual Trading<br>Is Holding You Back</h2>
+                <p class="feature-desc">
+                    You've built a winning strategy on TradingView, but executing it manually
+                    is exhausting. You miss trades while sleeping, let emotions override your
+                    system, and can't scale to multiple strategies.
+                </p>
+                <ul class="feature-list">
+                    <li>Missing entries while sleeping or working</li>
+                    <li>Emotional decisions override your strategy</li>
+                    <li>Slow execution leads to missed opportunities</li>
+                    <li>Managing multiple strategies is overwhelming</li>
+                </ul>
+            </div>
+            <div class="feature-visual">
+                😫
+            </div>
+        </div>
+
+        <div class="feature-row reverse">
+            <div class="feature-content">
+                <div class="feature-label">The Solution</div>
+                <h2 class="feature-title">Fully Automated<br>Trade Execution</h2>
+                <p class="feature-desc">
+                    NovAlgo bridges TradingView and Alpaca, executing your trades instantly
+                    when alerts fire. Your strategy runs 24/7 without emotion, hesitation,
+                    or manual intervention.
+                </p>
+                <ul class="feature-list">
+                    <li>Trades execute in under 100 milliseconds</li>
+                    <li>Works while you sleep, work, or travel</li>
+                    <li>Sticks to your strategy without hesitation</li>
+                    <li>Run unlimited bots simultaneously</li>
+                </ul>
+            </div>
+            <div class="feature-visual">
+                🤖
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("""
-        ### The Problem
-        - Manually monitoring charts 24/7 is impossible
-        - Missing trade entries while sleeping or working
-        - Emotional decisions override your strategy
-        - Slow execution leads to missed opportunities
-        - Managing multiple strategies is overwhelming
-        """)
-
-    with col2:
-        st.markdown("""
-        ### The Solution
-        - **Automated Execution**: Trades execute instantly when signals fire
-        - **24/7 Operation**: Works while you sleep, work, or travel
-        - **Emotion-Free**: Sticks to your strategy without hesitation
-        - **Lightning Fast**: Sub-100ms execution through Alpaca
-        - **Multi-Strategy**: Run unlimited bots simultaneously
-        """)
-
     # =========================================================================
-    # FEATURES SECTION
+    # FEATURES GRID
     # =========================================================================
     st.markdown('<div id="features"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section">
+    <div class="section section-dark">
         <div class="section-header">
-            <h2 class="section-title">Powerful Features</h2>
+            <div class="section-label">Features</div>
+            <h2 class="section-title">Everything You Need</h2>
             <p class="section-subtitle">
-                Everything you need to automate and optimize your trading
+                Powerful tools to automate and optimize your trading
             </p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-card-icon">📡</div>
+                <div class="feature-card-title">TradingView Webhooks</div>
+                <p class="feature-card-desc">
+                    Connect any TradingView strategy. When alerts fire, trades execute instantly.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-card-icon">⚡</div>
+                <div class="feature-card-title">Instant Execution</div>
+                <p class="feature-card-desc">
+                    Sub-100ms trade execution via Alpaca's API at the best available price.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-card-icon">🛡️</div>
+                <div class="feature-card-title">Risk Management</div>
+                <p class="feature-card-desc">
+                    Set position limits, stop-losses, and daily caps to protect your capital.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-card-icon">📊</div>
+                <div class="feature-card-title">Real-Time Dashboard</div>
+                <p class="feature-card-desc">
+                    Monitor positions, P&L, and trade history with beautiful analytics.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-card-icon">🤖</div>
+                <div class="feature-card-title">System Strategies</div>
+                <p class="feature-card-desc">
+                    Subscribe to curated strategies with automatic execution.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-card-icon">🔗</div>
+                <div class="feature-card-title">Outgoing Webhooks</div>
+                <p class="feature-card-desc">
+                    Forward signals to Discord, Slack, Telegram, or any endpoint.
+                </p>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # Feature cards - Row 1
-    feat_col1, feat_col2, feat_col3 = st.columns(3)
-
-    with feat_col1:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">📡</div>
-            <div class="feature-title">TradingView Webhooks</div>
-            <div class="feature-desc">
-                Connect any TradingView strategy or indicator. When an alert fires,
-                NovAlgo receives the webhook and executes your trade instantly.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with feat_col2:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">⚡</div>
-            <div class="feature-title">Instant Execution</div>
-            <div class="feature-desc">
-                Trades execute in under 100 milliseconds via Alpaca's API.
-                Market orders fill immediately at the best available price.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with feat_col3:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">🛡️</div>
-            <div class="feature-title">Risk Management</div>
-            <div class="feature-desc">
-                Set position limits, stop-losses, and daily loss caps.
-                Protect your capital with built-in risk controls.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Feature cards - Row 2
-    feat_col4, feat_col5, feat_col6 = st.columns(3)
-
-    with feat_col4:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">🤖</div>
-            <div class="feature-title">System Strategies</div>
-            <div class="feature-desc">
-                Subscribe to NovAlgo's curated TradingView strategies.
-                Professional signals, automatic execution, full transparency.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with feat_col5:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <div class="feature-title">Real-Time Dashboard</div>
-            <div class="feature-desc">
-                Monitor positions, P&L, and trade history in real-time.
-                Beautiful charts and comprehensive analytics at your fingertips.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with feat_col6:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">🔗</div>
-            <div class="feature-title">Outgoing Webhooks</div>
-            <div class="feature-desc">
-                Forward signals to Discord, Slack, Telegram, or any webhook endpoint.
-                Stay informed on every trade, anywhere.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
     # =========================================================================
     # HOW IT WORKS
@@ -1600,85 +1383,71 @@ def show_landing_page():
     st.markdown("""
     <div class="section">
         <div class="section-header">
-            <h2 class="section-title">How It Works</h2>
+            <div class="section-label">How It Works</div>
+            <h2 class="section-title">Start in Minutes</h2>
             <p class="section-subtitle">
-                Get started in minutes with our simple 4-step process
+                Four simple steps to automate your trading
             </p>
+        </div>
+
+        <div class="steps-container">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-title">Create Account</div>
+                <p class="step-desc">Sign up free in seconds. No credit card required.</p>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-title">Connect Alpaca</div>
+                <p class="step-desc">Link your Alpaca account with API keys.</p>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-title">Configure Bots</div>
+                <p class="step-desc">Set up bots with your symbols and position sizes.</p>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-title">Add Webhook</div>
+                <p class="step-desc">Copy webhook URL to TradingView. Done!</p>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    step_col1, step_col2, step_col3, step_col4 = st.columns(4)
-
-    with step_col1:
-        st.markdown("""
-        <div class="step-card">
-            <div class="step-number">1</div>
-            <div class="step-title">Create Account</div>
-            <div class="step-desc">
-                Sign up for free in seconds. No credit card required to start.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with step_col2:
-        st.markdown("""
-        <div class="step-card">
-            <div class="step-number">2</div>
-            <div class="step-title">Connect Alpaca</div>
-            <div class="step-desc">
-                Link your Alpaca brokerage account with API keys. Paper or live trading.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with step_col3:
-        st.markdown("""
-        <div class="step-card">
-            <div class="step-number">3</div>
-            <div class="step-title">Configure Bots</div>
-            <div class="step-desc">
-                Create trading bots for each symbol with your position size and risk limits.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with step_col4:
-        st.markdown("""
-        <div class="step-card">
-            <div class="step-number">4</div>
-            <div class="step-title">Add Webhook</div>
-            <div class="step-desc">
-                Copy your webhook URL to TradingView alerts. Trades execute automatically!
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
     # =========================================================================
     # INTEGRATIONS
     # =========================================================================
     st.markdown("""
-    <div class="integration-card">
+    <div class="section section-dark">
         <div class="section-header">
-            <h2 style="color: white; font-size: 2rem; margin-bottom: 0.5rem;">Seamless Integrations</h2>
-            <p style="color: #a0aec0;">Works with the tools you already use</p>
+            <div class="section-label">Integrations</div>
+            <h2 class="section-title">Works With Your Tools</h2>
         </div>
-        <div class="integration-logos">
+
+        <div class="integrations-grid">
             <div class="integration-item">
-                <div style="font-size: 2.5rem;">📺</div>
+                <div class="integration-icon">📺</div>
                 <div class="integration-name">TradingView</div>
             </div>
             <div class="integration-item">
-                <div style="font-size: 2.5rem;">🦙</div>
+                <div class="integration-icon">🦙</div>
                 <div class="integration-name">Alpaca</div>
             </div>
             <div class="integration-item">
-                <div style="font-size: 2.5rem;">💬</div>
+                <div class="integration-icon">💬</div>
                 <div class="integration-name">Discord</div>
             </div>
             <div class="integration-item">
-                <div style="font-size: 2.5rem;">📱</div>
+                <div class="integration-icon">📱</div>
                 <div class="integration-name">Slack</div>
+            </div>
+            <div class="integration-item">
+                <div class="integration-icon">✈️</div>
+                <div class="integration-name">Telegram</div>
             </div>
         </div>
     </div>
@@ -1690,114 +1459,92 @@ def show_landing_page():
     st.markdown("""
     <div class="section">
         <div class="section-header">
-            <h2 class="section-title">Bank-Level Security</h2>
+            <div class="section-label">Security</div>
+            <h2 class="section-title">Bank-Level Protection</h2>
             <p class="section-subtitle">
                 Your API keys and data are protected with enterprise-grade security
             </p>
         </div>
+
+        <div class="security-grid">
+            <div class="security-item">
+                <div class="security-icon">🔐</div>
+                <div class="security-title">256-bit Encryption</div>
+                <p class="security-desc">API keys encrypted with Fernet symmetric encryption</p>
+            </div>
+            <div class="security-item">
+                <div class="security-icon">🔒</div>
+                <div class="security-title">Secure Storage</div>
+                <p class="security-desc">Keys never stored in plain text</p>
+            </div>
+            <div class="security-item">
+                <div class="security-icon">🛡️</div>
+                <div class="security-title">No Withdrawals</div>
+                <p class="security-desc">API keys have trading permissions only</p>
+            </div>
+            <div class="security-item">
+                <div class="security-icon">✅</div>
+                <div class="security-title">Your Control</div>
+                <p class="security-desc">Revoke access anytime from Alpaca</p>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.markdown("""
-        <div class="security-item">
-            <div class="security-icon">🔐</div>
-            <div class="security-title">256-bit Encryption</div>
-            <div class="security-desc">API keys encrypted with Fernet symmetric encryption</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("""
-        <div class="security-item">
-            <div class="security-icon">🔒</div>
-            <div class="security-title">Secure Storage</div>
-            <div class="security-desc">Keys never stored in plain text, only encrypted hashes</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        st.markdown("""
-        <div class="security-item">
-            <div class="security-icon">🛡️</div>
-            <div class="security-title">No Withdrawals</div>
-            <div class="security-desc">API keys only have trading permissions, not withdrawal</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col4:
-        st.markdown("""
-        <div class="security-item">
-            <div class="security-icon">✅</div>
-            <div class="security-title">Your Control</div>
-            <div class="security-desc">Revoke access anytime from your Alpaca dashboard</div>
-        </div>
-        """, unsafe_allow_html=True)
 
     # =========================================================================
     # PRICING
     # =========================================================================
     st.markdown('<div id="pricing"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section">
+    <div class="section section-dark">
         <div class="section-header">
-            <h2 class="section-title">Simple Pricing</h2>
+            <div class="section-label">Pricing</div>
+            <h2 class="section-title">Simple, Transparent Pricing</h2>
             <p class="section-subtitle">
                 Start for free, upgrade when you're ready
             </p>
         </div>
+
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <div class="pricing-name">Paper Trading</div>
+                <div class="pricing-price">$0<span>/month</span></div>
+                <div class="pricing-features">
+                    <div class="pricing-feature">Unlimited paper trades</div>
+                    <div class="pricing-feature">All bot features</div>
+                    <div class="pricing-feature">Real-time dashboard</div>
+                    <div class="pricing-feature">TradingView webhooks</div>
+                    <div class="pricing-feature">System strategies</div>
+                </div>
+            </div>
+
+            <div class="pricing-card featured">
+                <div class="pricing-badge">Most Popular</div>
+                <div class="pricing-name">Live Trading</div>
+                <div class="pricing-price">$0<span>/month</span></div>
+                <div class="pricing-features">
+                    <div class="pricing-feature">Everything in Paper</div>
+                    <div class="pricing-feature">Live market execution</div>
+                    <div class="pricing-feature">Priority processing</div>
+                    <div class="pricing-feature">Outgoing webhooks</div>
+                    <div class="pricing-feature">Email support</div>
+                </div>
+            </div>
+
+            <div class="pricing-card">
+                <div class="pricing-name">Enterprise</div>
+                <div class="pricing-price">Custom</div>
+                <div class="pricing-features">
+                    <div class="pricing-feature">Everything in Live</div>
+                    <div class="pricing-feature">Custom integrations</div>
+                    <div class="pricing-feature">Dedicated support</div>
+                    <div class="pricing-feature">SLA guarantee</div>
+                    <div class="pricing-feature">White-label options</div>
+                </div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-
-    price_col1, price_col2, price_col3 = st.columns(3)
-
-    with price_col1:
-        st.markdown("""
-        <div class="pricing-card">
-            <div class="pricing-name">Paper Trading</div>
-            <div class="pricing-price">$0<span>/month</span></div>
-            <div class="pricing-features">
-                <div class="pricing-feature">Unlimited paper trades</div>
-                <div class="pricing-feature">All bot features</div>
-                <div class="pricing-feature">Real-time dashboard</div>
-                <div class="pricing-feature">TradingView webhooks</div>
-                <div class="pricing-feature">System strategies</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with price_col2:
-        st.markdown("""
-        <div class="pricing-card featured">
-            <div class="pricing-badge">MOST POPULAR</div>
-            <div class="pricing-name">Live Trading</div>
-            <div class="pricing-price">$0<span>/month</span></div>
-            <div class="pricing-features">
-                <div class="pricing-feature">Everything in Paper</div>
-                <div class="pricing-feature">Live market execution</div>
-                <div class="pricing-feature">Priority webhook processing</div>
-                <div class="pricing-feature">Outgoing webhooks</div>
-                <div class="pricing-feature">Email support</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with price_col3:
-        st.markdown("""
-        <div class="pricing-card">
-            <div class="pricing-name">Enterprise</div>
-            <div class="pricing-price">Contact<span> us</span></div>
-            <div class="pricing-features">
-                <div class="pricing-feature">Everything in Live</div>
-                <div class="pricing-feature">Custom integrations</div>
-                <div class="pricing-feature">Dedicated support</div>
-                <div class="pricing-feature">SLA guarantee</div>
-                <div class="pricing-feature">White-label options</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
     st.info("💡 **Note:** Alpaca charges $0 commission on stock trades. NovAlgo is currently free during beta.")
 
@@ -1808,63 +1555,62 @@ def show_landing_page():
     st.markdown("""
     <div class="section">
         <div class="section-header">
-            <h2 class="section-title">Frequently Asked Questions</h2>
+            <div class="section-label">FAQ</div>
+            <h2 class="section-title">Common Questions</h2>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    with st.expander("What is NovAlgo?"):
-        st.write("""
-        NovAlgo is an automated trading platform that connects TradingView to Alpaca brokerage.
-        When your TradingView strategy generates a buy or sell signal, NovAlgo receives a webhook
-        and automatically executes the trade in your Alpaca account. No manual intervention required.
-        """)
+    with st.container():
+        with st.expander("What is NovAlgo?"):
+            st.write("""
+            NovAlgo is an automated trading platform that connects TradingView to Alpaca brokerage.
+            When your TradingView strategy generates a buy or sell signal, NovAlgo receives a webhook
+            and automatically executes the trade through your Alpaca account.
+            """)
 
-    with st.expander("Is my money safe?"):
-        st.write("""
-        Yes. Your funds are held in your Alpaca account, not with NovAlgo. We only receive API keys
-        with trading permissions - we cannot withdraw funds. Your API keys are encrypted with 256-bit
-        encryption and never stored in plain text. You can revoke access at any time from Alpaca.
-        """)
+        with st.expander("Is my money safe?"):
+            st.write("""
+            Yes. NovAlgo never has access to your funds. We only store encrypted API keys with
+            trading permissions - no withdrawal access. Your money stays in your Alpaca account,
+            which is SIPC protected.
+            """)
 
-    with st.expander("What is Alpaca?"):
-        st.write("""
-        Alpaca is a commission-free stock trading brokerage designed for algorithmic trading.
-        They provide a powerful API that allows platforms like NovAlgo to execute trades on your behalf.
-        Alpaca is regulated by FINRA and SEC, and accounts are SIPC insured up to $500,000.
-        """)
+        with st.expander("What is Alpaca?"):
+            st.write("""
+            Alpaca is a commission-free stock brokerage with a powerful API for algorithmic trading.
+            They're regulated by FINRA and SEC, and accounts are SIPC protected up to $500,000.
+            """)
 
-    with st.expander("Do I need coding experience?"):
-        st.write("""
-        No coding required! Simply create an alert in TradingView, paste your NovAlgo webhook URL,
-        and configure the JSON message format. NovAlgo handles the rest automatically.
-        """)
+        with st.expander("Do I need coding experience?"):
+            st.write("""
+            No coding required! If you can create an alert in TradingView, you can use NovAlgo.
+            Just copy your webhook URL and paste it into TradingView.
+            """)
 
-    with st.expander("What markets can I trade?"):
-        st.write("""
-        NovAlgo supports all US stocks and ETFs available on Alpaca. This includes major exchanges
-        like NYSE and NASDAQ. Crypto trading through Alpaca is also supported where available.
-        """)
+        with st.expander("What markets can I trade?"):
+            st.write("""
+            Through Alpaca, you can trade US stocks and ETFs during market hours (9:30 AM - 4:00 PM ET)
+            and extended hours. Crypto trading is also available 24/7.
+            """)
 
-    with st.expander("Can I use my own TradingView strategies?"):
-        st.write("""
-        Absolutely! Any TradingView strategy or indicator that can generate alerts can be connected
-        to NovAlgo. You have full control over your trading logic - we just execute the signals.
-        """)
+        with st.expander("Can I use my own TradingView strategies?"):
+            st.write("""
+            Absolutely! Any TradingView strategy or indicator that can generate alerts can be
+            connected to NovAlgo. Just configure the alert webhook URL and message format.
+            """)
 
-    with st.expander("What are System Strategies?"):
-        st.write("""
-        System Strategies are curated TradingView strategies run by NovAlgo. You can subscribe
-        to receive their signals automatically. Each strategy includes a risk disclaimer,
-        and you maintain full control over position sizing and can unsubscribe at any time.
-        """)
+        with st.expander("What are System Strategies?"):
+            st.write("""
+            System Strategies are curated TradingView strategies managed by NovAlgo. You can
+            subscribe to these strategies and trades will execute automatically when signals fire.
+            """)
 
-    with st.expander("How fast are trade executions?"):
-        st.write("""
-        Trades typically execute in under 100 milliseconds from when we receive the webhook.
-        Market orders fill immediately at the best available price. We use Alpaca's high-performance
-        trading API for maximum speed and reliability.
-        """)
+        with st.expander("How fast are trade executions?"):
+            st.write("""
+            Trades typically execute in under 100 milliseconds from when we receive the webhook.
+            Market orders fill immediately at the best available price.
+            """)
 
     # =========================================================================
     # RISK WARNING
@@ -1872,39 +1618,31 @@ def show_landing_page():
     st.markdown("""
     <div class="risk-warning">
         <div class="risk-warning-title">⚠️ Risk Disclosure</div>
-        <div class="risk-warning-text">
-            <strong>Trading involves substantial risk of loss and is not suitable for all investors.</strong>
-            Past performance is not indicative of future results. Automated trading systems, including NovAlgo,
-            carry additional risks including system failures, connectivity issues, and the possibility of
-            executing trades at unintended prices. You should only trade with money you can afford to lose.
-            Consider consulting a financial advisor before making investment decisions.
-        </div>
+        <p class="risk-warning-text">
+            Trading involves substantial risk of loss and is not suitable for all investors.
+            Past performance is not indicative of future results. Automated trading systems
+            carry additional risks including system failures and connectivity issues.
+            Only trade with money you can afford to lose.
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
     # =========================================================================
-    # GET STARTED / AUTH SECTION
+    # CTA SECTION & AUTH
     # =========================================================================
-    st.markdown("---")
-
-    # Anchor for Sign In button navigation
-    st.markdown('<div id="login-section"></div>', unsafe_allow_html=True)
-
+    st.markdown('<div id="get-started"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section">
-        <div class="section-header">
-            <h2 class="section-title">Ready to Automate Your Trading?</h2>
-            <p class="section-subtitle">
-                Join traders who are already executing their strategies automatically
-            </p>
-        </div>
+    <div class="cta-section">
+        <h2 class="cta-title">Ready to Automate Your Trading?</h2>
+        <p class="cta-subtitle">Join traders who execute their strategies automatically</p>
     </div>
     """, unsafe_allow_html=True)
 
+    # Auth tabs
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        tab1, tab2 = st.tabs(["🔐 Sign In", "✨ Create Free Account"])
+        tab1, tab2 = st.tabs(["🔐 Sign In", "✨ Create Account"])
 
         with tab1:
             st.markdown("#### Welcome Back")
@@ -1927,41 +1665,37 @@ def show_landing_page():
                                 st.balloons()
                                 st.rerun()
                             else:
-                                st.error(result.get('error', 'Login failed'))
+                                st.error(result.get('error', 'Invalid credentials'))
 
         with tab2:
-            st.markdown("#### Start Trading in Minutes")
+            st.markdown("#### Create Your Account")
             with st.form("register_form", clear_on_submit=False):
-                reg_username = st.text_input("Username", key="reg_user", placeholder="Choose a username")
-                reg_email = st.text_input("Email", key="reg_email", placeholder="your@email.com")
-                reg_fullname = st.text_input("Full Name (optional)", key="reg_name", placeholder="John Doe")
-                reg_password = st.text_input("Password", type="password", key="reg_pass", placeholder="Min 6 characters")
-                reg_password_confirm = st.text_input("Confirm Password", type="password", key="reg_pass2", placeholder="Re-enter password")
+                new_username = st.text_input("Username", placeholder="Choose a username", key="reg_user")
+                new_email = st.text_input("Email", placeholder="your@email.com", key="reg_email")
+                new_password = st.text_input("Password", type="password", placeholder="Create a password", key="reg_pass")
+                confirm_password = st.text_input("Confirm Password", type="password", placeholder="Confirm your password", key="reg_confirm")
 
-                st.caption("By creating an account, you agree to our Terms of Service and Privacy Policy.")
+                agree = st.checkbox("I agree to the Terms of Service and Privacy Policy")
 
-                submit_reg = st.form_submit_button("Create Account", use_container_width=True, type="primary")
+                register = st.form_submit_button("Create Account", use_container_width=True, type="primary")
 
-                if submit_reg:
-                    if not reg_username or not reg_email or not reg_password:
-                        st.error("Please fill in all required fields")
-                    elif reg_password != reg_password_confirm:
+                if register:
+                    if not all([new_username, new_email, new_password, confirm_password]):
+                        st.error("Please fill in all fields")
+                    elif new_password != confirm_password:
                         st.error("Passwords do not match")
-                    elif len(reg_password) < 6:
+                    elif not agree:
+                        st.error("Please agree to the Terms of Service")
+                    elif len(new_password) < 6:
                         st.error("Password must be at least 6 characters")
-                    elif len(reg_username) < 3:
-                        st.error("Username must be at least 3 characters")
                     else:
-                        with st.spinner("Creating your account..."):
-                            try:
-                                result = UserDB.register_user(reg_username, reg_email, reg_password, reg_fullname)
-                                if result['success']:
-                                    st.success("Account created! You can now sign in.")
-                                    st.balloons()
-                                else:
-                                    st.error(result.get('error', 'Registration failed'))
-                            except Exception as e:
-                                st.error(f"Error: {str(e)}")
+                        with st.spinner("Creating account..."):
+                            result = UserDB.register_user(new_username, new_email, new_password)
+                            if result['success']:
+                                st.success("Account created! Please sign in.")
+                                st.balloons()
+                            else:
+                                st.error(result.get('error', 'Registration failed'))
 
     # =========================================================================
     # FOOTER
@@ -1970,14 +1704,14 @@ def show_landing_page():
     <div class="footer">
         <div class="footer-grid">
             <div>
-                <div class="footer-brand">🚀 NovAlgo</div>
+                <div class="footer-brand">NovAlgo</div>
                 <p class="footer-desc">
-                    Automated trading platform connecting TradingView strategies to Alpaca execution.
-                    Trade smarter, not harder.
+                    Automated trading platform connecting TradingView strategies
+                    to Alpaca execution. Trade smarter, not harder.
                 </p>
             </div>
             <div>
-                <div class="footer-heading">Product</div>
+                <div class="footer-title">Product</div>
                 <ul class="footer-links">
                     <li><a href="#features">Features</a></li>
                     <li><a href="#how-it-works">How It Works</a></li>
@@ -1986,16 +1720,16 @@ def show_landing_page():
                 </ul>
             </div>
             <div>
-                <div class="footer-heading">Resources</div>
+                <div class="footer-title">Resources</div>
                 <ul class="footer-links">
                     <li><a href="#">Documentation</a></li>
-                    <li><a href="#">API Reference</a></li>
                     <li><a href="#">Webhook Guide</a></li>
                     <li><a href="#">TradingView Setup</a></li>
+                    <li><a href="#">API Reference</a></li>
                 </ul>
             </div>
             <div>
-                <div class="footer-heading">Company</div>
+                <div class="footer-title">Company</div>
                 <ul class="footer-links">
                     <li><a href="#">About Us</a></li>
                     <li><a href="#">Contact</a></li>
@@ -2005,11 +1739,12 @@ def show_landing_page():
             </div>
         </div>
         <div class="footer-bottom">
-            <div>© 2024 NovAlgo. All rights reserved.</div>
-            <div>Made with ❤️ for traders</div>
+            © 2024 NovAlgo. All rights reserved. Made with ❤️ for traders.
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+
 
 def show_register_page():
     """Display modern registration page"""
