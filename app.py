@@ -388,1156 +388,427 @@ def create_candlestick_chart_with_signals(df, symbol: str):
 
 # Main App
 def show_landing_page():
-    """Display NovAlgo landing page - Robinhood Gold inspired design"""
-
-    # Hide sidebar and Streamlit elements
-    st.markdown("""
-    <style>
-        [data-testid="stSidebar"] {display: none;}
-        [data-testid="stSidebarNav"] {display: none;}
-        section[data-testid="stSidebar"] {display: none;}
-        [data-testid="collapsedControl"] {display: none;}
-        .block-container {padding-top: 0 !important; max-width: 100% !important; padding-left: 0 !important; padding-right: 0 !important;}
-        header {visibility: hidden;}
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-    </style>
-    """, unsafe_allow_html=True)
-
-    # =========================================================================
-    # DESIGN SPEC CSS - Gold/Cream/Cyan Theme
-    # =========================================================================
+    """Display NovAlgo landing page - Robinhood Gold inspired design with inline styles"""
+    
+    # Hide sidebar and Streamlit elements + base styles
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
-
-        :root {
-            --background: hsl(220, 15%, 5%);
-            --foreground: hsl(45, 20%, 92%);
-            --card: hsl(220, 15%, 8%);
-            --muted: hsl(220, 15%, 15%);
-            --muted-foreground: hsl(220, 10%, 55%);
-            --border: hsl(220, 15%, 15%);
-            --primary: hsl(185, 90%, 50%);
-            --secondary: hsl(40, 60%, 55%);
-            --gold: hsl(40, 70%, 55%);
-        }
-
-        .stApp {
-            background: var(--background) !important;
-        }
-
-        /* Typography */
-        .serif {
-            font-family: 'Playfair Display', Georgia, serif;
-        }
-
-        .sans {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-
-        /* Gradient Effects */
-        .text-gradient-gold {
-            background: linear-gradient(135deg, hsl(45, 30%, 90%) 0%, hsl(40, 70%, 55%) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .text-gradient-cyan {
-            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .glow-cyan {
-            box-shadow: 0 0 40px hsla(185, 90%, 50%, 0.3), 0 0 80px hsla(185, 90%, 50%, 0.1);
-        }
-
-        .glow-gold {
-            box-shadow: 0 0 40px hsla(40, 70%, 55%, 0.3), 0 0 80px hsla(40, 70%, 55%, 0.1);
-        }
-
-        /* Animations */
-        @keyframes pulse-slow {
+        
+        [data-testid="stSidebar"] {display: none !important;}
+        [data-testid="stSidebarNav"] {display: none !important;}
+        section[data-testid="stSidebar"] {display: none !important;}
+        [data-testid="collapsedControl"] {display: none !important;}
+        .block-container {padding-top: 0 !important; max-width: 100% !important; padding-left: 0 !important; padding-right: 0 !important;}
+        header {visibility: hidden !important;}
+        #MainMenu {visibility: hidden !important;}
+        footer {visibility: hidden !important;}
+        .stApp {background: #0a0b10 !important;}
+        
+        @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
-
         @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-        }
-
-        @keyframes glow {
-            0% { box-shadow: 0 0 20px hsla(185, 90%, 50%, 0.2); }
-            100% { box-shadow: 0 0 40px hsla(185, 90%, 50%, 0.4); }
-        }
-
-        @keyframes gradient-shift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        .animate-pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
-        .animate-float { animation: float 6s ease-in-out infinite; }
-        .animate-glow { animation: glow 3s ease-in-out infinite alternate; }
-
-        /* Navigation */
-        .nav-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 72px;
-            background: hsla(220, 15%, 5%, 0.9);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid hsla(220, 15%, 20%, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 5%;
-            z-index: 1000;
-        }
-
-        .nav-logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            text-decoration: none;
-        }
-
-        .nav-logo-icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.2rem;
-        }
-
-        .nav-logo-text {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 2.5rem;
-        }
-
-        .nav-links a {
-            color: hsla(45, 20%, 92%, 0.7);
-            text-decoration: none;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            font-weight: 500;
-            transition: color 0.3s ease;
-        }
-
-        .nav-links a:hover {
-            color: hsl(45, 20%, 92%);
-        }
-
-        .nav-buttons {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid hsla(220, 15%, 25%, 1);
-            color: hsl(45, 20%, 92%);
-            padding: 10px 24px;
-            border-radius: 9999px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-        }
-
-        .btn-outline:hover {
-            border-color: hsl(45, 20%, 92%);
-        }
-
-        .btn-primary {
-            background: hsl(45, 30%, 90%);
-            color: hsl(220, 15%, 5%);
-            padding: 10px 24px;
-            border-radius: 9999px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px hsla(45, 30%, 90%, 0.2);
-        }
-
-        .btn-large {
-            padding: 16px 32px;
-            font-size: 1rem;
-        }
-
-        /* Hero Section */
-        .hero {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 140px 5% 100px;
-            background: var(--background);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                radial-gradient(ellipse at 20% 20%, hsla(185, 90%, 50%, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 80%, hsla(40, 70%, 55%, 0.06) 0%, transparent 50%);
-            pointer-events: none;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            background: hsla(185, 90%, 50%, 0.1);
-            border: 1px solid hsla(185, 90%, 50%, 0.3);
-            padding: 10px 20px;
-            border-radius: 9999px;
-            margin-bottom: 2rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-badge-dot {
-            width: 8px;
-            height: 8px;
-            background: hsl(185, 90%, 50%);
-            border-radius: 50%;
-            animation: pulse-slow 2s ease-in-out infinite;
-        }
-
-        .hero-badge-text {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            color: hsl(185, 90%, 50%);
-        }
-
-        .hero-title {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(3rem, 8vw, 5rem);
-            font-weight: 600;
-            line-height: 1.1;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 1.5rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-title .gold {
-            background: linear-gradient(135deg, hsl(45, 30%, 90%) 0%, hsl(40, 70%, 55%) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            position: relative;
-            cursor: default;
-        }
-
-        .hero-title .gold:hover {
-            animation: gradient-shift 2s ease infinite;
-            background-size: 200% 200%;
-        }
-
-        .hero-subtitle {
-            font-family: 'Inter', sans-serif;
-            font-size: 1.25rem;
-            color: hsl(220, 10%, 55%);
-            max-width: 600px;
-            margin: 0 auto 2.5rem;
-            line-height: 1.7;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-cta {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: 4rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-stats {
-            display: flex;
-            gap: 3rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-stat {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            color: hsl(220, 10%, 55%);
-        }
-
-        .hero-stat-icon {
-            color: hsl(185, 90%, 50%);
-        }
-
-        /* Floating Cards (decorative) */
-        .floating-cards {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-            pointer-events: none;
-        }
-
-        .floating-card {
-            position: absolute;
-            background: hsla(220, 15%, 10%, 0.8);
-            border: 1px solid hsla(220, 15%, 20%, 0.5);
-            border-radius: 16px;
-            padding: 1rem;
-            backdrop-filter: blur(10px);
-            animation: float 6s ease-in-out infinite;
-        }
-
-        .floating-card:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
-        .floating-card:nth-child(2) { top: 30%; right: 10%; animation-delay: 1s; }
-        .floating-card:nth-child(3) { bottom: 30%; left: 15%; animation-delay: 2s; }
-        .floating-card:nth-child(4) { bottom: 20%; right: 15%; animation-delay: 3s; }
-
-        /* Features Section */
-        .section {
-            padding: 100px 5%;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .section-header {
-            text-align: center;
-            margin-bottom: 4rem;
-        }
-
-        .section-label {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.85rem;
-            color: hsl(40, 70%, 55%);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 1rem;
-        }
-
-        .section-title {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(2rem, 5vw, 3rem);
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 1rem;
-        }
-
-        .section-title .gold {
-            background: linear-gradient(135deg, hsl(45, 30%, 90%) 0%, hsl(40, 70%, 55%) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .section-subtitle {
-            font-family: 'Inter', sans-serif;
-            font-size: 1.1rem;
-            color: hsl(220, 10%, 55%);
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        /* Feature Cards - 2x2 Grid */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 2rem;
-        }
-
-        .feature-card {
-            background: linear-gradient(180deg, hsl(220, 15%, 10%) 0%, hsl(220, 15%, 6%) 100%);
-            border: 1px solid hsla(220, 15%, 20%, 0.5);
-            border-radius: 20px;
-            padding: 2.5rem;
-            transition: all 0.5s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, hsl(185, 90%, 50%), hsl(40, 70%, 55%));
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 20px 60px hsla(0, 0%, 0%, 0.4);
-            border-color: hsla(185, 90%, 50%, 0.3);
-        }
-
-        .feature-card:hover::before {
-            opacity: 1;
-        }
-
-        .feature-icon {
-            width: 56px;
-            height: 56px;
-            background: hsl(220, 15%, 15%);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.8rem;
-            margin-bottom: 1.5rem;
-            transition: all 0.3s ease;
-        }
-
-        .feature-card:hover .feature-icon {
-            background: hsla(185, 90%, 50%, 0.15);
-        }
-
-        .feature-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.4rem;
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 1rem;
-        }
-
-        .feature-desc {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            color: hsl(220, 10%, 55%);
-            line-height: 1.7;
-            margin-bottom: 1.5rem;
-        }
-
-        .feature-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            color: hsl(185, 90%, 50%);
-            text-decoration: none;
-            transition: gap 0.3s ease;
-        }
-
-        .feature-link:hover {
-            gap: 12px;
-        }
-
-        /* How It Works */
-        .steps-container {
-            display: flex;
-            justify-content: space-between;
-            position: relative;
-            gap: 2rem;
-        }
-
-        .steps-container::before {
-            content: '';
-            position: absolute;
-            top: 40px;
-            left: 15%;
-            right: 15%;
-            height: 2px;
-            background: linear-gradient(90deg, hsl(185, 90%, 50%), hsl(40, 70%, 55%));
-            z-index: 0;
-        }
-
-        .step {
-            flex: 1;
-            text-align: center;
-            position: relative;
-            z-index: 1;
-        }
-
-        .step-number {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Playfair Display', serif;
-            font-size: 1.8rem;
-            font-weight: 600;
-            color: hsl(220, 15%, 5%);
-            margin: 0 auto 1.5rem;
-            box-shadow: 0 0 30px hsla(185, 90%, 50%, 0.3);
-        }
-
-        .step-icon {
-            width: 60px;
-            height: 60px;
-            background: hsla(40, 70%, 55%, 0.15);
-            border: 1px solid hsla(40, 70%, 55%, 0.3);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            margin: 0 auto 1rem;
-        }
-
-        .step-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 0.75rem;
-        }
-
-        .step-desc {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            color: hsl(220, 10%, 55%);
-            line-height: 1.6;
-        }
-
-        /* Pricing Section */
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 2rem;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .pricing-card {
-            background: hsl(220, 15%, 8%);
-            border: 1px solid hsla(220, 15%, 20%, 0.5);
-            border-radius: 24px;
-            padding: 3rem 2rem;
-            text-align: center;
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .pricing-card.featured {
-            border-color: hsl(185, 90%, 50%);
-            box-shadow: 0 0 40px hsla(185, 90%, 50%, 0.2);
-        }
-
-        .pricing-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .pricing-badge {
-            position: absolute;
-            top: -14px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
-            color: hsl(220, 15%, 5%);
-            padding: 6px 16px;
-            border-radius: 9999px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .pricing-name {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 1rem;
-        }
-
-        .pricing-price {
-            font-family: 'Playfair Display', serif;
-            font-size: 4rem;
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 0.5rem;
-        }
-
-        .pricing-price span {
-            font-size: 1rem;
-            color: hsl(220, 10%, 55%);
-            font-family: 'Inter', sans-serif;
-        }
-
-        .pricing-features {
-            margin: 2rem 0;
-            text-align: left;
-        }
-
-        .pricing-feature {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 1rem;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            color: hsl(220, 10%, 70%);
-        }
-
-        .pricing-feature-icon {
-            color: hsl(185, 90%, 50%);
-        }
-
-        .pricing-btn {
-            width: 100%;
-            padding: 14px;
-            border-radius: 9999px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .pricing-btn-primary {
-            background: hsl(45, 30%, 90%);
-            color: hsl(220, 15%, 5%);
-            border: none;
-        }
-
-        .pricing-btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px hsla(45, 30%, 90%, 0.2);
-        }
-
-        .pricing-btn-disabled {
-            background: hsl(220, 15%, 15%);
-            color: hsl(220, 10%, 55%);
-            border: none;
-            cursor: not-allowed;
-        }
-
-        /* CTA Section */
-        .cta-section {
-            text-align: center;
-            padding: 100px 5%;
-            background: hsl(220, 15%, 6%);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .cta-section::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -20%;
-            width: 140%;
-            height: 200%;
-            background: repeating-linear-gradient(
-                -45deg,
-                transparent,
-                transparent 50px,
-                hsla(220, 15%, 10%, 0.5) 50px,
-                hsla(220, 15%, 10%, 0.5) 51px
-            );
-            pointer-events: none;
-        }
-
-        .cta-title {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(2rem, 5vw, 3rem);
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 1rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .cta-subtitle {
-            font-family: 'Inter', sans-serif;
-            font-size: 1.1rem;
-            color: hsl(220, 10%, 55%);
-            margin-bottom: 2rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Auth Section */
-        .auth-section {
-            max-width: 450px;
-            margin: 0 auto;
-            background: hsl(220, 15%, 8%);
-            border: 1px solid hsla(220, 15%, 20%, 0.5);
-            border-radius: 24px;
-            padding: 2.5rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Footer */
-        .footer {
-            background: hsl(220, 15%, 5%);
-            border-top: 1px solid hsla(220, 15%, 15%, 0.5);
-            padding: 60px 5% 30px;
-        }
-
-        .footer-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr;
-            gap: 4rem;
-            max-width: 1200px;
-            margin: 0 auto 3rem;
-        }
-
-        .footer-brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 1rem;
-        }
-
-        .footer-brand-icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, hsl(185, 90%, 50%) 0%, hsl(185, 70%, 40%) 100%);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.2rem;
-        }
-
-        .footer-brand-text {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-        }
-
-        .footer-tagline {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            color: hsl(220, 10%, 55%);
-            line-height: 1.7;
-        }
-
-        .footer-col-title {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: hsl(45, 20%, 92%);
-            margin-bottom: 1.5rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .footer-links {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .footer-links li {
-            margin-bottom: 0.75rem;
-        }
-
-        .footer-links a {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            color: hsl(220, 10%, 55%);
-            text-decoration: none;
-            transition: color 0.3s ease;
-        }
-
-        .footer-links a:hover {
-            color: hsl(185, 90%, 50%);
-        }
-
-        .footer-bottom {
-            border-top: 1px solid hsla(220, 15%, 15%, 0.5);
-            padding-top: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .footer-copyright {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.85rem;
-            color: hsl(220, 10%, 45%);
-            margin-bottom: 1rem;
-        }
-
-        .footer-disclaimer {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.8rem;
-            color: hsl(220, 10%, 40%);
-            line-height: 1.6;
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .steps-container {
-                flex-direction: column;
-                gap: 3rem;
-            }
-
-            .steps-container::before {
-                display: none;
-            }
-
-            .pricing-grid {
-                grid-template-columns: 1fr;
-                max-width: 450px;
-            }
-
-            .footer-grid {
-                grid-template-columns: 1fr 1fr;
-                gap: 2rem;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .nav-links {
-                display: none;
-            }
-
-            .hero {
-                padding: 120px 5% 60px;
-            }
-
-            .hero-stats {
-                flex-direction: column;
-                gap: 1.5rem;
-            }
-
-            .section {
-                padding: 60px 5%;
-            }
-
-            .floating-cards {
-                display: none;
-            }
-
-            .footer-grid {
-                grid-template-columns: 1fr;
-                text-align: center;
-            }
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
         }
     </style>
     """, unsafe_allow_html=True)
-
+    
     # =========================================================================
-    # NAVIGATION
+    # NAVIGATION BAR
     # =========================================================================
     st.markdown("""
-    <div class="nav-bar">
-        <a href="#" class="nav-logo">
-            <div class="nav-logo-icon">⚡</div>
-            <span class="nav-logo-text">NovAlgo</span>
-        </a>
-        <div class="nav-links">
-            <a href="#features">Features</a>
-            <a href="#how-it-works">How it Works</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#faq">FAQ</a>
+    <div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 72px;
+        background: rgba(10, 11, 16, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 5%;
+        z-index: 1000;
+        box-sizing: border-box;
+    ">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="
+                width: 36px;
+                height: 36px;
+                background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.2rem;
+            ">⚡</div>
+            <span style="
+                font-family: 'Playfair Display', Georgia, serif;
+                font-size: 1.5rem;
+                font-weight: 600;
+                color: #f5f0e8;
+            ">NovAlgo</span>
         </div>
-        <div class="nav-buttons">
-            <a href="#get-started" class="btn-outline">Log in</a>
-            <a href="#get-started" class="btn-primary">Get Started</a>
+        <div style="display: flex; gap: 2.5rem;">
+            <a href="#features" style="color: rgba(245, 240, 232, 0.7); text-decoration: none; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 500;">Features</a>
+            <a href="#how-it-works" style="color: rgba(245, 240, 232, 0.7); text-decoration: none; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 500;">How it Works</a>
+            <a href="#pricing" style="color: rgba(245, 240, 232, 0.7); text-decoration: none; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 500;">Pricing</a>
+            <a href="#faq" style="color: rgba(245, 240, 232, 0.7); text-decoration: none; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 500;">FAQ</a>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <a href="#get-started" style="
+                background: transparent;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                color: #f5f0e8;
+                padding: 10px 24px;
+                border-radius: 9999px;
+                font-family: 'Inter', sans-serif;
+                font-size: 0.9rem;
+                font-weight: 500;
+                text-decoration: none;
+            ">Log in</a>
+            <a href="#get-started" style="
+                background: #f5f0e8;
+                color: #0a0b10;
+                padding: 10px 24px;
+                border-radius: 9999px;
+                font-family: 'Inter', sans-serif;
+                font-size: 0.9rem;
+                font-weight: 600;
+                text-decoration: none;
+            ">Get Started</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # =========================================================================
     # HERO SECTION
     # =========================================================================
     st.markdown("""
-    <div class="hero">
-        <div class="floating-cards">
-            <div class="floating-card">🤖</div>
-            <div class="floating-card">📈</div>
-            <div class="floating-card">🛡️</div>
-            <div class="floating-card">⚡</div>
+    <div style="
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        padding: 140px 5% 100px;
+        background: #0a0b10;
+        position: relative;
+    ">
+        <!-- Badge -->
+        <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 9999px;
+            margin-bottom: 2rem;
+        ">
+            <div style="
+                width: 8px;
+                height: 8px;
+                background: #00d4ff;
+                border-radius: 50%;
+                animation: pulse 2s ease-in-out infinite;
+            "></div>
+            <span style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #00d4ff;">
+                Now in Public Beta — Free to Use
+            </span>
         </div>
-
-        <div class="hero-badge">
-            <div class="hero-badge-dot"></div>
-            <span class="hero-badge-text">Now in Public Beta — Free to Use</span>
-        </div>
-
-        <h1 class="hero-title">
-            <span class="gold">Trade</span> Smarter,<br>Not <span class="gold">Harder</span>
+        
+        <!-- Title -->
+        <h1 style="
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: clamp(3rem, 8vw, 5rem);
+            font-weight: 600;
+            line-height: 1.1;
+            color: #f5f0e8;
+            margin: 0 0 1.5rem 0;
+        ">
+            <span style="background: linear-gradient(135deg, #f5f0e8 0%, #d4a84b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Trade</span> Smarter,<br>
+            Not <span style="background: linear-gradient(135deg, #f5f0e8 0%, #d4a84b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Harder</span>
         </h1>
-
-        <p class="hero-subtitle">
+        
+        <!-- Subtitle -->
+        <p style="
+            font-family: 'Inter', sans-serif;
+            font-size: 1.25rem;
+            color: #7a7a8c;
+            max-width: 600px;
+            margin: 0 auto 2.5rem;
+            line-height: 1.7;
+        ">
             Connect TradingView to Alpaca and execute your strategies automatically.
             No coding required. Set up once, trade 24/7.
         </p>
-
-        <div class="hero-cta">
-            <a href="#get-started" class="btn-primary btn-large">Start Trading Free →</a>
-            <a href="#how-it-works" class="btn-outline btn-large">Watch Demo</a>
+        
+        <!-- CTA Buttons -->
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 4rem;">
+            <a href="#get-started" style="
+                background: #f5f0e8;
+                color: #0a0b10;
+                padding: 16px 32px;
+                border-radius: 9999px;
+                font-family: 'Inter', sans-serif;
+                font-size: 1rem;
+                font-weight: 600;
+                text-decoration: none;
+                display: inline-block;
+            ">Start Trading Free →</a>
+            <a href="#how-it-works" style="
+                background: transparent;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                color: #f5f0e8;
+                padding: 16px 32px;
+                border-radius: 9999px;
+                font-family: 'Inter', sans-serif;
+                font-size: 1rem;
+                font-weight: 500;
+                text-decoration: none;
+                display: inline-block;
+            ">Watch Demo</a>
         </div>
-
-        <div class="hero-stats">
-            <div class="hero-stat">
-                <span class="hero-stat-icon">⚡</span>
+        
+        <!-- Stats -->
+        <div style="display: flex; gap: 3rem; justify-content: center; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c;">
+                <span style="color: #00d4ff;">⚡</span>
                 <span>24/7 Automated Trading</span>
             </div>
-            <div class="hero-stat">
-                <span class="hero-stat-icon">🚀</span>
+            <div style="display: flex; align-items: center; gap: 10px; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c;">
+                <span style="color: #00d4ff;">🚀</span>
                 <span>0.1s Execution Speed</span>
             </div>
-            <div class="hero-stat">
-                <span class="hero-stat-icon">✓</span>
+            <div style="display: flex; align-items: center; gap: 10px; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c;">
+                <span style="color: #00d4ff;">✓</span>
                 <span>100% Strategy Compliant</span>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # =========================================================================
     # FEATURES SECTION
     # =========================================================================
     st.markdown('<div id="features"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section">
-        <div class="section-header">
-            <div class="section-label">Features</div>
-            <h2 class="section-title">Start trading <span class="gold">like a pro</span></h2>
-            <p class="section-subtitle">
+    <div style="padding: 100px 5%; max-width: 1200px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 4rem;">
+            <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #d4a84b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;">Features</div>
+            <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">
+                Start trading <span style="background: linear-gradient(135deg, #f5f0e8 0%, #d4a84b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">like a pro</span>
+            </h2>
+            <p style="font-family: 'Inter', sans-serif; font-size: 1.1rem; color: #7a7a8c; max-width: 600px; margin: 0 auto;">
                 Everything you need to automate your trading strategies
             </p>
         </div>
-
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🤖</div>
-                <h3 class="feature-title">Automated Execution</h3>
-                <p class="feature-desc">
-                    Connect your TradingView alerts to Alpaca and let NovAlgo execute 
-                    trades automatically. No manual intervention needed.
+        
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem;">
+            <!-- Feature 1 -->
+            <div style="background: linear-gradient(180deg, #12131a 0%, #0a0b10 100%); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 2.5rem;">
+                <div style="width: 56px; height: 56px; background: #1a1b24; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 1.5rem;">🤖</div>
+                <h3 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.4rem; font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">Automated Execution</h3>
+                <p style="font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c; line-height: 1.7; margin: 0 0 1.5rem 0;">
+                    Connect your TradingView alerts to Alpaca and let NovAlgo execute trades automatically. No manual intervention needed.
                 </p>
-                <a href="#" class="feature-link">Learn more →</a>
+                <a href="#" style="display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #00d4ff; text-decoration: none;">Learn more →</a>
             </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <h3 class="feature-title">Lightning Fast</h3>
-                <p class="feature-desc">
-                    Trades execute in under 100 milliseconds. Never miss an entry 
-                    or exit again with our high-speed infrastructure.
+            
+            <!-- Feature 2 -->
+            <div style="background: linear-gradient(180deg, #12131a 0%, #0a0b10 100%); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 2.5rem;">
+                <div style="width: 56px; height: 56px; background: #1a1b24; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 1.5rem;">⚡</div>
+                <h3 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.4rem; font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">Lightning Fast</h3>
+                <p style="font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c; line-height: 1.7; margin: 0 0 1.5rem 0;">
+                    Trades execute in under 100 milliseconds. Never miss an entry or exit again with our high-speed infrastructure.
                 </p>
-                <a href="#" class="feature-link">Learn more →</a>
+                <a href="#" style="display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #00d4ff; text-decoration: none;">Learn more →</a>
             </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">🛡️</div>
-                <h3 class="feature-title">Bank-Grade Security</h3>
-                <p class="feature-desc">
-                    Your API keys are encrypted with 256-bit encryption. We never 
-                    have withdrawal access to your funds.
+            
+            <!-- Feature 3 -->
+            <div style="background: linear-gradient(180deg, #12131a 0%, #0a0b10 100%); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 2.5rem;">
+                <div style="width: 56px; height: 56px; background: #1a1b24; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 1.5rem;">🛡️</div>
+                <h3 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.4rem; font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">Bank-Grade Security</h3>
+                <p style="font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c; line-height: 1.7; margin: 0 0 1.5rem 0;">
+                    Your API keys are encrypted with 256-bit encryption. We never have withdrawal access to your funds.
                 </p>
-                <a href="#" class="feature-link">Learn more →</a>
+                <a href="#" style="display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #00d4ff; text-decoration: none;">Learn more →</a>
             </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">📊</div>
-                <h3 class="feature-title">Real-Time Dashboard</h3>
-                <p class="feature-desc">
-                    Monitor all your positions, P&L, and trade history in real-time 
-                    with our beautiful analytics dashboard.
+            
+            <!-- Feature 4 -->
+            <div style="background: linear-gradient(180deg, #12131a 0%, #0a0b10 100%); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 2.5rem;">
+                <div style="width: 56px; height: 56px; background: #1a1b24; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 1.5rem;">📊</div>
+                <h3 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.4rem; font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">Real-Time Dashboard</h3>
+                <p style="font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c; line-height: 1.7; margin: 0 0 1.5rem 0;">
+                    Monitor all your positions, P&L, and trade history in real-time with our beautiful analytics dashboard.
                 </p>
-                <a href="#" class="feature-link">Learn more →</a>
+                <a href="#" style="display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #00d4ff; text-decoration: none;">Learn more →</a>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # =========================================================================
-    # HOW IT WORKS
+    # HOW IT WORKS SECTION
     # =========================================================================
     st.markdown('<div id="how-it-works"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section" style="background: hsl(220, 15%, 6%); max-width: 100%; padding-left: 5%; padding-right: 5%;">
+    <div style="padding: 100px 5%; background: #08090d;">
         <div style="max-width: 1200px; margin: 0 auto;">
-            <div class="section-header">
-                <div class="section-label">Process</div>
-                <h2 class="section-title">How it <span class="gold">works</span></h2>
-                <p class="section-subtitle">
+            <div style="text-align: center; margin-bottom: 4rem;">
+                <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #d4a84b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;">Process</div>
+                <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">
+                    How it <span style="background: linear-gradient(135deg, #f5f0e8 0%, #d4a84b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">works</span>
+                </h2>
+                <p style="font-family: 'Inter', sans-serif; font-size: 1.1rem; color: #7a7a8c; max-width: 600px; margin: 0 auto;">
                     Get started in minutes with our simple 4-step process
                 </p>
             </div>
-
-            <div class="steps-container">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <div class="step-icon">👤</div>
-                    <h4 class="step-title">Create Account</h4>
-                    <p class="step-desc">Sign up for free in seconds. No credit card required.</p>
+            
+            <div style="display: flex; justify-content: space-between; position: relative; gap: 2rem;">
+                <!-- Connecting line -->
+                <div style="position: absolute; top: 40px; left: 15%; right: 15%; height: 2px; background: linear-gradient(90deg, #00d4ff, #d4a84b); z-index: 0;"></div>
+                
+                <!-- Step 1 -->
+                <div style="flex: 1; text-align: center; position: relative; z-index: 1;">
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; color: #0a0b10; margin: 0 auto 1.5rem; box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);">1</div>
+                    <div style="width: 60px; height: 60px; background: rgba(212, 168, 75, 0.15); border: 1px solid rgba(212, 168, 75, 0.3); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 1rem;">👤</div>
+                    <h4 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.2rem; font-weight: 600; color: #f5f0e8; margin: 0 0 0.75rem 0;">Create Account</h4>
+                    <p style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; line-height: 1.6; margin: 0;">Sign up for free in seconds. No credit card required.</p>
                 </div>
-
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <div class="step-icon">🔗</div>
-                    <h4 class="step-title">Connect Alpaca</h4>
-                    <p class="step-desc">Link your Alpaca brokerage account with API keys.</p>
+                
+                <!-- Step 2 -->
+                <div style="flex: 1; text-align: center; position: relative; z-index: 1;">
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; color: #0a0b10; margin: 0 auto 1.5rem; box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);">2</div>
+                    <div style="width: 60px; height: 60px; background: rgba(212, 168, 75, 0.15); border: 1px solid rgba(212, 168, 75, 0.3); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 1rem;">🔗</div>
+                    <h4 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.2rem; font-weight: 600; color: #f5f0e8; margin: 0 0 0.75rem 0;">Connect Alpaca</h4>
+                    <p style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; line-height: 1.6; margin: 0;">Link your Alpaca brokerage account with API keys.</p>
                 </div>
-
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <div class="step-icon">🤖</div>
-                    <h4 class="step-title">Configure Bots</h4>
-                    <p class="step-desc">Set up trading bots with your symbols and position sizes.</p>
+                
+                <!-- Step 3 -->
+                <div style="flex: 1; text-align: center; position: relative; z-index: 1;">
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; color: #0a0b10; margin: 0 auto 1.5rem; box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);">3</div>
+                    <div style="width: 60px; height: 60px; background: rgba(212, 168, 75, 0.15); border: 1px solid rgba(212, 168, 75, 0.3); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 1rem;">🤖</div>
+                    <h4 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.2rem; font-weight: 600; color: #f5f0e8; margin: 0 0 0.75rem 0;">Configure Bots</h4>
+                    <p style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; line-height: 1.6; margin: 0;">Set up trading bots with your symbols and position sizes.</p>
                 </div>
-
-                <div class="step">
-                    <div class="step-number">4</div>
-                    <div class="step-icon">🚀</div>
-                    <h4 class="step-title">Automate Trading</h4>
-                    <p class="step-desc">Add webhook to TradingView and start trading automatically!</p>
+                
+                <!-- Step 4 -->
+                <div style="flex: 1; text-align: center; position: relative; z-index: 1;">
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; color: #0a0b10; margin: 0 auto 1.5rem; box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);">4</div>
+                    <div style="width: 60px; height: 60px; background: rgba(212, 168, 75, 0.15); border: 1px solid rgba(212, 168, 75, 0.3); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 1rem;">🚀</div>
+                    <h4 style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.2rem; font-weight: 600; color: #f5f0e8; margin: 0 0 0.75rem 0;">Automate Trading</h4>
+                    <p style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; line-height: 1.6; margin: 0;">Add webhook to TradingView and start trading automatically!</p>
                 </div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # =========================================================================
     # PRICING SECTION
     # =========================================================================
     st.markdown('<div id="pricing"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section">
-        <div class="section-header">
-            <div class="section-label">Pricing</div>
-            <h2 class="section-title">Simple, <span class="gold">transparent</span> pricing</h2>
-            <p class="section-subtitle">
+    <div style="padding: 100px 5%; max-width: 1200px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 4rem;">
+            <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #d4a84b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;">Pricing</div>
+            <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">
+                Simple, <span style="background: linear-gradient(135deg, #f5f0e8 0%, #d4a84b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">transparent</span> pricing
+            </h2>
+            <p style="font-family: 'Inter', sans-serif; font-size: 1.1rem; color: #7a7a8c; max-width: 600px; margin: 0 auto;">
                 Start for free, upgrade when you need more
             </p>
         </div>
-
-        <div class="pricing-grid">
-            <div class="pricing-card featured">
-                <div class="pricing-badge">✨ Popular</div>
-                <div class="pricing-name">Free Beta</div>
-                <div class="pricing-price">$0<span>/month</span></div>
-                <div class="pricing-features">
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+        
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; max-width: 900px; margin: 0 auto;">
+            <!-- Free Beta Card -->
+            <div style="background: #0e0f14; border: 1px solid #00d4ff; border-radius: 24px; padding: 3rem 2rem; text-align: center; position: relative; box-shadow: 0 0 40px rgba(0, 212, 255, 0.2);">
+                <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); color: #0a0b10; padding: 6px 16px; border-radius: 9999px; font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">✨ Popular</div>
+                <div style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; font-weight: 600; color: #f5f0e8; margin-bottom: 1rem;">Free Beta</div>
+                <div style="font-family: 'Playfair Display', Georgia, serif; font-size: 4rem; font-weight: 600; color: #f5f0e8; margin-bottom: 0.5rem;">$0<span style="font-size: 1rem; color: #7a7a8c; font-family: 'Inter', sans-serif;">/month</span></div>
+                <div style="margin: 2rem 0; text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Unlimited paper trades</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Live market execution</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>TradingView webhooks</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Real-time dashboard</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Bank-grade encryption</span>
                     </div>
                 </div>
-                <a href="#get-started" class="pricing-btn pricing-btn-primary">Start Free</a>
+                <a href="#get-started" style="display: block; width: 100%; padding: 14px; border-radius: 9999px; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; background: #f5f0e8; color: #0a0b10; text-decoration: none; text-align: center; box-sizing: border-box;">Start Free</a>
             </div>
-
-            <div class="pricing-card">
-                <div class="pricing-name">Pro</div>
-                <div class="pricing-price">$29<span>/month</span></div>
-                <div class="pricing-features">
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+            
+            <!-- Pro Card -->
+            <div style="background: #0e0f14; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 3rem 2rem; text-align: center; position: relative;">
+                <div style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; font-weight: 600; color: #f5f0e8; margin-bottom: 1rem;">Pro</div>
+                <div style="font-family: 'Playfair Display', Georgia, serif; font-size: 4rem; font-weight: 600; color: #f5f0e8; margin-bottom: 0.5rem;">$29<span style="font-size: 1rem; color: #7a7a8c; font-family: 'Inter', sans-serif;">/month</span></div>
+                <div style="margin: 2rem 0; text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Everything in Free</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Priority execution</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Advanced analytics</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Outgoing webhooks</span>
                     </div>
-                    <div class="pricing-feature">
-                        <span class="pricing-feature-icon">✓</span>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #b0b0c0;">
+                        <span style="color: #00d4ff;">✓</span>
                         <span>Priority support</span>
                     </div>
                 </div>
-                <button class="pricing-btn pricing-btn-disabled" disabled>Coming Soon</button>
+                <button style="display: block; width: 100%; padding: 14px; border-radius: 9999px; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; background: #1a1b24; color: #7a7a8c; border: none; cursor: not-allowed;">Coming Soon</button>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # =========================================================================
     # FAQ SECTION
     # =========================================================================
     st.markdown('<div id="faq"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="section" style="background: hsl(220, 15%, 6%); max-width: 100%; padding-left: 5%; padding-right: 5%;">
+    <div style="padding: 100px 5%; background: #08090d;">
         <div style="max-width: 800px; margin: 0 auto;">
-            <div class="section-header">
-                <div class="section-label">FAQ</div>
-                <h2 class="section-title">Get to know all <span class="gold">the benefits</span></h2>
+            <div style="text-align: center; margin-bottom: 4rem;">
+                <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #d4a84b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;">FAQ</div>
+                <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; color: #f5f0e8; margin: 0;">
+                    Get to know all <span style="background: linear-gradient(135deg, #f5f0e8 0%, #d4a84b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">the benefits</span>
+                </h2>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # FAQ using Streamlit expanders
     with st.container():
         col1, col2, col3 = st.columns([1, 3, 1])
@@ -1548,92 +819,78 @@ def show_landing_page():
                 When your TradingView strategy generates a signal, NovAlgo receives the webhook and 
                 automatically executes the trade through your Alpaca account.
                 """)
-
+            
             with st.expander("Is my money safe? Can you withdraw my funds?"):
                 st.write("""
                 Your money is completely safe. NovAlgo never has access to withdraw your funds. 
                 We only store encrypted API keys with trading permissions - no withdrawal access.
                 Your money stays in your SIPC-protected Alpaca account.
                 """)
-
+            
             with st.expander("Do I need any coding experience?"):
                 st.write("""
                 No coding required! If you can create an alert in TradingView, you can use NovAlgo.
                 Just copy your webhook URL and paste it into TradingView's alert settings.
                 """)
-
+            
             with st.expander("Can I practice with paper trading first?"):
                 st.write("""
                 Absolutely! We recommend starting with paper trading. Alpaca provides free paper
                 trading accounts with real-time data so you can test your strategies risk-free.
                 """)
-
+            
             with st.expander("How fast are trade executions?"):
                 st.write("""
                 Trades typically execute in under 100 milliseconds from when we receive the webhook.
                 Market orders fill immediately at the best available price through Alpaca.
                 """)
-
+            
             with st.expander("What happens if NovAlgo goes down?"):
                 st.write("""
                 Your existing positions remain safely in your Alpaca account. You can always 
                 manage your positions directly through Alpaca's app or website. We maintain 
                 99.9% uptime with redundant infrastructure.
                 """)
-
-            with st.expander("Is the free tier really free forever?"):
-                st.write("""
-                During our public beta, all features are completely free. We'll always offer a 
-                generous free tier. Pro features will be available for power users who need 
-                advanced analytics and priority support.
-                """)
-
-            with st.expander("What brokerages do you support?"):
-                st.write("""
-                We currently support Alpaca, which offers commission-free trading for US stocks 
-                and ETFs. Alpaca is regulated by FINRA and SEC, with accounts protected by SIPC 
-                up to $500,000.
-                """)
-
+    
     # =========================================================================
     # CTA SECTION
     # =========================================================================
     st.markdown("""
-    <div class="cta-section">
-        <h2 class="cta-title">Discover the power of automation</h2>
-        <p class="cta-subtitle">Join thousands of traders automating their strategies with NovAlgo</p>
-        <a href="#get-started" class="btn-primary btn-large" style="position: relative; z-index: 1;">Start Trading Free →</a>
+    <div style="text-align: center; padding: 100px 5%; background: #08090d; position: relative; overflow: hidden;">
+        <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; color: #f5f0e8; margin: 0 0 1rem 0;">Discover the power of automation</h2>
+        <p style="font-family: 'Inter', sans-serif; font-size: 1.1rem; color: #7a7a8c; margin: 0 0 2rem 0;">Join thousands of traders automating their strategies with NovAlgo</p>
+        <a href="#get-started" style="background: #f5f0e8; color: #0a0b10; padding: 16px 32px; border-radius: 9999px; font-family: 'Inter', sans-serif; font-size: 1rem; font-weight: 600; text-decoration: none; display: inline-block;">Start Trading Free →</a>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # =========================================================================
     # AUTH SECTION
     # =========================================================================
     st.markdown('<div id="get-started"></div>', unsafe_allow_html=True)
-
+    
     col1, col2, col3 = st.columns([1, 2, 1])
-
+    
     with col2:
         st.markdown("""
         <div style="text-align: center; margin-bottom: 2rem;">
-            <h2 style="font-family: 'Playfair Display', serif; font-size: 2rem; color: hsl(45, 20%, 92%); margin-bottom: 0.5rem;">
+            <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; color: #f5f0e8; margin-bottom: 0.5rem;">
                 Get Started
             </h2>
-            <p style="font-family: 'Inter', sans-serif; color: hsl(220, 10%, 55%);">
+            <p style="font-family: 'Inter', sans-serif; color: #7a7a8c;">
                 Create your account or sign in
             </p>
         </div>
         """, unsafe_allow_html=True)
-
+        
         tab1, tab2 = st.tabs(["Sign In", "Create Account"])
-
+        
         with tab1:
             with st.form("login_form", clear_on_submit=False):
                 username = st.text_input("Username", placeholder="Enter your username")
                 password = st.text_input("Password", type="password", placeholder="Enter your password")
-
+                
                 submit = st.form_submit_button("Sign In", use_container_width=True, type="primary")
-
+                
                 if submit:
                     if not username or not password:
                         st.error("Please enter both username and password")
@@ -1648,18 +905,18 @@ def show_landing_page():
                                 st.rerun()
                             else:
                                 st.error(result.get('error', 'Invalid credentials'))
-
+        
         with tab2:
             with st.form("register_form", clear_on_submit=False):
                 new_username = st.text_input("Username", placeholder="Choose a username", key="reg_user")
                 new_email = st.text_input("Email", placeholder="your@email.com", key="reg_email")
                 new_password = st.text_input("Password", type="password", placeholder="Create a password", key="reg_pass")
                 confirm_password = st.text_input("Confirm Password", type="password", placeholder="Confirm password", key="reg_confirm")
-
+                
                 agree = st.checkbox("I agree to the Terms of Service and Privacy Policy")
-
+                
                 register = st.form_submit_button("Create Account", use_container_width=True, type="primary")
-
+                
                 if register:
                     if not all([new_username, new_email, new_password, confirm_password]):
                         st.error("Please fill in all fields")
@@ -1677,55 +934,53 @@ def show_landing_page():
                                 st.balloons()
                             else:
                                 st.error(result.get('error', 'Registration failed'))
-
+    
     # =========================================================================
     # FOOTER
     # =========================================================================
     st.markdown("""
-    <div class="footer">
-        <div class="footer-grid">
+    <div style="background: #0a0b10; border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 60px 5% 30px;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 4rem; max-width: 1200px; margin: 0 auto 3rem;">
             <div>
-                <div class="footer-brand">
-                    <div class="footer-brand-icon">⚡</div>
-                    <span class="footer-brand-text">NovAlgo</span>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem;">
+                    <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">⚡</div>
+                    <span style="font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; font-weight: 600; color: #f5f0e8;">NovAlgo</span>
                 </div>
-                <p class="footer-tagline">
-                    Automated trading platform connecting TradingView strategies 
-                    to Alpaca execution. Trade smarter, not harder.
+                <p style="font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #7a7a8c; line-height: 1.7;">
+                    Automated trading platform connecting TradingView strategies to Alpaca execution. Trade smarter, not harder.
                 </p>
             </div>
             <div>
-                <div class="footer-col-title">Product</div>
-                <ul class="footer-links">
-                    <li><a href="#features">Features</a></li>
-                    <li><a href="#pricing">Pricing</a></li>
-                    <li><a href="#how-it-works">How it Works</a></li>
-                    <li><a href="#faq">FAQ</a></li>
+                <div style="font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 600; color: #f5f0e8; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 1px;">Product</div>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li style="margin-bottom: 0.75rem;"><a href="#features" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Features</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#pricing" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Pricing</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#how-it-works" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">How it Works</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#faq" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">FAQ</a></li>
                 </ul>
             </div>
             <div>
-                <div class="footer-col-title">Company</div>
-                <ul class="footer-links">
-                    <li><a href="#">About</a></li>
-                    <li><a href="#">Blog</a></li>
-                    <li><a href="#">Careers</a></li>
-                    <li><a href="#">Contact</a></li>
+                <div style="font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 600; color: #f5f0e8; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 1px;">Company</div>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li style="margin-bottom: 0.75rem;"><a href="#" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">About</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Blog</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Careers</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Contact</a></li>
                 </ul>
             </div>
             <div>
-                <div class="footer-col-title">Legal</div>
-                <ul class="footer-links">
-                    <li><a href="#">Terms of Service</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
-                    <li><a href="#">Risk Disclosure</a></li>
+                <div style="font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 600; color: #f5f0e8; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 1px;">Legal</div>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li style="margin-bottom: 0.75rem;"><a href="#" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Terms of Service</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Privacy Policy</a></li>
+                    <li style="margin-bottom: 0.75rem;"><a href="#" style="font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #7a7a8c; text-decoration: none;">Risk Disclosure</a></li>
                 </ul>
             </div>
         </div>
-        <div class="footer-bottom">
-            <p class="footer-copyright">© 2024 NovAlgo. All rights reserved.</p>
-            <p class="footer-disclaimer">
-                Trading involves substantial risk of loss. Past performance is not indicative of future results.
-                Automated trading systems carry additional risks. Only trade with money you can afford to lose.
+        <div style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 2rem; max-width: 1200px; margin: 0 auto;">
+            <p style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #5a5a6c; margin-bottom: 1rem;">© 2024 NovAlgo. All rights reserved.</p>
+            <p style="font-family: 'Inter', sans-serif; font-size: 0.8rem; color: #4a4a5c; line-height: 1.6;">
+                Trading involves substantial risk of loss. Past performance is not indicative of future results. Automated trading systems carry additional risks. Only trade with money you can afford to lose.
             </p>
         </div>
     </div>
