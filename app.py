@@ -419,10 +419,12 @@ def show_landing_page():
             <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #00d4ff, #0099cc); border-radius: 8px; display: flex; align-items: center; justify-content: center;">⚡</div>
             <span style="font-family: Playfair Display, serif; font-size: 1.5rem; font-weight: 600; color: #f5f0e8;">NovAlgo</span>
         </div>
-        <div style="display: flex; gap: 2rem;">
+        <div style="display: flex; gap: 2rem; align-items: center;">
             <a href="#features" style="color: rgba(245,240,232,0.7); text-decoration: none;">Features</a>
             <a href="#pricing" style="color: rgba(245,240,232,0.7); text-decoration: none;">Pricing</a>
             <a href="#faq" style="color: rgba(245,240,232,0.7); text-decoration: none;">FAQ</a>
+            <a href="#get-started" style="color: rgba(245,240,232,0.7); text-decoration: none;">Login</a>
+            <a href="#get-started" style="background: #f5f0e8; color: #0a0b10; padding: 8px 20px; border-radius: 9999px; text-decoration: none; font-weight: 600;">Get Started</a>
         </div>
     </div>""", unsafe_allow_html=True)
     
