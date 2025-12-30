@@ -347,7 +347,8 @@ def api_delete_bot(bot_id):
 def api_toggle_bot(bot_id):
     """Toggle bot active/inactive status"""
     try:
-        data = request.get_json() or {}
+        # Use silent=True to handle empty request bodies
+        data = request.get_json(silent=True) or {}
         is_active = data.get('is_active')
 
         if is_active is None:
