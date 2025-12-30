@@ -25,14 +25,15 @@ app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.environ.get('ENCRYPTION_KEY', 'dev-secret-key-change-in-production'))
 
-# Enable CORS for React frontend
-CORS(app, resources={
-    r"/api/*": {
-        "origins": ["*"],  # In production, restrict to your frontend domain
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+# Enable CORS for React frontend (allow all origins for development)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # Setup logging
 logging.basicConfig(
