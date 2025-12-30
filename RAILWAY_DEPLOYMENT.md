@@ -222,6 +222,83 @@ Monitor usage in Railway dashboard and upgrade as needed.
 
 ---
 
+## Multi-Service Architecture (API + Webhook + Web)
+
+DashTrade now supports a **split architecture** with separate services:
+
+| Service | Purpose | Start Command | Port |
+|---------|---------|---------------|------|
+| **web** | Streamlit frontend | `python run_server.py` | 8080 |
+| **webhook** | TradingView signals | `python run_webhook.py` | 8080 |
+| **api** | REST API for React | `python run_api.py` | 8081 |
+
+### Why Separate Services?
+
+1. **Fault Isolation** - API crash won't affect trading webhooks
+2. **Independent Scaling** - Scale API for high traffic without affecting webhooks
+3. **Cleaner Deployments** - Update API without risking webhook stability
+4. **Better for Production** - Professional microservices architecture
+
+### Setting Up Multiple Services
+
+#### Step 1: Create API Service
+
+1. In Railway dashboard, click **"+ New"** → **"Service"**
+2. Select **"GitHub Repo"** → Choose this repository
+3. Configure:
+   - Name: `dashtrade-api`
+   - Start Command: `python run_api.py`
+   - Port: Leave as auto-detected or set to 8081
+
+#### Step 2: Create Webhook Service
+
+1. Click **"+ New"** → **"Service"**
+2. Select **"GitHub Repo"** → Same repository
+3. Configure:
+   - Name: `dashtrade-webhook`
+   - Start Command: `python run_webhook.py`
+   - Port: 8080
+
+#### Step 3: Configure Environment Variables
+
+Add these to each service (or use Railway's shared variables):
+
+```bash
+# Required (all services)
+DATABASE_URL=postgresql://...  # Auto-set by Railway PostgreSQL
+SECRET_KEY=your-secret-key
+ENCRYPTION_KEY=your-encryption-key
+
+# Cross-service URLs (after creating services)
+WEBHOOK_SERVER_URL=https://dashtrade-webhook.up.railway.app
+API_SERVER_URL=https://dashtrade-api.up.railway.app
+```
+
+### Service URLs After Deployment
+
+| Service | URL |
+|---------|-----|
+| Streamlit | `https://dashtrade-web.up.railway.app` |
+| API | `https://dashtrade-api.up.railway.app/api/...` |
+| Webhooks | `https://dashtrade-webhook.up.railway.app/webhook?token=...` |
+
+### React Frontend Configuration
+
+Give Lovable AI (or your React frontend) the API URL:
+
+```
+API_BASE_URL=https://dashtrade-api.up.railway.app
+```
+
+### Health Checks
+
+```bash
+curl https://dashtrade-api.up.railway.app/health
+curl https://dashtrade-webhook.up.railway.app/health
+```
+
+---
+
 🎉 **Your DashTrade app is now automatically deployed from GitHub to Railway!**
 
 Every push to your main branch will automatically update your live application.

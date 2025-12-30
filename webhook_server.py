@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-DashTrade Webhook Server - Multi-user Trading Bot
+DashTrade Webhook Server - TradingView Signal Handler
 Receives TradingView webhooks and executes trades via Alpaca
-Runs on port 8080 alongside Streamlit (port 5000)
+Runs as a separate service dedicated to webhook processing
+
+Port: 8080 (default)
 """
 from flask import Flask, request, jsonify
 import logging
 import requests
+import os
 from datetime import datetime
 from bot_database import (
     BotConfigDB, WebhookTokenDB, SystemStrategyDB,
@@ -24,6 +27,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
 
 # ============================================================================
 # WEBHOOK ENDPOINTS
@@ -51,13 +55,13 @@ def webhook():
         # 1. Validate token
         token = request.args.get('token')
         if not token:
-            logger.warning("⚠️  Webhook request missing token")
+            logger.warning("Webhook request missing token")
             return jsonify({'error': 'Missing token parameter'}), 401
 
         # 2. Get user_id from token
         user_id = WebhookTokenDB.get_user_by_token(token)
         if not user_id:
-            logger.warning(f"⚠️  Invalid token: {token[:10]}...")
+            logger.warning(f"Invalid token: {token[:10]}...")
             return jsonify({'error': 'Invalid or inactive token'}), 401
 
         # 3. Parse request data
@@ -79,13 +83,13 @@ def webhook():
         if action not in ['BUY', 'SELL', 'CLOSE']:
             return jsonify({'error': f'Invalid action: {action}'}), 400
 
-        logger.info(f"📨 WEBHOOK: User {user_id} - {action} {symbol} {timeframe}")
+        logger.info(f"WEBHOOK: User {user_id} - {action} {symbol} {timeframe}")
 
         # 4. Get bot configuration (specifically for 'webhook' signal source)
         bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
 
         if not bot_config:
-            logger.info(f"ℹ️  No bot config found: {symbol} {timeframe}")
+            logger.info(f"No bot config found: {symbol} {timeframe}")
             return jsonify({
                 'status': 'skipped',
                 'reason': 'No bot configuration found for this symbol+timeframe',
@@ -94,7 +98,7 @@ def webhook():
             }), 200
 
         if not bot_config['is_active']:
-            logger.info(f"ℹ️  Bot inactive: {symbol} {timeframe}")
+            logger.info(f"Bot inactive: {symbol} {timeframe}")
             return jsonify({
                 'status': 'skipped',
                 'reason': 'Bot is disabled',
@@ -106,7 +110,7 @@ def webhook():
         try:
             engine = TradingEngine(user_id)
         except ValueError as e:
-            logger.error(f"❌ Failed to initialize trading engine: {e}")
+            logger.error(f"Failed to initialize trading engine: {e}")
             return jsonify({
                 'status': 'error',
                 'message': 'Alpaca API keys not configured. Please add them in Bot Settings.'
@@ -141,7 +145,7 @@ def webhook():
         return jsonify(response), status_code
 
     except Exception as e:
-        logger.error(f"❌ Webhook error: {e}", exc_info=True)
+        logger.error(f"Webhook error: {e}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': 'Internal server error',
@@ -185,16 +189,16 @@ def forward_to_outgoing_webhooks(user_id: int, event_type: str, payload: dict):
                 UserOutgoingWebhookDB.increment_call_count(wh['id'], success=success)
 
                 if success:
-                    logger.info(f"📤 Outgoing webhook sent: {wh.get('webhook_name', 'Unknown')}")
+                    logger.info(f"Outgoing webhook sent: {wh.get('webhook_name', 'Unknown')}")
                 else:
-                    logger.warning(f"⚠️ Outgoing webhook failed ({response.status_code}): {wh.get('webhook_name', 'Unknown')}")
+                    logger.warning(f"Outgoing webhook failed ({response.status_code}): {wh.get('webhook_name', 'Unknown')}")
 
             except Exception as e:
                 UserOutgoingWebhookDB.increment_call_count(wh['id'], success=False)
-                logger.error(f"❌ Outgoing webhook error: {e}")
+                logger.error(f"Outgoing webhook error: {e}")
 
     except Exception as e:
-        logger.error(f"❌ Error forwarding to outgoing webhooks: {e}")
+        logger.error(f"Error forwarding to outgoing webhooks: {e}")
 
 
 @app.route('/system-webhook', methods=['POST'])
@@ -217,17 +221,17 @@ def system_webhook():
         # 1. Validate system token
         token = request.args.get('token')
         if not token:
-            logger.warning("⚠️  System webhook missing token")
+            logger.warning("System webhook missing token")
             return jsonify({'error': 'Missing token parameter'}), 401
 
         if not token.startswith('sys_'):
-            logger.warning(f"⚠️  Invalid system token format: {token[:10]}...")
+            logger.warning(f"Invalid system token format: {token[:10]}...")
             return jsonify({'error': 'Invalid system token'}), 401
 
         # 2. Get strategy from token
         strategy = SystemStrategyDB.get_strategy_by_token(token)
         if not strategy:
-            logger.warning(f"⚠️  Invalid or inactive strategy token: {token[:15]}...")
+            logger.warning(f"Invalid or inactive strategy token: {token[:15]}...")
             return jsonify({'error': 'Invalid or inactive strategy token'}), 401
 
         # 3. Parse request data
@@ -249,7 +253,7 @@ def system_webhook():
         if action not in ['BUY', 'SELL', 'CLOSE']:
             return jsonify({'error': f'Invalid action: {action}'}), 400
 
-        logger.info(f"📨 SYSTEM WEBHOOK: Strategy '{strategy['name']}' - {action} {symbol}")
+        logger.info(f"SYSTEM WEBHOOK: Strategy '{strategy['name']}' - {action} {symbol}")
 
         # 4. Increment signal count for strategy
         SystemStrategyDB.increment_signal_count(strategy['id'])
@@ -258,7 +262,7 @@ def system_webhook():
         subscribers = UserStrategySubscriptionDB.get_strategy_subscribers(strategy['id'])
 
         if not subscribers:
-            logger.info(f"ℹ️  No subscribers for strategy: {strategy['name']}")
+            logger.info(f"No subscribers for strategy: {strategy['name']}")
             return jsonify({
                 'status': 'no_subscribers',
                 'strategy': strategy['name'],
@@ -331,7 +335,7 @@ def system_webhook():
                     'status': 'error',
                     'error': str(e)
                 })
-                logger.error(f"❌ Error executing for user {user_id}: {e}")
+                logger.error(f"Error executing for user {user_id}: {e}")
 
         # 7. Return summary
         return jsonify({
@@ -347,7 +351,7 @@ def system_webhook():
         }), 200
 
     except Exception as e:
-        logger.error(f"❌ System webhook error: {e}", exc_info=True)
+        logger.error(f"System webhook error: {e}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': 'Internal server error',
@@ -361,7 +365,7 @@ def health():
     return jsonify({
         'status': 'healthy',
         'service': 'DashTrade Webhook Server',
-        'port': 8080,
+        'port': int(os.environ.get('PORT', 8080)),
         'timestamp': datetime.utcnow().isoformat()
     }), 200
 
@@ -373,7 +377,7 @@ def test_webhook():
     Useful for debugging and testing webhook payloads
     """
     data = request.get_json()
-    logger.info(f"📥 Test webhook received: {data}")
+    logger.info(f"Test webhook received: {data}")
 
     return jsonify({
         'status': 'test_received',
@@ -383,69 +387,18 @@ def test_webhook():
     }), 200
 
 
-@app.route('/user/<int:user_id>/positions', methods=['GET'])
-def get_user_positions(user_id: int):
-    """
-    Get current positions for a user
-    Useful for debugging
-
-    Requires: ?token=USER_WEBHOOK_TOKEN (for authentication)
-    """
-    token = request.args.get('token')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
-    # Verify token belongs to this user
-    token_user_id = WebhookTokenDB.get_user_by_token(token)
-    if token_user_id != user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    try:
-        engine = TradingEngine(user_id)
-        positions = engine.get_all_positions()
-        account = engine.get_account_info()
-
-        return jsonify({
-            'user_id': user_id,
-            'account': account,
-            'positions': positions,
-            'total_positions': len(positions)
-        }), 200
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/user/<int:user_id>/bots', methods=['GET'])
-def get_user_bots(user_id: int):
-    """
-    Get all bot configurations for a user
-    Useful for debugging
-
-    Requires: ?token=USER_WEBHOOK_TOKEN (for authentication)
-    """
-    token = request.args.get('token')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
-    # Verify token belongs to this user
-    token_user_id = WebhookTokenDB.get_user_by_token(token)
-    if token_user_id != user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    bots = BotConfigDB.get_user_bots(user_id)
-
-    # Convert Decimal to float for JSON serialization
-    for bot in bots:
-        for key, value in bot.items():
-            if hasattr(value, '__float__'):
-                bot[key] = float(value)
-
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint with webhook info"""
     return jsonify({
-        'user_id': user_id,
-        'bots': bots,
-        'total_bots': len(bots),
-        'active_bots': sum(1 for b in bots if b['is_active'])
+        'service': 'DashTrade Webhook Server',
+        'version': '1.0.0',
+        'endpoints': {
+            'webhook': 'POST /webhook?token=YOUR_TOKEN',
+            'system_webhook': 'POST /system-webhook?token=SYS_TOKEN',
+            'test': 'POST /test-webhook',
+            'health': 'GET /health'
+        }
     }), 200
 
 
@@ -458,12 +411,10 @@ def not_found(error):
     return jsonify({
         'error': 'Endpoint not found',
         'available_endpoints': [
-            'POST /webhook?token=YOUR_USER_TOKEN - User webhook for custom TradingView alerts',
-            'POST /system-webhook?token=SYS_TOKEN - System strategy webhook (admin)',
-            'GET /health - Health check',
+            'POST /webhook?token=usr_xxx - TradingView webhook',
+            'POST /system-webhook?token=sys_xxx - System strategy webhook',
             'POST /test-webhook - Test webhook (no auth)',
-            'GET /user/<id>/positions?token=YOUR_TOKEN - Get user positions',
-            'GET /user/<id>/bots?token=YOUR_TOKEN - Get user bots'
+            'GET /health - Health check'
         ]
     }), 404
 
@@ -479,11 +430,10 @@ def internal_error(error):
 # ============================================================================
 
 if __name__ == '__main__':
-    import os
     PORT = int(os.environ.get('PORT', 8080))
 
     logger.info("=" * 80)
-    logger.info("🤖 DASHTRADE WEBHOOK SERVER")
+    logger.info("DASHTRADE WEBHOOK SERVER")
     logger.info("=" * 80)
     logger.info(f"Port: {PORT}")
     logger.info("Endpoints:")
