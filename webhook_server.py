@@ -28,6 +28,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Run migrations on startup
+try:
+    from run_migrations import run_migrations
+    run_migrations()
+except Exception as e:
+    logger.warning(f"Migration check skipped: {e}")
+
 
 # ============================================================================
 # WEBHOOK ENDPOINTS
@@ -38,14 +45,24 @@ def webhook():
     """
     Main webhook endpoint for TradingView signals
 
-    URL format: /webhook?token=usr_abc123...
+    Supports TWO token types:
+    1. User token: /webhook?token=usr_abc123...
+       - Requires symbol and timeframe in payload
+    2. Bot token: /webhook?token=bot_abc123...
+       - Symbol and timeframe are auto-detected from bot config
+       - Only requires action in payload (most automated)
 
     POST body (JSON):
+    For user tokens:
     {
         "action": "BUY" | "SELL" | "CLOSE",
         "symbol": "AAPL",
-        "timeframe": "15 Min",
-        "price": 145.50  (optional)
+        "timeframe": "15 Min"
+    }
+
+    For bot tokens (simplified):
+    {
+        "action": "BUY" | "SELL" | "CLOSE"
     }
 
     Returns:
@@ -58,45 +75,67 @@ def webhook():
             logger.warning("Webhook request missing token")
             return jsonify({'error': 'Missing token parameter'}), 401
 
-        # 2. Get user_id from token
-        user_id = WebhookTokenDB.get_user_by_token(token)
-        if not user_id:
-            logger.warning(f"Invalid token: {token[:10]}...")
-            return jsonify({'error': 'Invalid or inactive token'}), 401
-
-        # 3. Parse request data
+        # 2. Parse request data
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Invalid JSON'}), 400
 
         action = data.get('action', '').upper()
-        symbol = data.get('symbol', '').upper()
-        timeframe = data.get('timeframe', '')
-
-        # Validate required fields
-        if not action or not symbol or not timeframe:
-            return jsonify({
-                'error': 'Missing required fields',
-                'required': ['action', 'symbol', 'timeframe']
-            }), 400
+        if not action:
+            return jsonify({'error': 'Missing required field: action'}), 400
 
         if action not in ['BUY', 'SELL', 'CLOSE']:
             return jsonify({'error': f'Invalid action: {action}'}), 400
 
-        logger.info(f"WEBHOOK: User {user_id} - {action} {symbol} {timeframe}")
+        # 3. Handle bot token (bot_xxx) - fully automated
+        if token.startswith('bot_'):
+            bot_config = BotConfigDB.get_bot_by_webhook_token(token)
+            if not bot_config:
+                logger.warning(f"Invalid bot token: {token[:15]}...")
+                return jsonify({'error': 'Invalid or inactive bot token'}), 401
 
-        # 4. Get bot configuration (specifically for 'webhook' signal source)
-        bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
+            user_id = bot_config['user_id']
+            symbol = bot_config['symbol']
+            timeframe = bot_config['timeframe']
 
-        if not bot_config:
-            logger.info(f"No bot config found: {symbol} {timeframe}")
-            return jsonify({
-                'status': 'skipped',
-                'reason': 'No bot configuration found for this symbol+timeframe',
-                'symbol': symbol,
-                'timeframe': timeframe
-            }), 200
+            logger.info(f"BOT WEBHOOK: Bot {bot_config['id']} - {action} {symbol} {timeframe}")
 
+        # 4. Handle user token (usr_xxx) - requires symbol/timeframe in payload
+        elif token.startswith('usr_'):
+            user_id = WebhookTokenDB.get_user_by_token(token)
+            if not user_id:
+                logger.warning(f"Invalid user token: {token[:15]}...")
+                return jsonify({'error': 'Invalid or inactive token'}), 401
+
+            symbol = data.get('symbol', '').upper()
+            timeframe = data.get('timeframe', '')
+
+            if not symbol or not timeframe:
+                return jsonify({
+                    'error': 'Missing required fields for user token',
+                    'required': ['action', 'symbol', 'timeframe'],
+                    'tip': 'Use a bot-specific token (bot_xxx) to skip symbol/timeframe'
+                }), 400
+
+            logger.info(f"USER WEBHOOK: User {user_id} - {action} {symbol} {timeframe}")
+
+            # Get bot configuration (specifically for 'webhook' signal source)
+            bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
+
+            if not bot_config:
+                logger.info(f"No bot config found: {symbol} {timeframe}")
+                return jsonify({
+                    'status': 'skipped',
+                    'reason': 'No bot configuration found for this symbol+timeframe',
+                    'symbol': symbol,
+                    'timeframe': timeframe
+                }), 200
+
+        else:
+            logger.warning(f"Unknown token format: {token[:15]}...")
+            return jsonify({'error': 'Invalid token format. Must start with usr_ or bot_'}), 401
+
+        # 5. Check if bot is active
         if not bot_config['is_active']:
             logger.info(f"Bot inactive: {symbol} {timeframe}")
             return jsonify({

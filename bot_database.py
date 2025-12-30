@@ -133,27 +133,75 @@ class BotConfigDB:
                    daily_loss_limit: float = None, max_position_size: float = None,
                    signal_source: str = 'webhook', strategy_type: str = 'none') -> Optional[int]:
         """
-        Create a new bot configuration
+        Create a new bot configuration with unique webhook token
 
         Returns:
             int: Bot ID or None on failure
         """
         try:
+            # Generate unique webhook token for this bot
+            webhook_token = f"bot_{secrets.token_urlsafe(32)}"
+
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
                         INSERT INTO user_bot_configs
                         (user_id, symbol, timeframe, position_size, strategy_name,
                          risk_limit_percent, daily_loss_limit, max_position_size,
-                         signal_source, strategy_type)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         signal_source, strategy_type, webhook_token)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (user_id, symbol.upper(), timeframe, position_size, strategy_name,
                           risk_limit_percent, daily_loss_limit, max_position_size,
-                          signal_source, strategy_type))
+                          signal_source, strategy_type, webhook_token))
                     return cur.fetchone()[0]
         except Exception as e:
             print(f"Error creating bot: {e}")
+            return None
+
+    @staticmethod
+    def get_bot_by_webhook_token(token: str) -> Optional[Dict]:
+        """
+        Get bot configuration by webhook token
+
+        Returns:
+            dict: Bot config with user_id or None if not found
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT * FROM user_bot_configs
+                        WHERE webhook_token = %s AND is_active = TRUE
+                    """, (token,))
+                    result = cur.fetchone()
+                    return dict(result) if result else None
+        except Exception as e:
+            print(f"Error getting bot by token: {e}")
+            return None
+
+    @staticmethod
+    def regenerate_bot_webhook_token(bot_id: int, user_id: int) -> Optional[str]:
+        """
+        Regenerate webhook token for a bot
+
+        Returns:
+            str: New token or None on failure
+        """
+        try:
+            new_token = f"bot_{secrets.token_urlsafe(32)}"
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE user_bot_configs
+                        SET webhook_token = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s AND user_id = %s
+                        RETURNING webhook_token
+                    """, (new_token, bot_id, user_id))
+                    result = cur.fetchone()
+                    return result[0] if result else None
+        except Exception as e:
+            print(f"Error regenerating bot token: {e}")
             return None
 
     @staticmethod

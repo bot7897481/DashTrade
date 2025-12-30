@@ -45,6 +45,13 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.environ.get('ENCRYPTI
 # Enable CORS for React frontend (allow all origins for development)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# Run migrations on startup
+try:
+    from run_migrations import run_migrations
+    run_migrations()
+except Exception as e:
+    logger.warning(f"Migration check skipped: {e}")
+
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
@@ -231,6 +238,18 @@ def api_get_bots():
     try:
         bots = BotConfigDB.get_user_bots(g.user_id)
         bots = convert_decimals(bots)
+
+        # Build webhook URL for each bot
+        webhook_base = os.environ.get('WEBHOOK_SERVER_URL', 'https://webhook.novalgo.org')
+        if not webhook_base.startswith('http'):
+            webhook_base = f"https://{webhook_base}"
+
+        for bot in bots:
+            if bot.get('webhook_token'):
+                bot['webhook_url'] = f"{webhook_base}/webhook?token={bot['webhook_token']}"
+            else:
+                bot['webhook_url'] = None
+
         return jsonify({
             'bots': bots,
             'total': len(bots),
@@ -275,10 +294,23 @@ def api_create_bot():
         )
 
         if bot_id:
+            # Get the created bot to retrieve its webhook token
+            bots = BotConfigDB.get_user_bots(g.user_id)
+            bot = next((b for b in bots if b['id'] == bot_id), None)
+
+            webhook_url = None
+            if bot and bot.get('webhook_token'):
+                webhook_base = os.environ.get('WEBHOOK_SERVER_URL', 'https://webhook.novalgo.org')
+                if not webhook_base.startswith('http'):
+                    webhook_base = f"https://{webhook_base}"
+                webhook_url = f"{webhook_base}/webhook?token={bot['webhook_token']}"
+
             return jsonify({
                 'success': True,
                 'bot_id': bot_id,
-                'message': f'Bot created for {symbol} {timeframe}'
+                'message': f'Bot created for {symbol} {timeframe}',
+                'webhook_url': webhook_url,
+                'webhook_payload': '{"action": "{{strategy.order.action}}"}'
             }), 201
         else:
             return jsonify({'error': 'Failed to create bot. May already exist for this symbol+timeframe.'}), 400
@@ -372,6 +404,33 @@ def api_toggle_bot(bot_id):
 
     except Exception as e:
         logger.error(f"Toggle bot error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/bots/<int:bot_id>/regenerate-token', methods=['POST'])
+@token_required
+def api_regenerate_bot_token(bot_id):
+    """Regenerate webhook token for a specific bot"""
+    try:
+        new_token = BotConfigDB.regenerate_bot_webhook_token(bot_id, g.user_id)
+
+        if new_token:
+            webhook_base = os.environ.get('WEBHOOK_SERVER_URL', 'https://webhook.novalgo.org')
+            if not webhook_base.startswith('http'):
+                webhook_base = f"https://{webhook_base}"
+
+            return jsonify({
+                'success': True,
+                'webhook_token': new_token,
+                'webhook_url': f"{webhook_base}/webhook?token={new_token}",
+                'webhook_payload': '{"action": "{{strategy.order.action}}"}',
+                'message': 'Webhook token regenerated. Update your TradingView alert with the new URL.'
+            }), 200
+        else:
+            return jsonify({'error': 'Bot not found or token regeneration failed'}), 404
+
+    except Exception as e:
+        logger.error(f"Regenerate bot token error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 
