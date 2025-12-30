@@ -503,25 +503,26 @@ def api_get_api_keys_status():
 def api_get_webhook_token():
     """Get user's webhook token and URL"""
     try:
-        token_data = WebhookTokenDB.get_user_token(g.user_id)
+        # get_user_token returns just the token string, not a dict
+        token = WebhookTokenDB.get_user_token(g.user_id)
 
-        if not token_data:
-            # Create token if doesn't exist
-            token = WebhookTokenDB.create_token(g.user_id)
-            token_data = {'token': token, 'request_count': 0}
+        if not token:
+            # Create token if doesn't exist - method is generate_token
+            token = WebhookTokenDB.generate_token(g.user_id)
+
+        if not token:
+            return jsonify({'error': 'Failed to get or create webhook token'}), 500
 
         # Build webhook URL - use WEBHOOK_SERVER_URL for the separate webhook service
         webhook_base = os.environ.get('WEBHOOK_SERVER_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN') or os.environ.get('BASE_URL') or request.host_url.rstrip('/')
         if not webhook_base.startswith('http'):
             webhook_base = f"https://{webhook_base}"
 
-        webhook_url = f"{webhook_base}/webhook?token={token_data['token']}"
+        webhook_url = f"{webhook_base}/webhook?token={token}"
 
         return jsonify({
-            'token': token_data['token'],
-            'webhook_url': webhook_url,
-            'request_count': token_data.get('request_count', 0),
-            'last_used_at': token_data.get('last_used_at').isoformat() if token_data.get('last_used_at') else None
+            'token': token,
+            'webhook_url': webhook_url
         }), 200
 
     except Exception as e:
@@ -534,7 +535,8 @@ def api_get_webhook_token():
 def api_regenerate_webhook_token():
     """Regenerate user's webhook token"""
     try:
-        new_token = WebhookTokenDB.regenerate_token(g.user_id)
+        # generate_token with existing user will update the token
+        new_token = WebhookTokenDB.generate_token(g.user_id)
 
         if new_token:
             webhook_base = os.environ.get('WEBHOOK_SERVER_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN') or os.environ.get('BASE_URL') or request.host_url.rstrip('/')
