@@ -12,13 +12,30 @@ import logging
 import os
 import jwt
 import functools
+import traceback
 from datetime import datetime, timedelta
-from bot_database import (
-    BotConfigDB, WebhookTokenDB, SystemStrategyDB,
-    UserStrategySubscriptionDB, BotAPIKeysDB, BotTradesDB
+
+# Setup logging first
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-from bot_engine import TradingEngine
-from auth import UserDB
+logger = logging.getLogger(__name__)
+
+# Try to import database modules with error handling
+try:
+    from bot_database import (
+        BotConfigDB, WebhookTokenDB, SystemStrategyDB,
+        UserStrategySubscriptionDB, BotAPIKeysDB, BotTradesDB
+    )
+    from bot_engine import TradingEngine
+    from auth import UserDB
+    DB_AVAILABLE = True
+    logger.info("Database modules imported successfully")
+except Exception as e:
+    DB_AVAILABLE = False
+    logger.error(f"Failed to import database modules: {e}")
+    logger.error(traceback.format_exc())
 
 # Setup Flask app
 app = Flask(__name__)
@@ -34,13 +51,6 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
-
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # ============================================================================
 # JWT AUTHENTICATION HELPERS
@@ -674,8 +684,10 @@ def api_unsubscribe_strategy(strategy_id):
 def health():
     """Health check endpoint"""
     return jsonify({
-        'status': 'healthy',
+        'status': 'healthy' if DB_AVAILABLE else 'degraded',
         'service': 'DashTrade API Server',
+        'database': 'connected' if DB_AVAILABLE else 'unavailable',
+        'database_url': 'configured' if os.environ.get('DATABASE_URL') else 'missing',
         'port': int(os.environ.get('PORT', 8081)),
         'timestamp': datetime.utcnow().isoformat()
     }), 200
