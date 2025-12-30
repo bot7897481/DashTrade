@@ -49,14 +49,23 @@ Create a new user account.
 ```
 
 #### POST /api/auth/login
-Authenticate and get JWT token.
+Authenticate and get JWT token. **Supports login with username OR email address.**
 
 **Request:**
 ```json
 {
-  "username": "string",
+  "username": "string",  // Can be username OR email address
   "password": "string"
 }
+```
+
+**Examples:**
+```json
+// Login with username
+{ "username": "johndoe", "password": "secret123" }
+
+// Login with email
+{ "username": "john@example.com", "password": "secret123" }
 ```
 
 **Response (200):**
@@ -73,6 +82,13 @@ Authenticate and get JWT token.
   }
 }
 ```
+
+**Frontend Implementation Notes:**
+- The `username` field accepts EITHER a username or email address
+- Backend detects email by checking for `@` character
+- Update form label to "Username or Email"
+- Update placeholder to show both options: "johndoe or john@example.com"
+- Validation should accept: email format OR 3+ characters for username
 
 #### GET /api/auth/me
 Get current authenticated user info.

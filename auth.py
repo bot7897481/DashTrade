@@ -385,29 +385,46 @@ class UserDB:
     @staticmethod
     def authenticate_user(username: str, password: str) -> Dict:
         """
-        Authenticate a user
+        Authenticate a user by username OR email address
+
+        Args:
+            username: Can be either a username or email address
+            password: User's password
+
         Returns: {'success': True, 'user': dict} or {'success': False, 'error': str}
         """
         try:
+            identifier = username.strip().lower()
+
             with get_db_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("""
-                        SELECT id, username, email, password_hash, full_name, role, is_active, email_enabled
-                        FROM users
-                        WHERE username = %s
-                    """, (username.lower(),))
+                    # Check if identifier is an email (contains @) or username
+                    if '@' in identifier:
+                        # Login with email
+                        cur.execute("""
+                            SELECT id, username, email, password_hash, full_name, role, is_active, email_enabled
+                            FROM users
+                            WHERE LOWER(email) = %s
+                        """, (identifier,))
+                    else:
+                        # Login with username
+                        cur.execute("""
+                            SELECT id, username, email, password_hash, full_name, role, is_active, email_enabled
+                            FROM users
+                            WHERE LOWER(username) = %s
+                        """, (identifier,))
 
                     user = cur.fetchone()
 
                     if not user:
-                        return {'success': False, 'error': 'Invalid username or password'}
+                        return {'success': False, 'error': 'Invalid username/email or password'}
 
                     if not user['is_active']:
                         return {'success': False, 'error': 'Account is disabled'}
 
                     # Verify password
                     if not UserDB.verify_password(password, user['password_hash']):
-                        return {'success': False, 'error': 'Invalid username or password'}
+                        return {'success': False, 'error': 'Invalid username/email or password'}
 
                     # Update last login
                     cur.execute("""
