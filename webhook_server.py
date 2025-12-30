@@ -68,6 +68,10 @@ def webhook():
     Returns:
         JSON response with status and execution details
     """
+    # Record signal receipt time immediately for latency tracking
+    signal_received_at = datetime.utcnow()
+    signal_source = 'webhook'
+
     try:
         # 1. Validate token
         token = request.args.get('token')
@@ -97,6 +101,7 @@ def webhook():
             user_id = bot_config['user_id']
             symbol = bot_config['symbol']
             timeframe = bot_config['timeframe']
+            signal_source = 'bot_webhook'
 
             logger.info(f"BOT WEBHOOK: Bot {bot_config['id']} - {action} {symbol} {timeframe}")
 
@@ -109,6 +114,7 @@ def webhook():
 
             symbol = data.get('symbol', '').upper()
             timeframe = data.get('timeframe', '')
+            signal_source = 'user_webhook'
 
             if not symbol or not timeframe:
                 return jsonify({
@@ -145,7 +151,7 @@ def webhook():
                 'timeframe': timeframe
             }), 200
 
-        # 5. Initialize trading engine for this user
+        # 6. Initialize trading engine for this user
         try:
             engine = TradingEngine(user_id)
         except ValueError as e:
@@ -155,24 +161,29 @@ def webhook():
                 'message': 'Alpaca API keys not configured. Please add them in Bot Settings.'
             }), 400
 
-        # 6. Execute trade
-        result = engine.execute_trade(bot_config, action)
+        # 7. Execute trade with timing info
+        result = engine.execute_trade(
+            bot_config, action,
+            signal_received_at=signal_received_at,
+            signal_source=signal_source
+        )
 
-        # 7. Forward to outgoing webhooks
+        # 8. Forward to outgoing webhooks
         forward_to_outgoing_webhooks(user_id, 'signal', {
-            'source': 'user_webhook',
+            'source': signal_source,
             'symbol': symbol,
             'action': action,
             'timeframe': timeframe
         })
 
-        # 8. Return result
+        # 9. Return result with detailed execution info
         response = {
             'status': result.get('status'),
             'user_id': user_id,
             'action': action,
             'symbol': symbol,
             'timeframe': timeframe,
+            'signal_received_at': signal_received_at.isoformat(),
             'timestamp': datetime.utcnow().isoformat(),
             **result
         }

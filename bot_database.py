@@ -357,32 +357,106 @@ class BotTradesDB:
 
     @staticmethod
     def log_trade(user_id: int, bot_config_id: int, symbol: str, timeframe: str,
-                  action: str, notional: float, order_id: str = None) -> Optional[int]:
+                  action: str, notional: float, order_id: str = None,
+                  trade_details: Dict = None) -> Optional[int]:
         """
-        Log a new trade execution
+        Log a new trade execution with detailed information
+
+        Args:
+            user_id: User ID
+            bot_config_id: Bot configuration ID
+            symbol: Trading symbol
+            timeframe: Timeframe
+            action: BUY, SELL, or CLOSE
+            notional: Dollar amount
+            order_id: Alpaca order ID
+            trade_details: Optional dict with additional trade info:
+                - bid_price, ask_price, spread, spread_percent
+                - market_open, extended_hours
+                - signal_source, signal_received_at, order_submitted_at
+                - expected_price, order_type, time_in_force
+                - position_before, position_after, position_qty_before, position_value_before
+                - account_equity, account_buying_power
+                - alpaca_client_order_id
 
         Returns:
             int: Trade ID
         """
         try:
+            details = trade_details or {}
+
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
                         INSERT INTO bot_trades
-                        (user_id, bot_config_id, symbol, timeframe, action, notional, order_id, status)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'SUBMITTED')
+                        (user_id, bot_config_id, symbol, timeframe, action, notional, order_id, status,
+                         bid_price, ask_price, spread, spread_percent,
+                         market_open, extended_hours,
+                         signal_source, signal_received_at, order_submitted_at,
+                         expected_price, order_type, time_in_force,
+                         position_before, position_after, position_qty_before, position_value_before,
+                         account_equity, account_buying_power, alpaca_client_order_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'SUBMITTED',
+                                %s, %s, %s, %s,
+                                %s, %s,
+                                %s, %s, %s,
+                                %s, %s, %s,
+                                %s, %s, %s, %s,
+                                %s, %s, %s)
                         RETURNING id
-                    """, (user_id, bot_config_id, symbol, timeframe, action, notional, order_id))
+                    """, (
+                        user_id, bot_config_id, symbol, timeframe, action, notional, order_id,
+                        details.get('bid_price'), details.get('ask_price'),
+                        details.get('spread'), details.get('spread_percent'),
+                        details.get('market_open'), details.get('extended_hours', False),
+                        details.get('signal_source', 'webhook'),
+                        details.get('signal_received_at'), details.get('order_submitted_at'),
+                        details.get('expected_price'), details.get('order_type', 'market'),
+                        details.get('time_in_force', 'day'),
+                        details.get('position_before'), details.get('position_after'),
+                        details.get('position_qty_before', 0), details.get('position_value_before', 0),
+                        details.get('account_equity'), details.get('account_buying_power'),
+                        details.get('alpaca_client_order_id')
+                    ))
                     return cur.fetchone()[0]
         except Exception as e:
             print(f"Error logging trade: {e}")
-            return None
+            # Fallback to simple insert if new columns don't exist yet
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO bot_trades
+                            (user_id, bot_config_id, symbol, timeframe, action, notional, order_id, status)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, 'SUBMITTED')
+                            RETURNING id
+                        """, (user_id, bot_config_id, symbol, timeframe, action, notional, order_id))
+                        return cur.fetchone()[0]
+            except Exception as e2:
+                print(f"Error in fallback trade logging: {e2}")
+                return None
 
     @staticmethod
     def update_trade_status(trade_id: int, status: str, filled_qty: float = None,
-                           filled_price: float = None, error_msg: str = None) -> bool:
-        """Update trade status after Alpaca response"""
+                           filled_price: float = None, error_msg: str = None,
+                           execution_details: Dict = None) -> bool:
+        """
+        Update trade status after Alpaca response
+
+        Args:
+            trade_id: Trade ID
+            status: New status (FILLED, PARTIAL, FAILED, etc.)
+            filled_qty: Quantity filled
+            filled_price: Average fill price
+            error_msg: Error message if failed
+            execution_details: Optional dict with:
+                - slippage, slippage_percent
+                - execution_latency_ms, time_to_fill_ms
+                - alpaca_order_status, position_after
+        """
         try:
+            details = execution_details or {}
+
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
                     updates = ["status = %s"]
@@ -403,6 +477,31 @@ class BotTradesDB:
                         updates.append("error_message = %s")
                         params.append(error_msg)
 
+                    # Enhanced execution details
+                    if details.get('slippage') is not None:
+                        updates.append("slippage = %s")
+                        params.append(details['slippage'])
+
+                    if details.get('slippage_percent') is not None:
+                        updates.append("slippage_percent = %s")
+                        params.append(details['slippage_percent'])
+
+                    if details.get('execution_latency_ms') is not None:
+                        updates.append("execution_latency_ms = %s")
+                        params.append(details['execution_latency_ms'])
+
+                    if details.get('time_to_fill_ms') is not None:
+                        updates.append("time_to_fill_ms = %s")
+                        params.append(details['time_to_fill_ms'])
+
+                    if details.get('alpaca_order_status'):
+                        updates.append("alpaca_order_status = %s")
+                        params.append(details['alpaca_order_status'])
+
+                    if details.get('position_after'):
+                        updates.append("position_after = %s")
+                        params.append(details['position_after'])
+
                     params.append(trade_id)
 
                     query = f"""
@@ -412,7 +511,8 @@ class BotTradesDB:
                     """
                     cur.execute(query, params)
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Error updating trade status: {e}")
             return False
 
     @staticmethod

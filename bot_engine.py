@@ -208,23 +208,30 @@ class TradingEngine:
             logger.error(f"❌ Error closing position {symbol}: {e}")
             return {'status': 'error', 'message': str(e)}
 
-    def execute_trade(self, bot_config: Dict, action: str) -> Dict:
+    def execute_trade(self, bot_config: Dict, action: str, signal_received_at: datetime = None,
+                       signal_source: str = 'webhook') -> Dict:
         """
         Execute a trade based on TradingView signal
 
         Args:
             bot_config: Bot configuration dict
             action: 'BUY', 'SELL', or 'CLOSE'
+            signal_received_at: Timestamp when signal was received (for latency tracking)
+            signal_source: Source of the signal ('webhook', 'bot_webhook', 'system', etc.)
 
         Returns:
-            dict: Result with status, order_id, message
+            dict: Result with status, order_id, message, and detailed execution info
         """
+        # Record signal receipt time if not provided
+        if signal_received_at is None:
+            signal_received_at = datetime.utcnow()
+
         symbol = bot_config['symbol']
         timeframe = bot_config['timeframe']
         position_size = float(bot_config['position_size'])
         bot_id = bot_config['id']
 
-        logger.info(f"📨 WEBHOOK: {action} ${position_size} {symbol} {timeframe} (User: {self.user_id})")
+        logger.info(f"📨 WEBHOOK: {action} ${position_size} {symbol} {timeframe} (User: {self.user_id}, Source: {signal_source})")
 
         # Get current position
         current_position = self.get_current_position(symbol)
@@ -256,7 +263,16 @@ class TradingEngine:
             close_result = self.close_position(symbol)
             BotConfigDB.update_bot_status(bot_id, self.user_id, 'WAITING', last_signal='CLOSE', position_side='FLAT')
 
-            # Log trade
+            # Log trade with details
+            trade_details = {
+                'signal_source': signal_source,
+                'signal_received_at': signal_received_at,
+                'position_before': current_side,
+                'position_after': 'FLAT',
+                'position_qty_before': current_position.get('qty', 0),
+                'position_value_before': current_position.get('market_value', 0)
+            }
+
             BotTradesDB.log_trade(
                 user_id=self.user_id,
                 bot_config_id=bot_id,
@@ -264,7 +280,8 @@ class TradingEngine:
                 timeframe=timeframe,
                 action='CLOSE',
                 notional=0,
-                order_id=None
+                order_id=None,
+                trade_details=trade_details
             )
 
             return close_result
@@ -282,9 +299,14 @@ class TradingEngine:
                 logger.info(f"🔄 Closing SHORT position before buying")
                 self.close_position(symbol)
                 time.sleep(1)
+                # Update current position after closing
+                current_position = {'side': 'FLAT', 'qty': 0, 'market_value': 0}
 
-            # Execute BUY order
-            return self._execute_long(bot_id, symbol, timeframe, position_size)
+            # Execute BUY order with detailed tracking
+            return self._execute_long(bot_id, symbol, timeframe, position_size,
+                                      signal_received_at=signal_received_at,
+                                      current_position=current_position,
+                                      signal_source=signal_source)
 
         # Handle SELL signal
         if action == 'SELL':
@@ -299,22 +321,54 @@ class TradingEngine:
                 logger.info(f"🔄 Closing LONG position before shorting")
                 self.close_position(symbol)
                 time.sleep(1)
+                # Update current position after closing
+                current_position = {'side': 'FLAT', 'qty': 0, 'market_value': 0}
 
-            # Execute SELL order
-            return self._execute_short(bot_id, symbol, timeframe, position_size)
+            # Execute SELL order with detailed tracking
+            return self._execute_short(bot_id, symbol, timeframe, position_size,
+                                       signal_received_at=signal_received_at,
+                                       current_position=current_position,
+                                       signal_source=signal_source)
 
         return {'status': 'error', 'message': f'Unknown action: {action}'}
 
-    def _execute_long(self, bot_id: int, symbol: str, timeframe: str, position_size: float) -> Dict:
-        """Execute a BUY (long) order"""
+    def _execute_long(self, bot_id: int, symbol: str, timeframe: str, position_size: float,
+                       signal_received_at: datetime = None, current_position: dict = None,
+                       signal_source: str = 'webhook') -> Dict:
+        """Execute a BUY (long) order with detailed logging"""
         trade_id = None
+        order_submitted_at = None
+
         try:
             logger.info(f"🟢 Submitting BUY order: ${position_size} {symbol}")
+
+            # Get pre-trade market data
+            quote = self.get_price_quote(symbol)
+            bid_price = quote.get('bid_price') if 'error' not in quote else None
+            ask_price = quote.get('ask_price') if 'error' not in quote else None
+            spread = (ask_price - bid_price) if bid_price and ask_price else None
+            spread_percent = (spread / ask_price * 100) if spread and ask_price else None
+            expected_price = ask_price  # For BUY, we expect to pay the ask
+
+            # Get market status
+            clock = self.get_market_clock()
+            market_open = clock.get('is_open', False) if 'error' not in clock else None
+
+            # Get account info
+            account = self.get_account_info()
+            account_equity = account.get('equity')
+            account_buying_power = account.get('buying_power')
+
+            # Position context
+            position_before = current_position.get('side', 'FLAT') if current_position else 'FLAT'
+            position_qty_before = current_position.get('qty', 0) if current_position else 0
+            position_value_before = current_position.get('market_value', 0) if current_position else 0
 
             # Update status: ORDER SUBMITTED
             BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal='BUY')
 
-            # Submit order to Alpaca (new alpaca-py API)
+            # Submit order to Alpaca
+            order_submitted_at = datetime.utcnow()
             order_request = MarketOrderRequest(
                 symbol=symbol,
                 notional=position_size,
@@ -324,9 +378,31 @@ class TradingEngine:
             order = self.api.submit_order(order_request)
 
             order_id = str(order.id)
+            client_order_id = str(order.client_order_id)
             logger.info(f"✅ ORDER SUBMITTED: {order_id}")
 
-            # Log trade
+            # Log trade with detailed info
+            trade_details = {
+                'bid_price': bid_price,
+                'ask_price': ask_price,
+                'spread': spread,
+                'spread_percent': spread_percent,
+                'market_open': market_open,
+                'extended_hours': not market_open if market_open is not None else None,
+                'signal_source': signal_source,
+                'signal_received_at': signal_received_at,
+                'order_submitted_at': order_submitted_at,
+                'expected_price': expected_price,
+                'order_type': 'market',
+                'time_in_force': 'day',
+                'position_before': position_before,
+                'position_qty_before': position_qty_before,
+                'position_value_before': position_value_before,
+                'account_equity': account_equity,
+                'account_buying_power': account_buying_power,
+                'alpaca_client_order_id': client_order_id
+            }
+
             trade_id = BotTradesDB.log_trade(
                 user_id=self.user_id,
                 bot_config_id=bot_id,
@@ -334,21 +410,39 @@ class TradingEngine:
                 timeframe=timeframe,
                 action='BUY',
                 notional=position_size,
-                order_id=order_id
+                order_id=order_id,
+                trade_details=trade_details
             )
 
             # Wait 2 seconds and check status
             time.sleep(2)
             order_status = self.api.get_order_by_id(order_id)
+            fill_check_time = datetime.utcnow()
 
             if order_status.status == 'filled':
                 filled_qty = float(order_status.filled_qty)
                 filled_price = float(order_status.filled_avg_price)
 
-                logger.info(f"✅ ORDER FILLED: {filled_qty} shares @ ${filled_price}")
+                # Calculate slippage
+                slippage = (filled_price - expected_price) if expected_price else None
+                slippage_percent = (slippage / expected_price * 100) if slippage and expected_price else None
+
+                # Calculate timing
+                execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000) if signal_received_at else None
+                time_to_fill_ms = int((fill_check_time - order_submitted_at).total_seconds() * 1000)
+
+                logger.info(f"✅ ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f} (slippage: ${slippage:.4f})" if slippage else f"✅ ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f}")
 
                 BotConfigDB.update_bot_status(bot_id, self.user_id, 'FILLED', position_side='LONG')
-                BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price)
+                BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price,
+                    execution_details={
+                        'slippage': slippage,
+                        'slippage_percent': slippage_percent,
+                        'execution_latency_ms': execution_latency_ms,
+                        'time_to_fill_ms': time_to_fill_ms,
+                        'alpaca_order_status': 'filled',
+                        'position_after': 'LONG'
+                    })
 
                 return {
                     'status': 'success',
@@ -357,11 +451,21 @@ class TradingEngine:
                     'timeframe': timeframe,
                     'order_id': order_id,
                     'filled_qty': filled_qty,
-                    'filled_price': filled_price
+                    'filled_price': filled_price,
+                    'expected_price': expected_price,
+                    'slippage': slippage,
+                    'slippage_percent': slippage_percent,
+                    'bid_price': bid_price,
+                    'ask_price': ask_price,
+                    'spread': spread,
+                    'execution_latency_ms': execution_latency_ms,
+                    'time_to_fill_ms': time_to_fill_ms,
+                    'market_open': market_open
                 }
             else:
                 logger.warning(f"⏳ ORDER PENDING: {order_status.status}")
-                BotTradesDB.update_trade_status(trade_id, order_status.status.upper())
+                BotTradesDB.update_trade_status(trade_id, order_status.status.upper(),
+                    execution_details={'alpaca_order_status': str(order_status.status)})
                 return {
                     'status': 'pending',
                     'order_id': order_id,
@@ -375,29 +479,54 @@ class TradingEngine:
                 BotTradesDB.update_trade_status(trade_id, 'FAILED', error_msg=str(e))
             return {'status': 'error', 'message': str(e)}
 
-    def _execute_short(self, bot_id: int, symbol: str, timeframe: str, position_size: float) -> Dict:
-        """Execute a SELL (short) order"""
+    def _execute_short(self, bot_id: int, symbol: str, timeframe: str, position_size: float,
+                        signal_received_at: datetime = None, current_position: dict = None,
+                        signal_source: str = 'webhook') -> Dict:
+        """Execute a SELL (short) order with detailed logging"""
         trade_id = None
+        order_submitted_at = None
+
         try:
-            # Shorting typically requires whole shares (cannot use notional for shorting on Alpaca)
+            # Get pre-trade market data
             quote = self.get_price_quote(symbol)
             if 'error' in quote:
                 raise Exception(f"Could not get price for {symbol}: {quote['error']}")
-            
+
+            bid_price = float(quote.get('bid_price', 0))
+            ask_price = float(quote.get('ask_price', 0))
+            spread = (ask_price - bid_price) if bid_price and ask_price else None
+            spread_percent = (spread / bid_price * 100) if spread and bid_price else None
+            expected_price = bid_price  # For SELL, we expect to receive the bid
+
             # Fallback to bid if ask is 0 (can happen after hours)
-            current_price = max(float(quote.get('ask_price', 0)), float(quote.get('bid_price', 0)))
-            
+            current_price = max(ask_price, bid_price)
+
             if current_price <= 0:
                 raise Exception(f"Market is closed and no valid price found for {symbol}")
-            
+
             qty = int(position_size / current_price)
-            
+
             if qty <= 0:
                 raise Exception(f"Position size ${position_size} is too small for 1 whole share of {symbol} @ ${current_price}")
 
+            # Get market status
+            clock = self.get_market_clock()
+            market_open = clock.get('is_open', False) if 'error' not in clock else None
+
+            # Get account info
+            account = self.get_account_info()
+            account_equity = account.get('equity')
+            account_buying_power = account.get('buying_power')
+
+            # Position context
+            position_before = current_position.get('side', 'FLAT') if current_position else 'FLAT'
+            position_qty_before = current_position.get('qty', 0) if current_position else 0
+            position_value_before = current_position.get('market_value', 0) if current_position else 0
+
             logger.info(f"🔴 Submitting SELL order: {qty} shares of {symbol} (@ ~${current_price})")
 
-            # Submit order to Alpaca (new alpaca-py API)
+            # Submit order to Alpaca
+            order_submitted_at = datetime.utcnow()
             order_request = MarketOrderRequest(
                 symbol=symbol,
                 qty=qty,
@@ -407,9 +536,31 @@ class TradingEngine:
             order = self.api.submit_order(order_request)
 
             order_id = str(order.id)
+            client_order_id = str(order.client_order_id)
             logger.info(f"✅ ORDER SUBMITTED: {order_id}")
 
-            # Log trade
+            # Log trade with detailed info
+            trade_details = {
+                'bid_price': bid_price,
+                'ask_price': ask_price,
+                'spread': spread,
+                'spread_percent': spread_percent,
+                'market_open': market_open,
+                'extended_hours': not market_open if market_open is not None else None,
+                'signal_source': signal_source,
+                'signal_received_at': signal_received_at,
+                'order_submitted_at': order_submitted_at,
+                'expected_price': expected_price,
+                'order_type': 'market',
+                'time_in_force': 'day',
+                'position_before': position_before,
+                'position_qty_before': position_qty_before,
+                'position_value_before': position_value_before,
+                'account_equity': account_equity,
+                'account_buying_power': account_buying_power,
+                'alpaca_client_order_id': client_order_id
+            }
+
             trade_id = BotTradesDB.log_trade(
                 user_id=self.user_id,
                 bot_config_id=bot_id,
@@ -417,21 +568,39 @@ class TradingEngine:
                 timeframe=timeframe,
                 action='SELL',
                 notional=position_size,
-                order_id=order_id
+                order_id=order_id,
+                trade_details=trade_details
             )
 
             # Wait 2 seconds and check status
             time.sleep(2)
             order_status = self.api.get_order_by_id(order_id)
+            fill_check_time = datetime.utcnow()
 
             if order_status.status == 'filled':
                 filled_qty = float(order_status.filled_qty)
                 filled_price = float(order_status.filled_avg_price)
 
-                logger.info(f"✅ ORDER FILLED: {filled_qty} shares @ ${filled_price}")
+                # Calculate slippage (for SELL, negative slippage means we got less than expected)
+                slippage = (expected_price - filled_price) if expected_price else None
+                slippage_percent = (slippage / expected_price * 100) if slippage and expected_price else None
+
+                # Calculate timing
+                execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000) if signal_received_at else None
+                time_to_fill_ms = int((fill_check_time - order_submitted_at).total_seconds() * 1000)
+
+                logger.info(f"✅ ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f} (slippage: ${slippage:.4f})" if slippage else f"✅ ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f}")
 
                 BotConfigDB.update_bot_status(bot_id, self.user_id, 'FILLED', position_side='SHORT')
-                BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price)
+                BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price,
+                    execution_details={
+                        'slippage': slippage,
+                        'slippage_percent': slippage_percent,
+                        'execution_latency_ms': execution_latency_ms,
+                        'time_to_fill_ms': time_to_fill_ms,
+                        'alpaca_order_status': 'filled',
+                        'position_after': 'SHORT'
+                    })
 
                 return {
                     'status': 'success',
@@ -440,11 +609,21 @@ class TradingEngine:
                     'timeframe': timeframe,
                     'order_id': order_id,
                     'filled_qty': filled_qty,
-                    'filled_price': filled_price
+                    'filled_price': filled_price,
+                    'expected_price': expected_price,
+                    'slippage': slippage,
+                    'slippage_percent': slippage_percent,
+                    'bid_price': bid_price,
+                    'ask_price': ask_price,
+                    'spread': spread,
+                    'execution_latency_ms': execution_latency_ms,
+                    'time_to_fill_ms': time_to_fill_ms,
+                    'market_open': market_open
                 }
             else:
                 logger.warning(f"⏳ ORDER PENDING: {order_status.status}")
-                BotTradesDB.update_trade_status(trade_id, order_status.status.upper())
+                BotTradesDB.update_trade_status(trade_id, order_status.status.upper(),
+                    execution_details={'alpaca_order_status': str(order_status.status)})
                 return {
                     'status': 'pending',
                     'order_id': order_id,
