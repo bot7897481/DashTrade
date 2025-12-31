@@ -1087,6 +1087,123 @@ def api_get_insights():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/analyze', methods=['POST'])
+@token_required
+def api_run_analysis():
+    """
+    Run AI analysis on trading data and generate insights
+
+    This endpoint uses the hybrid AI approach:
+    1. SQL queries to detect statistical patterns (RSI, VIX, timeframe, etc.)
+    2. Claude API to generate natural language insights and recommendations
+    3. Stores insights in the database for retrieval via /api/insights
+
+    Request body (optional):
+        - min_trades: Minimum trades required for pattern significance (default 10)
+        - analyze_all: If true, analyze all users' data (admin only)
+
+    Returns:
+        - insights_generated: Number of insights generated
+        - insights_saved: Number successfully saved to database
+        - insights: Array of generated insights with title, description, recommendations
+    """
+    try:
+        from ai_strategy_analyzer import AIStrategyAnalyzer
+
+        data = request.get_json(silent=True) or {}
+        min_trades = int(data.get('min_trades', 10))
+
+        # Only admin can analyze all data
+        analyze_all = data.get('analyze_all', False) and g.role == 'admin'
+        user_id = None if analyze_all else g.user_id
+
+        # Initialize analyzer
+        analyzer = AIStrategyAnalyzer()
+
+        # Check if we have enough data
+        overall_stats = analyzer.get_overall_stats(user_id)
+        total_trades = overall_stats.get('total_trades', 0)
+
+        if total_trades < min_trades:
+            return jsonify({
+                'success': False,
+                'error': f'Not enough trades for analysis. Have {total_trades}, need {min_trades}.',
+                'total_trades': total_trades,
+                'min_required': min_trades
+            }), 400
+
+        # Run full analysis
+        insights = analyzer.run_full_analysis(user_id=user_id, min_trades=min_trades)
+
+        # Save insights to database
+        saved = analyzer.save_insights_to_db(insights, user_id=user_id) if insights else 0
+
+        return jsonify({
+            'success': True,
+            'insights_generated': len(insights),
+            'insights_saved': saved,
+            'total_trades_analyzed': total_trades,
+            'overall_stats': convert_decimals(overall_stats),
+            'insights': convert_decimals(insights),
+            'claude_api_used': analyzer.client is not None
+        }), 200
+
+    except Exception as e:
+        logger.error(f"AI analysis error: {e}", exc_info=True)
+        return jsonify({'error': 'Analysis failed', 'details': str(e)}), 500
+
+
+@app.route('/api/analyze/patterns', methods=['GET'])
+@token_required
+def api_get_patterns():
+    """
+    Get raw pattern data without AI processing
+
+    This is useful for viewing the statistical patterns directly
+    without Claude API interpretation.
+
+    Query params:
+        - pattern_type: 'rsi', 'vix', 'timeframe', 'time_of_day', 'trend', or 'all'
+        - min_trades: Minimum trades for significance (default 10)
+    """
+    try:
+        from ai_strategy_analyzer import AIStrategyAnalyzer
+
+        pattern_type = request.args.get('pattern_type', 'all')
+        min_trades = int(request.args.get('min_trades', 10))
+
+        analyzer = AIStrategyAnalyzer()
+        patterns = {}
+
+        if pattern_type in ['rsi', 'all']:
+            patterns['rsi'] = analyzer.get_performance_by_rsi_threshold(g.user_id, min_trades)
+
+        if pattern_type in ['vix', 'all']:
+            patterns['vix'] = analyzer.get_performance_by_vix_level(g.user_id, min_trades)
+
+        if pattern_type in ['timeframe', 'all']:
+            patterns['timeframe'] = analyzer.get_performance_by_timeframe(g.user_id, min_trades)
+
+        if pattern_type in ['time_of_day', 'all']:
+            patterns['time_of_day'] = analyzer.get_performance_by_time_of_day(g.user_id, min_trades)
+
+        if pattern_type in ['trend', 'all']:
+            patterns['trend'] = analyzer.get_performance_by_trend(g.user_id, min_trades)
+
+        # Get overall stats
+        overall = analyzer.get_overall_stats(g.user_id)
+
+        return jsonify({
+            'overall_stats': convert_decimals(overall),
+            'patterns': convert_decimals(patterns),
+            'min_trades_filter': min_trades
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Get patterns error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 # ============================================================================
 # HEALTH CHECK
 # ============================================================================
@@ -1140,7 +1257,15 @@ def not_found(error):
                 'GET /api/account - Alpaca account info',
                 'GET /api/positions - Open positions',
                 'GET /api/trades - Trade history',
+                'GET /api/trades/:id - Trade detail with market context',
                 'GET /api/dashboard - Dashboard summary'
+            ],
+            'ai_analysis': [
+                'POST /api/analyze - Run AI analysis and generate insights',
+                'GET /api/analyze/patterns - Get raw pattern data',
+                'GET /api/performance - Strategy performance metrics',
+                'GET /api/trades/outcomes - Trade P&L outcomes',
+                'GET /api/insights - AI-discovered insights'
             ],
             'strategies': [
                 'GET /api/strategies - List system strategies',
