@@ -816,60 +816,114 @@ def api_get_stock_quote():
         except Exception as e:
             logger.warning(f"Could not get bar for {symbol}: {e}")
 
-        # Get historical bars for 52-week high/low and previous close
-        try:
-            from datetime import datetime, timedelta
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=365)
-
-            hist_request = StockBarsRequest(
-                symbol_or_symbols=symbol,
-                timeframe=TimeFrame.Day,
-                start=start_date,
-                end=end_date
-            )
-            hist_bars = data_client.get_stock_bars(hist_request)
-
-            if symbol in hist_bars and len(hist_bars[symbol]) > 0:
-                bars_list = list(hist_bars[symbol])
-
-                # Calculate 52-week high/low
-                highs = [float(b.high) for b in bars_list if b.high]
-                lows = [float(b.low) for b in bars_list if b.low]
-                volumes = [int(b.volume) for b in bars_list if b.volume]
-
-                if highs:
-                    result['week52High'] = max(highs)
-                if lows:
-                    result['week52Low'] = min(lows)
-                if volumes:
-                    result['avgVolume'] = int(sum(volumes) / len(volumes))
-
-                # Get previous close (second to last bar)
-                if len(bars_list) >= 2:
-                    result['previousClose'] = float(bars_list[-2].close) if bars_list[-2].close else None
-
-                # Calculate change
-                if result['price'] and result['previousClose']:
-                    result['change'] = round(result['price'] - result['previousClose'], 2)
-                    result['changePercent'] = round((result['change'] / result['previousClose']) * 100, 2)
-        except Exception as e:
-            logger.warning(f"Could not get historical data for {symbol}: {e}")
-
-        # Try to get market cap from Yahoo Finance as backup
+        # Get comprehensive data from Yahoo Finance (more reliable for historical data)
+        # Yahoo Finance provides 52-week high/low, previous close, market cap, etc.
         try:
             import yfinance as yf
             ticker = yf.Ticker(symbol)
             info = ticker.info
+
+            # 52-week high/low (Yahoo Finance has this directly)
+            if info.get('fiftyTwoWeekHigh'):
+                result['week52High'] = float(info['fiftyTwoWeekHigh'])
+            if info.get('fiftyTwoWeekLow'):
+                result['week52Low'] = float(info['fiftyTwoWeekLow'])
+
+            # Previous close
+            if info.get('previousClose'):
+                result['previousClose'] = float(info['previousClose'])
+
+            # If we have price and previousClose, calculate change
+            if result['price'] and result['previousClose']:
+                result['change'] = round(result['price'] - result['previousClose'], 2)
+                result['changePercent'] = round((result['change'] / result['previousClose']) * 100, 2)
+
+            # Average volume
+            if info.get('averageVolume'):
+                result['avgVolume'] = int(info['averageVolume'])
+
+            # Market cap
             if info.get('marketCap'):
                 result['marketCap'] = info['marketCap']
-            # Also get PE ratio and other fundamentals
+
+            # PE ratio
             if info.get('trailingPE'):
                 result['peRatio'] = info['trailingPE']
+
+            # Dividend yield
             if info.get('dividendYield'):
                 result['dividendYield'] = info['dividendYield']
+
+            # Day's open/high/low if not already set from Alpaca
+            if result['open'] is None and info.get('open'):
+                result['open'] = float(info['open'])
+            if result['high'] is None and info.get('dayHigh'):
+                result['high'] = float(info['dayHigh'])
+            if result['low'] is None and info.get('dayLow'):
+                result['low'] = float(info['dayLow'])
+
+            # Current price from Yahoo if Alpaca didn't provide it
+            if result['price'] is None:
+                if info.get('currentPrice'):
+                    result['price'] = float(info['currentPrice'])
+                elif info.get('regularMarketPrice'):
+                    result['price'] = float(info['regularMarketPrice'])
+
+            # Volume from Yahoo if not set
+            if result['volume'] is None and info.get('volume'):
+                result['volume'] = int(info['volume'])
+
+            # 50-day and 200-day moving averages (bonus data)
+            if info.get('fiftyDayAverage'):
+                result['fiftyDayMA'] = float(info['fiftyDayAverage'])
+            if info.get('twoHundredDayAverage'):
+                result['twoHundredDayMA'] = float(info['twoHundredDayAverage'])
+
+            logger.info(f"Yahoo Finance data loaded for {symbol}: 52WH={result['week52High']}, 52WL={result['week52Low']}")
+
         except Exception as e:
             logger.warning(f"Could not get Yahoo Finance data for {symbol}: {e}")
+
+        # Fallback: Try Alpaca historical data if Yahoo didn't work
+        if result['week52High'] is None or result['week52Low'] is None:
+            try:
+                from datetime import datetime, timedelta
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=365)
+
+                hist_request = StockBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=TimeFrame.Day,
+                    start=start_date,
+                    end=end_date
+                )
+                hist_bars = data_client.get_stock_bars(hist_request)
+
+                if symbol in hist_bars and len(hist_bars[symbol]) > 0:
+                    bars_list = list(hist_bars[symbol])
+
+                    # Calculate 52-week high/low
+                    highs = [float(b.high) for b in bars_list if b.high]
+                    lows = [float(b.low) for b in bars_list if b.low]
+                    volumes = [int(b.volume) for b in bars_list if b.volume]
+
+                    if highs and result['week52High'] is None:
+                        result['week52High'] = max(highs)
+                    if lows and result['week52Low'] is None:
+                        result['week52Low'] = min(lows)
+                    if volumes and result['avgVolume'] is None:
+                        result['avgVolume'] = int(sum(volumes) / len(volumes))
+
+                    # Get previous close (second to last bar)
+                    if result['previousClose'] is None and len(bars_list) >= 2:
+                        result['previousClose'] = float(bars_list[-2].close) if bars_list[-2].close else None
+
+                    # Calculate change if not already done
+                    if result['change'] is None and result['price'] and result['previousClose']:
+                        result['change'] = round(result['price'] - result['previousClose'], 2)
+                        result['changePercent'] = round((result['change'] / result['previousClose']) * 100, 2)
+            except Exception as e:
+                logger.warning(f"Could not get Alpaca historical data for {symbol}: {e}")
 
         return jsonify(result), 200
 
