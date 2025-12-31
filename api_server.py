@@ -715,6 +715,288 @@ def api_get_trade_detail(trade_id):
 
 
 # ============================================================================
+# REST API - STOCK DATA (Alpaca Market Data)
+# ============================================================================
+
+@app.route('/api/stocks/quote', methods=['GET'])
+@token_required
+def api_get_stock_quote():
+    """
+    Get comprehensive stock quote data from Alpaca
+
+    Query params:
+        - symbol: Stock symbol (required)
+
+    Returns:
+        - price, open, high, low, close, previousClose
+        - volume, avgVolume
+        - week52High, week52Low
+        - change, changePercent
+        - marketCap (from Yahoo Finance as backup)
+    """
+    try:
+        symbol = request.args.get('symbol', '').upper().strip()
+
+        if not symbol:
+            return jsonify({'error': 'Symbol is required'}), 400
+
+        # Import Alpaca data client
+        from alpaca.data.historical import StockHistoricalDataClient
+        from alpaca.data.requests import StockLatestQuoteRequest, StockBarsRequest, StockLatestBarRequest
+        from alpaca.data.timeframe import TimeFrame
+        from alpaca.trading.client import TradingClient
+
+        # Get user's API keys
+        keys = BotAPIKeysDB.get_api_keys(g.user_id)
+        if not keys:
+            return jsonify({'error': 'Alpaca API keys not configured'}), 400
+
+        data_client = StockHistoricalDataClient(keys['api_key'], keys['secret_key'])
+        trading_client = TradingClient(keys['api_key'], keys['secret_key'], paper=(keys['mode'] == 'paper'))
+
+        result = {
+            'symbol': symbol,
+            'name': symbol,  # Will be updated if we can get asset info
+            'price': None,
+            'open': None,
+            'high': None,
+            'low': None,
+            'close': None,
+            'previousClose': None,
+            'volume': None,
+            'avgVolume': None,
+            'week52High': None,
+            'week52Low': None,
+            'change': None,
+            'changePercent': None,
+            'marketCap': None,
+            'bid': None,
+            'ask': None,
+            'timestamp': None
+        }
+
+        # Get asset info (name)
+        try:
+            asset = trading_client.get_asset(symbol)
+            result['name'] = asset.name or symbol
+            result['exchange'] = asset.exchange.value if asset.exchange else None
+            result['tradable'] = asset.tradable
+        except Exception as e:
+            logger.warning(f"Could not get asset info for {symbol}: {e}")
+
+        # Get latest quote (bid/ask)
+        try:
+            quote_request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+            quotes = data_client.get_stock_latest_quote(quote_request)
+            if symbol in quotes:
+                q = quotes[symbol]
+                result['bid'] = float(q.bid_price) if q.bid_price else None
+                result['ask'] = float(q.ask_price) if q.ask_price else None
+                result['timestamp'] = q.timestamp.isoformat() if q.timestamp else None
+                # Use mid price as current price
+                if q.bid_price and q.ask_price:
+                    result['price'] = round((float(q.bid_price) + float(q.ask_price)) / 2, 2)
+        except Exception as e:
+            logger.warning(f"Could not get quote for {symbol}: {e}")
+
+        # Get latest bar (OHLCV)
+        try:
+            bar_request = StockLatestBarRequest(symbol_or_symbols=symbol)
+            bars = data_client.get_stock_latest_bar(bar_request)
+            if symbol in bars:
+                bar = bars[symbol]
+                result['open'] = float(bar.open) if bar.open else None
+                result['high'] = float(bar.high) if bar.high else None
+                result['low'] = float(bar.low) if bar.low else None
+                result['close'] = float(bar.close) if bar.close else None
+                result['volume'] = int(bar.volume) if bar.volume else None
+                # Use close as price if we don't have quote
+                if result['price'] is None and bar.close:
+                    result['price'] = float(bar.close)
+        except Exception as e:
+            logger.warning(f"Could not get bar for {symbol}: {e}")
+
+        # Get historical bars for 52-week high/low and previous close
+        try:
+            from datetime import datetime, timedelta
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=365)
+
+            hist_request = StockBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=TimeFrame.Day,
+                start=start_date,
+                end=end_date
+            )
+            hist_bars = data_client.get_stock_bars(hist_request)
+
+            if symbol in hist_bars and len(hist_bars[symbol]) > 0:
+                bars_list = list(hist_bars[symbol])
+
+                # Calculate 52-week high/low
+                highs = [float(b.high) for b in bars_list if b.high]
+                lows = [float(b.low) for b in bars_list if b.low]
+                volumes = [int(b.volume) for b in bars_list if b.volume]
+
+                if highs:
+                    result['week52High'] = max(highs)
+                if lows:
+                    result['week52Low'] = min(lows)
+                if volumes:
+                    result['avgVolume'] = int(sum(volumes) / len(volumes))
+
+                # Get previous close (second to last bar)
+                if len(bars_list) >= 2:
+                    result['previousClose'] = float(bars_list[-2].close) if bars_list[-2].close else None
+
+                # Calculate change
+                if result['price'] and result['previousClose']:
+                    result['change'] = round(result['price'] - result['previousClose'], 2)
+                    result['changePercent'] = round((result['change'] / result['previousClose']) * 100, 2)
+        except Exception as e:
+            logger.warning(f"Could not get historical data for {symbol}: {e}")
+
+        # Try to get market cap from Yahoo Finance as backup
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            if info.get('marketCap'):
+                result['marketCap'] = info['marketCap']
+            # Also get PE ratio and other fundamentals
+            if info.get('trailingPE'):
+                result['peRatio'] = info['trailingPE']
+            if info.get('dividendYield'):
+                result['dividendYield'] = info['dividendYield']
+        except Exception as e:
+            logger.warning(f"Could not get Yahoo Finance data for {symbol}: {e}")
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"Stock quote error: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to get quote: {str(e)}'}), 500
+
+
+@app.route('/api/stocks/search', methods=['GET'])
+@token_required
+def api_search_stocks():
+    """
+    Search for stocks by symbol or name
+
+    Query params:
+        - query: Search query (required, min 1 character)
+        - limit: Max results (default 10)
+
+    Returns:
+        - Array of {symbol, name, exchange, tradable}
+    """
+    try:
+        query = request.args.get('query', '').upper().strip()
+        limit = int(request.args.get('limit', 10))
+
+        if not query:
+            return jsonify({'error': 'Query is required'}), 400
+
+        if len(query) < 1:
+            return jsonify({'results': []}), 200
+
+        # Import Alpaca trading client
+        from alpaca.trading.client import TradingClient
+        from alpaca.trading.enums import AssetClass, AssetStatus
+
+        # Get user's API keys
+        keys = BotAPIKeysDB.get_api_keys(g.user_id)
+        if not keys:
+            return jsonify({'error': 'Alpaca API keys not configured'}), 400
+
+        trading_client = TradingClient(keys['api_key'], keys['secret_key'], paper=(keys['mode'] == 'paper'))
+
+        # Get all tradeable US stocks
+        try:
+            assets = trading_client.get_all_assets()
+
+            # Filter by query (symbol starts with or name contains)
+            results = []
+            for asset in assets:
+                # Only include US equities that are tradeable
+                if asset.asset_class != AssetClass.US_EQUITY:
+                    continue
+                if asset.status != AssetStatus.ACTIVE:
+                    continue
+                if not asset.tradable:
+                    continue
+
+                # Match by symbol prefix or name contains
+                symbol_match = asset.symbol.upper().startswith(query)
+                name_match = query.lower() in (asset.name or '').lower() if asset.name else False
+
+                if symbol_match or name_match:
+                    results.append({
+                        'symbol': asset.symbol,
+                        'name': asset.name or asset.symbol,
+                        'exchange': asset.exchange.value if asset.exchange else None,
+                        'tradable': asset.tradable
+                    })
+
+                if len(results) >= limit:
+                    break
+
+            # Sort: exact symbol matches first, then alphabetically
+            results.sort(key=lambda x: (
+                0 if x['symbol'] == query else 1,
+                0 if x['symbol'].startswith(query) else 1,
+                x['symbol']
+            ))
+
+            return jsonify({'results': results[:limit]}), 200
+
+        except Exception as e:
+            logger.error(f"Error searching assets: {e}")
+            return jsonify({'error': f'Search failed: {str(e)}'}), 500
+
+    except Exception as e:
+        logger.error(f"Stock search error: {e}", exc_info=True)
+        return jsonify({'error': f'Search failed: {str(e)}'}), 500
+
+
+@app.route('/api/stocks/popular', methods=['GET'])
+def api_get_popular_stocks():
+    """
+    Get a list of popular/common stocks for quick selection
+    No authentication required - returns static list
+    """
+    popular = [
+        {'symbol': 'AAPL', 'name': 'Apple Inc.'},
+        {'symbol': 'MSFT', 'name': 'Microsoft Corporation'},
+        {'symbol': 'GOOGL', 'name': 'Alphabet Inc.'},
+        {'symbol': 'AMZN', 'name': 'Amazon.com Inc.'},
+        {'symbol': 'TSLA', 'name': 'Tesla Inc.'},
+        {'symbol': 'META', 'name': 'Meta Platforms Inc.'},
+        {'symbol': 'NVDA', 'name': 'NVIDIA Corporation'},
+        {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.'},
+        {'symbol': 'V', 'name': 'Visa Inc.'},
+        {'symbol': 'JNJ', 'name': 'Johnson & Johnson'},
+        {'symbol': 'WMT', 'name': 'Walmart Inc.'},
+        {'symbol': 'PG', 'name': 'Procter & Gamble Co.'},
+        {'symbol': 'MA', 'name': 'Mastercard Inc.'},
+        {'symbol': 'UNH', 'name': 'UnitedHealth Group Inc.'},
+        {'symbol': 'HD', 'name': 'Home Depot Inc.'},
+        {'symbol': 'DIS', 'name': 'Walt Disney Co.'},
+        {'symbol': 'BAC', 'name': 'Bank of America Corp.'},
+        {'symbol': 'NFLX', 'name': 'Netflix Inc.'},
+        {'symbol': 'AMD', 'name': 'Advanced Micro Devices'},
+        {'symbol': 'INTC', 'name': 'Intel Corporation'},
+        {'symbol': 'SPY', 'name': 'SPDR S&P 500 ETF'},
+        {'symbol': 'QQQ', 'name': 'Invesco QQQ Trust'},
+        {'symbol': 'IWM', 'name': 'iShares Russell 2000 ETF'},
+        {'symbol': 'GLD', 'name': 'SPDR Gold Shares'},
+        {'symbol': 'SLV', 'name': 'iShares Silver Trust'},
+    ]
+    return jsonify({'stocks': popular}), 200
+
+
+# ============================================================================
 # REST API - SETTINGS (API KEYS)
 # ============================================================================
 
@@ -1271,6 +1553,11 @@ def not_found(error):
                 'GET /api/strategies - List system strategies',
                 'POST /api/strategies/:id/subscribe - Subscribe to strategy',
                 'POST /api/strategies/:id/unsubscribe - Unsubscribe from strategy'
+            ],
+            'stocks': [
+                'GET /api/stocks/quote?symbol=XXX - Get stock quote data',
+                'GET /api/stocks/search?query=XXX - Search stocks by symbol/name',
+                'GET /api/stocks/popular - Get popular stocks list'
             ],
             'settings': [
                 'POST /api/settings/api-keys - Save Alpaca keys',
