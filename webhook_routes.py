@@ -53,11 +53,14 @@ try:
         StrategyParamsDB, TradeOutcomesDB
     )
     from bot_engine import TradingEngine
+    from email_service import TradeNotificationService
     import requests
     WEBHOOK_ENABLED = True
+    EMAIL_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Webhook dependencies not available: {e}")
     WEBHOOK_ENABLED = False
+    EMAIL_AVAILABLE = False
 
 
 def extract_strategy_params(data: dict) -> dict:
@@ -266,6 +269,19 @@ class WebhookHandler(RequestHandler):
                 engine = TradingEngine(user_id)
                 result = engine.execute_trade(bot_config, action)
             except ValueError as e:
+                # Send error notification email
+                if EMAIL_AVAILABLE:
+                    try:
+                        TradeNotificationService.send_trade_error_email(
+                            user_id=user_id,
+                            error_data={
+                                'symbol': symbol,
+                                'action': action,
+                                'error': str(e)
+                            }
+                        )
+                    except Exception:
+                        pass
                 self.set_status(400)
                 self.write(json.dumps({'status': 'error', 'message': str(e)}))
                 return
@@ -309,6 +325,27 @@ class WebhookHandler(RequestHandler):
                 except Exception as e:
                     logger.warning(f"Failed to save strategy learning data (non-critical): {e}")
 
+            # Send email notification (async, non-blocking)
+            email_sent = False
+            if EMAIL_AVAILABLE and result.get('status') == 'success':
+                try:
+                    email_sent = TradeNotificationService.send_trade_executed_email(
+                        user_id=user_id,
+                        trade_data={
+                            'trade_id': trade_id,
+                            'symbol': symbol,
+                            'action': action,
+                            'timeframe': timeframe,
+                            'quantity': result.get('filled_qty'),
+                            'filled_price': result.get('filled_avg_price'),
+                            'status': 'executed',
+                            'bot_name': bot_config.get('strategy_name', 'Bot'),
+                            'order_id': result.get('order_id')
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send trade notification email (non-critical): {e}")
+
             # Forward to outgoing webhooks
             forward_to_outgoing_webhooks(user_id, 'signal', {
                 'source': 'user_webhook', 'symbol': symbol, 'action': action, 'timeframe': timeframe
@@ -322,6 +359,7 @@ class WebhookHandler(RequestHandler):
                 'timeframe': timeframe,
                 'timestamp': datetime.utcnow().isoformat(),
                 'strategy_params_saved': strategy_params is not None,
+                'email_notification_sent': email_sent,
                 **result
             }))
 

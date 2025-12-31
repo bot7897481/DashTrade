@@ -31,6 +31,8 @@ try:
     )
     from bot_engine import TradingEngine
     from auth import UserDB
+    from database import get_db_connection
+    from psycopg2.extras import RealDictCursor
     DB_AVAILABLE = True
     logger.info("Database modules imported successfully")
 except Exception as e:
@@ -1537,6 +1539,155 @@ def api_get_patterns():
 
     except Exception as e:
         logger.error(f"Get patterns error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ============================================================================
+# REST API - NOTIFICATION SETTINGS
+# ============================================================================
+
+@app.route('/api/settings/notifications', methods=['GET'])
+@token_required
+def api_get_notification_settings():
+    """Get user's email notification preferences"""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT email, email_notifications_enabled, notify_on_trade,
+                           notify_on_error, notify_on_risk_event, notify_daily_summary
+                    FROM users WHERE id = %s
+                """, (g.user_id,))
+                user = cur.fetchone()
+
+                if not user:
+                    return jsonify({'error': 'User not found'}), 404
+
+                return jsonify({
+                    'email': user['email'],
+                    'email_notifications_enabled': user.get('email_notifications_enabled', False),
+                    'notify_on_trade': user.get('notify_on_trade', True),
+                    'notify_on_error': user.get('notify_on_error', True),
+                    'notify_on_risk_event': user.get('notify_on_risk_event', True),
+                    'notify_daily_summary': user.get('notify_daily_summary', False)
+                }), 200
+
+    except Exception as e:
+        logger.error(f"Get notification settings error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/notifications', methods=['PUT'])
+@token_required
+def api_update_notification_settings():
+    """Update user's email notification preferences"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+
+        # Build update query dynamically
+        updates = []
+        params = []
+
+        if 'email_notifications_enabled' in data:
+            updates.append('email_notifications_enabled = %s')
+            params.append(bool(data['email_notifications_enabled']))
+
+        if 'notify_on_trade' in data:
+            updates.append('notify_on_trade = %s')
+            params.append(bool(data['notify_on_trade']))
+
+        if 'notify_on_error' in data:
+            updates.append('notify_on_error = %s')
+            params.append(bool(data['notify_on_error']))
+
+        if 'notify_on_risk_event' in data:
+            updates.append('notify_on_risk_event = %s')
+            params.append(bool(data['notify_on_risk_event']))
+
+        if 'notify_daily_summary' in data:
+            updates.append('notify_daily_summary = %s')
+            params.append(bool(data['notify_daily_summary']))
+
+        if not updates:
+            return jsonify({'error': 'No valid fields to update'}), 400
+
+        params.append(g.user_id)
+
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    UPDATE users SET {', '.join(updates)}
+                    WHERE id = %s
+                """, params)
+                conn.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Notification settings updated'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Update notification settings error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/notifications/test', methods=['POST'])
+@token_required
+def api_test_notification():
+    """Send a test email to verify notification setup"""
+    try:
+        from email_service import EmailService, TradeNotificationService
+
+        if not EmailService.is_configured():
+            return jsonify({
+                'success': False,
+                'error': 'Email service not configured (SMTP2GO_API_KEY missing)'
+            }), 400
+
+        # Get user settings
+        settings = TradeNotificationService.get_user_notification_settings(g.user_id)
+        if not settings or not settings.get('email'):
+            return jsonify({
+                'success': False,
+                'error': 'No email address found for user'
+            }), 400
+
+        # Send test email
+        test_html = """
+        <div style="font-family: sans-serif; padding: 20px;">
+            <h2>DashTrade Test Notification</h2>
+            <p>This is a test email to confirm your notification settings are working correctly.</p>
+            <p>You will receive emails for:</p>
+            <ul>
+                <li>Trade executions (when enabled)</li>
+                <li>Trade errors (when enabled)</li>
+                <li>Risk events (when enabled)</li>
+            </ul>
+            <p>You can manage these settings in the DashTrade app.</p>
+        </div>
+        """
+
+        result = EmailService.send_email(
+            to_email=settings['email'],
+            subject='DashTrade - Test Notification',
+            html_body=test_html
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': f"Test email sent to {settings['email']}"
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('message', 'Failed to send test email')
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Test notification error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 

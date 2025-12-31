@@ -270,6 +270,28 @@ def run_migrations():
         "CREATE INDEX IF NOT EXISTS idx_perf_summary_strategy ON strategy_performance_summary(strategy_type);",
         "CREATE INDEX IF NOT EXISTS idx_insights_type ON ai_strategy_insights(insight_type);",
         "CREATE INDEX IF NOT EXISTS idx_insights_active ON ai_strategy_insights(is_active);",
+
+        # Migration 006: Email Notification Preferences
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_notifications_enabled BOOLEAN DEFAULT FALSE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_on_trade BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_on_error BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_on_risk_event BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_daily_summary BOOLEAN DEFAULT FALSE;",
+
+        # Email notification log table
+        """CREATE TABLE IF NOT EXISTS email_notifications_log (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            email_type VARCHAR(50) NOT NULL,
+            subject VARCHAR(255),
+            recipient_email VARCHAR(255),
+            trade_id INTEGER REFERENCES bot_trades(id) ON DELETE SET NULL,
+            status VARCHAR(20) DEFAULT 'sent',
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_email_log_user_id ON email_notifications_log(user_id);",
+        "CREATE INDEX IF NOT EXISTS idx_email_log_created_at ON email_notifications_log(created_at);",
     ]
 
     try:
