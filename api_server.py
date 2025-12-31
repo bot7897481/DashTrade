@@ -1735,6 +1735,31 @@ def api_test_notification():
 # HEALTH CHECK
 # ============================================================================
 
+@app.route('/api/debug/trade/<int:trade_id>', methods=['GET'])
+def api_debug_trade(trade_id):
+    """Debug endpoint to check trade and market context data (no auth for debugging)"""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Get trade
+                cur.execute("SELECT * FROM bot_trades WHERE id = %s", (trade_id,))
+                trade = cur.fetchone()
+
+                # Get market context
+                cur.execute("SELECT * FROM trade_market_context WHERE trade_id = %s", (trade_id,))
+                context = cur.fetchone()
+
+                return jsonify({
+                    'trade_exists': trade is not None,
+                    'trade': dict(trade) if trade else None,
+                    'market_context_exists': context is not None,
+                    'market_context': dict(context) if context else None,
+                    'user_id_in_trade': trade.get('user_id') if trade else None
+                }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
