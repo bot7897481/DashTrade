@@ -292,6 +292,18 @@ def run_migrations():
         )""",
         "CREATE INDEX IF NOT EXISTS idx_email_log_user_id ON email_notifications_log(user_id);",
         "CREATE INDEX IF NOT EXISTS idx_email_log_created_at ON email_notifications_log(created_at);",
+
+        # Migration 007: Normalize existing timeframes to consistent format
+        "UPDATE user_bot_configs SET timeframe = '1min' WHERE LOWER(timeframe) IN ('1', '1m', '1 min');",
+        "UPDATE user_bot_configs SET timeframe = '5min' WHERE LOWER(timeframe) IN ('5', '5m', '5 min');",
+        "UPDATE user_bot_configs SET timeframe = '15min' WHERE LOWER(timeframe) IN ('15', '15m', '15 min');",
+        "UPDATE user_bot_configs SET timeframe = '30min' WHERE LOWER(timeframe) IN ('30', '30m', '30 min');",
+        "UPDATE user_bot_configs SET timeframe = '45min' WHERE LOWER(timeframe) IN ('45', '45m', '45 min');",
+        "UPDATE user_bot_configs SET timeframe = '1h' WHERE LOWER(timeframe) IN ('60', '1h', '1 hour', '1 hr');",
+        "UPDATE user_bot_configs SET timeframe = '2h' WHERE LOWER(timeframe) IN ('120', '2h', '2 hour', '2 hr');",
+        "UPDATE user_bot_configs SET timeframe = '4h' WHERE LOWER(timeframe) IN ('240', '4h', '4 hour', '4 hr');",
+        "UPDATE user_bot_configs SET timeframe = '1d' WHERE LOWER(timeframe) IN ('d', '1d', 'daily', 'day', '1 day');",
+        "UPDATE user_bot_configs SET timeframe = '1w' WHERE LOWER(timeframe) IN ('w', '1w', 'weekly', 'week', '1 week');",
     ]
 
     try:

@@ -303,6 +303,46 @@ def api_get_bots():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+def normalize_timeframe(tf: str) -> str:
+    """
+    Normalize timeframe to consistent format.
+    Frontend sends: "1 Min", "5 Min", "15 Min", "1 Hour", "Daily"
+    TradingView sends: "1", "5", "15", "60", "D"
+    We store: "1min", "5min", "15min", "1h", "1d"
+    """
+    if not tf:
+        return tf
+
+    tf = str(tf).strip().lower()
+
+    # Already in correct format
+    if tf in ['1min', '5min', '15min', '30min', '45min', '1h', '2h', '4h', '1d', '1w', '1m']:
+        return tf
+
+    # Map various formats to our standard format
+    mappings = {
+        # Minutes - TradingView numeric
+        '1': '1min', '5': '5min', '15': '15min', '30': '30min', '45': '45min',
+        # Minutes - with "m" suffix
+        '1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min', '45m': '45min',
+        # Minutes - with space (frontend format)
+        '1 min': '1min', '5 min': '5min', '15 min': '15min', '30 min': '30min', '45 min': '45min',
+        # Hours - TradingView numeric
+        '60': '1h', '120': '2h', '240': '4h',
+        # Hours - with "h" suffix
+        '1h': '1h', '2h': '2h', '4h': '4h',
+        # Hours - frontend format
+        '1 hour': '1h', '2 hour': '2h', '4 hour': '4h',
+        '1 hr': '1h', '2 hr': '2h', '4 hr': '4h',
+        # Days/Weeks/Months
+        'd': '1d', '1d': '1d', 'daily': '1d', 'day': '1d', '1 day': '1d',
+        'w': '1w', '1w': '1w', 'weekly': '1w', 'week': '1w', '1 week': '1w',
+        'm': '1m', '1m': '1m', 'monthly': '1m', 'month': '1m', '1 month': '1m',
+    }
+
+    return mappings.get(tf, tf)
+
+
 @app.route('/api/bots', methods=['POST'])
 @token_required
 def api_create_bot():
@@ -313,7 +353,7 @@ def api_create_bot():
             return jsonify({'error': 'Invalid JSON'}), 400
 
         symbol = data.get('symbol', '').upper().strip()
-        timeframe = data.get('timeframe', '').strip()
+        timeframe = normalize_timeframe(data.get('timeframe', ''))  # Normalize timeframe!
         position_size = data.get('position_size')
 
         if not symbol or not timeframe or not position_size:
