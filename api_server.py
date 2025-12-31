@@ -1751,12 +1751,101 @@ def api_debug_trade(trade_id):
 
                 return jsonify({
                     'trade_exists': trade is not None,
-                    'trade': dict(trade) if trade else None,
+                    'trade': convert_decimals(dict(trade)) if trade else None,
                     'market_context_exists': context is not None,
-                    'market_context': dict(context) if context else None,
+                    'market_context': convert_decimals(dict(context)) if context else None,
                     'user_id_in_trade': trade.get('user_id') if trade else None
                 }), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/debug/user/<int:user_id>/trades', methods=['GET'])
+def api_debug_user_trades(user_id):
+    """Debug endpoint to check all trades for a user (no auth for debugging)"""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, symbol, action, status, filled_qty, filled_avg_price,
+                           notional, created_at, timeframe
+                    FROM bot_trades
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                """, (user_id,))
+                trades = [dict(row) for row in cur.fetchall()]
+
+                # Also check user exists
+                cur.execute("SELECT id, username, email FROM users WHERE id = %s", (user_id,))
+                user = cur.fetchone()
+
+                return jsonify({
+                    'user_exists': user is not None,
+                    'user': dict(user) if user else None,
+                    'total_trades': len(trades),
+                    'trades': convert_decimals(trades)
+                }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/debug/whoami', methods=['GET'])
+@token_required
+def api_debug_whoami():
+    """Debug endpoint to verify JWT token resolves to correct user"""
+    return jsonify({
+        'user_id_from_token': g.user_id,
+        'username': g.username,
+        'email': g.email,
+        'role': g.role
+    }), 200
+
+
+@app.route('/api/debug/capture-context/<int:trade_id>', methods=['POST'])
+def api_debug_capture_context(trade_id):
+    """Debug endpoint to manually capture market context for a trade"""
+    try:
+        # Get trade info
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM bot_trades WHERE id = %s", (trade_id,))
+                trade = cur.fetchone()
+
+        if not trade:
+            return jsonify({'error': 'Trade not found'}), 404
+
+        # Try to capture market context
+        from market_data_service import MarketDataService
+        from bot_database import TradeMarketContextDB
+
+        symbol = trade['symbol']
+        user_id = trade['user_id']
+
+        logger.info(f"Manually capturing market context for trade {trade_id} ({symbol})")
+
+        context = MarketDataService.get_complete_market_context(
+            symbol=symbol,
+            alpaca_account=None,
+            alpaca_position=None,
+            alpaca_positions=None
+        )
+
+        # Save to database
+        context_id = TradeMarketContextDB.save_context(
+            trade_id=trade_id,
+            user_id=user_id,
+            context=context
+        )
+
+        return jsonify({
+            'success': context_id is not None,
+            'context_id': context_id,
+            'context_data': convert_decimals(context) if context else None,
+            'errors': context.get('errors') if context else None
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Manual context capture error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
