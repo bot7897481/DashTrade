@@ -975,3 +975,696 @@ class RiskEventDB:
                     LIMIT %s
                 """, (user_id, limit))
                 return [dict(row) for row in cur.fetchall()]
+
+
+class TradeMarketContextDB:
+    """Store and retrieve comprehensive market context for trades"""
+
+    @staticmethod
+    def save_context(trade_id: int, user_id: int, context: Dict) -> Optional[int]:
+        """
+        Save market context for a trade
+
+        Args:
+            trade_id: ID of the trade in bot_trades table
+            user_id: User ID
+            context: Dict with all market context data
+
+        Returns:
+            ID of the saved context record or None
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO trade_market_context (
+                            trade_id, user_id, captured_at,
+                            -- Stock data
+                            stock_open, stock_high, stock_low, stock_close, stock_volume,
+                            stock_prev_close, stock_change_percent, stock_avg_volume, stock_volume_ratio,
+                            -- Fundamentals
+                            market_cap, pe_ratio, forward_pe, eps, beta, dividend_yield,
+                            shares_outstanding, float_shares, short_ratio,
+                            fifty_two_week_high, fifty_two_week_low, fifty_day_ma, two_hundred_day_ma,
+                            -- Market indices
+                            sp500_price, sp500_change_percent, nasdaq_price, nasdaq_change_percent,
+                            dji_price, dji_change_percent, russell_price, russell_change_percent,
+                            -- Volatility
+                            vix_price, vix_change_percent,
+                            treasury_10y_yield, treasury_2y_yield, yield_curve_spread,
+                            -- Sector
+                            sector_etf_symbol, sector_etf_price, sector_etf_change_percent,
+                            xlk_price, xlf_price, xle_price, xlv_price, xly_price,
+                            xlp_price, xli_price, xlb_price, xlu_price, xlre_price,
+                            -- Account
+                            account_equity, account_cash, account_buying_power, account_portfolio_value,
+                            position_qty_before, position_value_before, position_avg_entry,
+                            position_unrealized_pl, total_positions_count, total_positions_value,
+                            -- Technical
+                            price_vs_50ma_percent, price_vs_200ma_percent,
+                            price_vs_52w_high_percent, price_vs_52w_low_percent, rsi_14,
+                            -- Metadata
+                            data_source, fetch_latency_ms, errors
+                        ) VALUES (
+                            %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s
+                        )
+                        RETURNING id
+                    """, (
+                        trade_id, user_id, context.get('captured_at'),
+                        # Stock data
+                        context.get('stock_open'), context.get('stock_high'),
+                        context.get('stock_low'), context.get('stock_close'),
+                        context.get('stock_volume'), context.get('stock_prev_close'),
+                        context.get('stock_change_percent'), context.get('stock_avg_volume'),
+                        context.get('stock_volume_ratio'),
+                        # Fundamentals
+                        context.get('market_cap'), context.get('pe_ratio'),
+                        context.get('forward_pe'), context.get('eps'), context.get('beta'),
+                        context.get('dividend_yield'), context.get('shares_outstanding'),
+                        context.get('float_shares'), context.get('short_ratio'),
+                        context.get('fifty_two_week_high'), context.get('fifty_two_week_low'),
+                        context.get('fifty_day_ma'), context.get('two_hundred_day_ma'),
+                        # Market indices
+                        context.get('sp500_price'), context.get('sp500_change_percent'),
+                        context.get('nasdaq_price'), context.get('nasdaq_change_percent'),
+                        context.get('dji_price'), context.get('dji_change_percent'),
+                        context.get('russell_price'), context.get('russell_change_percent'),
+                        # Volatility
+                        context.get('vix_price'), context.get('vix_change_percent'),
+                        context.get('treasury_10y_yield'), context.get('treasury_2y_yield'),
+                        context.get('yield_curve_spread'),
+                        # Sector
+                        context.get('sector_etf_symbol'), context.get('sector_etf_price'),
+                        context.get('sector_etf_change_percent'),
+                        context.get('xlk_price'), context.get('xlf_price'),
+                        context.get('xle_price'), context.get('xlv_price'),
+                        context.get('xly_price'), context.get('xlp_price'),
+                        context.get('xli_price'), context.get('xlb_price'),
+                        context.get('xlu_price'), context.get('xlre_price'),
+                        # Account
+                        context.get('account_equity'), context.get('account_cash'),
+                        context.get('account_buying_power'), context.get('account_portfolio_value'),
+                        context.get('position_qty_before'), context.get('position_value_before'),
+                        context.get('position_avg_entry'), context.get('position_unrealized_pl'),
+                        context.get('total_positions_count'), context.get('total_positions_value'),
+                        # Technical
+                        context.get('price_vs_50ma_percent'), context.get('price_vs_200ma_percent'),
+                        context.get('price_vs_52w_high_percent'), context.get('price_vs_52w_low_percent'),
+                        context.get('rsi_14'),
+                        # Metadata
+                        context.get('data_source', 'yfinance'),
+                        context.get('fetch_latency_ms'), context.get('errors')
+                    ))
+                    result = cur.fetchone()
+                    return result[0] if result else None
+
+        except Exception as e:
+            print(f"Error saving trade market context: {e}")
+            return None
+
+    @staticmethod
+    def get_context_by_trade_id(trade_id: int) -> Optional[Dict]:
+        """
+        Get market context for a specific trade
+
+        Args:
+            trade_id: Trade ID
+
+        Returns:
+            Dict with market context or None
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT * FROM trade_market_context
+                        WHERE trade_id = %s
+                    """, (trade_id,))
+                    result = cur.fetchone()
+                    return dict(result) if result else None
+        except Exception as e:
+            print(f"Error getting trade market context: {e}")
+            return None
+
+    @staticmethod
+    def get_trade_with_context(trade_id: int, user_id: int) -> Optional[Dict]:
+        """
+        Get trade details with full market context
+
+        Args:
+            trade_id: Trade ID
+            user_id: User ID (for authorization)
+
+        Returns:
+            Dict with trade and market context combined
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT
+                            t.*,
+                            c.stock_open, c.stock_high, c.stock_low, c.stock_close,
+                            c.stock_volume, c.stock_prev_close, c.stock_change_percent,
+                            c.stock_avg_volume, c.stock_volume_ratio,
+                            c.market_cap, c.pe_ratio, c.forward_pe, c.eps, c.beta,
+                            c.dividend_yield, c.shares_outstanding, c.short_ratio,
+                            c.fifty_two_week_high, c.fifty_two_week_low,
+                            c.fifty_day_ma, c.two_hundred_day_ma,
+                            c.sp500_price, c.sp500_change_percent,
+                            c.nasdaq_price, c.nasdaq_change_percent,
+                            c.dji_price, c.dji_change_percent,
+                            c.russell_price, c.russell_change_percent,
+                            c.vix_price, c.vix_change_percent,
+                            c.treasury_10y_yield, c.treasury_2y_yield, c.yield_curve_spread,
+                            c.sector_etf_symbol, c.sector_etf_price, c.sector_etf_change_percent,
+                            c.xlk_price, c.xlf_price, c.xle_price, c.xlv_price,
+                            c.xlp_price, c.xli_price, c.xlb_price, c.xlu_price, c.xlre_price,
+                            c.price_vs_50ma_percent, c.price_vs_200ma_percent,
+                            c.price_vs_52w_high_percent, c.price_vs_52w_low_percent,
+                            c.rsi_14, c.fetch_latency_ms as context_fetch_latency_ms
+                        FROM bot_trades t
+                        LEFT JOIN trade_market_context c ON t.id = c.trade_id
+                        WHERE t.id = %s AND t.user_id = %s
+                    """, (trade_id, user_id))
+                    result = cur.fetchone()
+                    return dict(result) if result else None
+        except Exception as e:
+            print(f"Error getting trade with context: {e}")
+            return None
+
+
+class StrategyParamsDB:
+    """Store and retrieve strategy parameters for trades - enables AI learning"""
+
+    @staticmethod
+    def save_params(trade_id: int, user_id: int, params: Dict) -> Optional[int]:
+        """
+        Save strategy parameters for a trade
+
+        Args:
+            trade_id: ID of the trade in bot_trades table
+            user_id: User ID
+            params: Dict with all strategy parameters
+
+        Returns:
+            ID of the saved params record or None
+        """
+        try:
+            import json
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO trade_strategy_params (
+                            trade_id, user_id,
+                            -- Strategy identification
+                            strategy_type, strategy_name, strategy_version,
+                            -- Entry parameters
+                            entry_indicator, entry_condition, entry_threshold, entry_value_at_signal,
+                            -- Moving averages
+                            ma_fast_period, ma_fast_type, ma_slow_period, ma_slow_type,
+                            ma_trend_period, price_vs_ma_fast, price_vs_ma_slow,
+                            -- RSI
+                            rsi_period, rsi_value_at_entry, rsi_oversold_level, rsi_overbought_level,
+                            -- MACD
+                            macd_fast_period, macd_slow_period, macd_signal_period,
+                            macd_value_at_entry, macd_signal_at_entry, macd_histogram_at_entry,
+                            -- Bollinger Bands
+                            bb_period, bb_std_dev, bb_position,
+                            -- ATR
+                            atr_period, atr_value_at_entry, atr_multiplier_stop, atr_multiplier_target,
+                            -- Volume
+                            volume_ma_period, volume_ratio_at_entry, volume_condition,
+                            -- Risk management
+                            stop_loss_type, stop_loss_value, take_profit_type, take_profit_value,
+                            risk_reward_ratio, position_size_method,
+                            -- Time
+                            trade_session, day_of_week, hour_of_day, minutes_since_open,
+                            -- Trend
+                            trend_short, trend_medium, trend_long,
+                            -- Custom
+                            custom_params
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                        ON CONFLICT (trade_id) DO UPDATE SET
+                            strategy_type = EXCLUDED.strategy_type,
+                            strategy_name = EXCLUDED.strategy_name,
+                            entry_indicator = EXCLUDED.entry_indicator,
+                            entry_threshold = EXCLUDED.entry_threshold,
+                            custom_params = EXCLUDED.custom_params
+                        RETURNING id
+                    """, (
+                        trade_id, user_id,
+                        params.get('strategy_type'), params.get('strategy_name'), params.get('strategy_version'),
+                        params.get('entry_indicator'), params.get('entry_condition'),
+                        params.get('entry_threshold'), params.get('entry_value_at_signal'),
+                        params.get('ma_fast_period'), params.get('ma_fast_type'),
+                        params.get('ma_slow_period'), params.get('ma_slow_type'),
+                        params.get('ma_trend_period'), params.get('price_vs_ma_fast'), params.get('price_vs_ma_slow'),
+                        params.get('rsi_period'), params.get('rsi_value_at_entry'),
+                        params.get('rsi_oversold_level'), params.get('rsi_overbought_level'),
+                        params.get('macd_fast_period'), params.get('macd_slow_period'), params.get('macd_signal_period'),
+                        params.get('macd_value_at_entry'), params.get('macd_signal_at_entry'),
+                        params.get('macd_histogram_at_entry'),
+                        params.get('bb_period'), params.get('bb_std_dev'), params.get('bb_position'),
+                        params.get('atr_period'), params.get('atr_value_at_entry'),
+                        params.get('atr_multiplier_stop'), params.get('atr_multiplier_target'),
+                        params.get('volume_ma_period'), params.get('volume_ratio_at_entry'),
+                        params.get('volume_condition'),
+                        params.get('stop_loss_type'), params.get('stop_loss_value'),
+                        params.get('take_profit_type'), params.get('take_profit_value'),
+                        params.get('risk_reward_ratio'), params.get('position_size_method'),
+                        params.get('trade_session'), params.get('day_of_week'),
+                        params.get('hour_of_day'), params.get('minutes_since_open'),
+                        params.get('trend_short'), params.get('trend_medium'), params.get('trend_long'),
+                        json.dumps(params.get('custom_params')) if params.get('custom_params') else None
+                    ))
+                    result = cur.fetchone()
+                    return result[0] if result else None
+        except Exception as e:
+            print(f"Error saving strategy params: {e}")
+            return None
+
+    @staticmethod
+    def get_params_by_trade_id(trade_id: int) -> Optional[Dict]:
+        """Get strategy parameters for a trade"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT * FROM trade_strategy_params WHERE trade_id = %s
+                    """, (trade_id,))
+                    result = cur.fetchone()
+                    return dict(result) if result else None
+        except Exception as e:
+            print(f"Error getting strategy params: {e}")
+            return None
+
+
+class TradeOutcomesDB:
+    """Track trade outcomes (P&L) for performance analysis"""
+
+    @staticmethod
+    def create_entry(trade_id: int, user_id: int, entry_price: float, entry_time: datetime,
+                     quantity: float, position_type: str = 'long', entry_order_id: str = None) -> Optional[int]:
+        """
+        Create trade outcome record when trade opens
+
+        Args:
+            trade_id: ID of the trade
+            user_id: User ID
+            entry_price: Entry fill price
+            entry_time: Entry timestamp
+            quantity: Number of shares
+            position_type: 'long' or 'short'
+            entry_order_id: Alpaca order ID
+
+        Returns:
+            ID of the outcome record
+        """
+        try:
+            entry_value = float(entry_price) * float(quantity)
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO trade_outcomes (
+                            trade_id, user_id, position_type,
+                            entry_price, entry_time, entry_order_id,
+                            quantity, entry_value, status
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'open')
+                        ON CONFLICT (trade_id) DO UPDATE SET
+                            entry_price = EXCLUDED.entry_price,
+                            entry_time = EXCLUDED.entry_time,
+                            quantity = EXCLUDED.quantity,
+                            entry_value = EXCLUDED.entry_value
+                        RETURNING id
+                    """, (trade_id, user_id, position_type, entry_price, entry_time,
+                          entry_order_id, quantity, entry_value))
+                    result = cur.fetchone()
+                    return result[0] if result else None
+        except Exception as e:
+            print(f"Error creating trade outcome entry: {e}")
+            return None
+
+    @staticmethod
+    def close_trade(trade_id: int, exit_price: float, exit_time: datetime,
+                    exit_reason: str = 'signal', exit_order_id: str = None,
+                    commission: float = 0, slippage: float = 0) -> Optional[Dict]:
+        """
+        Close a trade and calculate P&L
+
+        Args:
+            trade_id: ID of the trade
+            exit_price: Exit fill price
+            exit_time: Exit timestamp
+            exit_reason: 'signal', 'stop_loss', 'take_profit', 'trailing_stop', 'manual'
+            exit_order_id: Alpaca order ID
+            commission: Total commission paid
+            slippage: Estimated slippage in dollars
+
+        Returns:
+            Dict with calculated P&L stats
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Get current outcome record
+                    cur.execute("""
+                        SELECT * FROM trade_outcomes WHERE trade_id = %s
+                    """, (trade_id,))
+                    outcome = cur.fetchone()
+
+                    if not outcome:
+                        print(f"No outcome record found for trade {trade_id}")
+                        return None
+
+                    # Calculate P&L
+                    entry_price = float(outcome['entry_price'])
+                    quantity = float(outcome['quantity'])
+                    position_type = outcome['position_type']
+
+                    if position_type == 'long':
+                        pnl_dollars = (float(exit_price) - entry_price) * quantity
+                    else:  # short
+                        pnl_dollars = (entry_price - float(exit_price)) * quantity
+
+                    pnl_dollars -= commission
+                    pnl_percent = (pnl_dollars / float(outcome['entry_value'])) * 100 if outcome['entry_value'] else 0
+                    exit_value = float(exit_price) * quantity
+
+                    # Calculate duration
+                    entry_time = outcome['entry_time']
+                    duration_seconds = int((exit_time - entry_time).total_seconds())
+                    duration_minutes = duration_seconds // 60
+                    duration_hours = duration_seconds / 3600
+
+                    # Determine win/loss
+                    is_winner = pnl_dollars > 0
+                    is_breakeven = abs(pnl_percent) < 0.1  # Within 0.1%
+
+                    # Update record
+                    cur.execute("""
+                        UPDATE trade_outcomes SET
+                            exit_price = %s,
+                            exit_time = %s,
+                            exit_order_id = %s,
+                            exit_reason = %s,
+                            exit_value = %s,
+                            pnl_dollars = %s,
+                            pnl_percent = %s,
+                            commission_paid = %s,
+                            slippage_dollars = %s,
+                            slippage_percent = %s,
+                            hold_duration_seconds = %s,
+                            hold_duration_minutes = %s,
+                            hold_duration_hours = %s,
+                            is_winner = %s,
+                            is_breakeven = %s,
+                            status = 'closed',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE trade_id = %s
+                        RETURNING *
+                    """, (
+                        exit_price, exit_time, exit_order_id, exit_reason,
+                        exit_value, pnl_dollars, pnl_percent, commission, slippage,
+                        (slippage / float(outcome['entry_value']) * 100) if outcome['entry_value'] else 0,
+                        duration_seconds, duration_minutes, duration_hours,
+                        is_winner, is_breakeven, trade_id
+                    ))
+                    result = cur.fetchone()
+                    return dict(result) if result else None
+
+        except Exception as e:
+            print(f"Error closing trade outcome: {e}")
+            return None
+
+    @staticmethod
+    def get_outcome_by_trade_id(trade_id: int) -> Optional[Dict]:
+        """Get outcome for a specific trade"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT * FROM trade_outcomes WHERE trade_id = %s
+                    """, (trade_id,))
+                    result = cur.fetchone()
+                    return dict(result) if result else None
+        except Exception as e:
+            print(f"Error getting trade outcome: {e}")
+            return None
+
+    @staticmethod
+    def get_user_outcomes(user_id: int, status: str = None, limit: int = 100) -> List[Dict]:
+        """Get all outcomes for a user"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    if status:
+                        cur.execute("""
+                            SELECT * FROM trade_outcomes
+                            WHERE user_id = %s AND status = %s
+                            ORDER BY entry_time DESC LIMIT %s
+                        """, (user_id, status, limit))
+                    else:
+                        cur.execute("""
+                            SELECT * FROM trade_outcomes
+                            WHERE user_id = %s
+                            ORDER BY entry_time DESC LIMIT %s
+                        """, (user_id, limit))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            print(f"Error getting user outcomes: {e}")
+            return []
+
+    @staticmethod
+    def get_open_position(user_id: int, symbol: str) -> Optional[Dict]:
+        """Find open position for a symbol to close it"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT o.*, t.symbol, t.timeframe
+                        FROM trade_outcomes o
+                        JOIN bot_trades t ON o.trade_id = t.id
+                        WHERE o.user_id = %s AND t.symbol = %s AND o.status = 'open'
+                        ORDER BY o.entry_time DESC LIMIT 1
+                    """, (user_id, symbol.upper()))
+                    result = cur.fetchone()
+                    return dict(result) if result else None
+        except Exception as e:
+            print(f"Error finding open position: {e}")
+            return None
+
+
+class StrategyPerformanceDB:
+    """Calculate and store strategy performance metrics"""
+
+    @staticmethod
+    def calculate_performance(user_id: int, strategy_type: str = None,
+                              symbol: str = None, timeframe: str = None) -> Dict:
+        """
+        Calculate performance metrics for a strategy
+
+        Args:
+            user_id: User ID
+            strategy_type: Filter by strategy type (optional)
+            symbol: Filter by symbol (optional)
+            timeframe: Filter by timeframe (optional)
+
+        Returns:
+            Dict with performance metrics
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Build WHERE clause
+                    conditions = ["o.user_id = %s", "o.status = 'closed'"]
+                    params = [user_id]
+
+                    if strategy_type:
+                        conditions.append("p.strategy_type = %s")
+                        params.append(strategy_type)
+                    if symbol:
+                        conditions.append("t.symbol = %s")
+                        params.append(symbol.upper())
+                    if timeframe:
+                        conditions.append("t.timeframe = %s")
+                        params.append(timeframe)
+
+                    where_clause = " AND ".join(conditions)
+
+                    cur.execute(f"""
+                        SELECT
+                            COUNT(*) as total_trades,
+                            SUM(CASE WHEN o.is_winner THEN 1 ELSE 0 END) as winning_trades,
+                            SUM(CASE WHEN NOT o.is_winner AND NOT o.is_breakeven THEN 1 ELSE 0 END) as losing_trades,
+                            SUM(CASE WHEN o.is_breakeven THEN 1 ELSE 0 END) as breakeven_trades,
+                            ROUND(100.0 * SUM(CASE WHEN o.is_winner THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) as win_rate,
+                            SUM(o.pnl_dollars) as total_pnl_dollars,
+                            AVG(o.pnl_percent) as avg_pnl_percent,
+                            AVG(CASE WHEN o.is_winner THEN o.pnl_dollars END) as avg_win_dollars,
+                            AVG(CASE WHEN NOT o.is_winner AND NOT o.is_breakeven THEN o.pnl_dollars END) as avg_loss_dollars,
+                            AVG(CASE WHEN o.is_winner THEN o.pnl_percent END) as avg_win_percent,
+                            AVG(CASE WHEN NOT o.is_winner AND NOT o.is_breakeven THEN o.pnl_percent END) as avg_loss_percent,
+                            MAX(o.pnl_dollars) as largest_win_dollars,
+                            MIN(o.pnl_dollars) as largest_loss_dollars,
+                            AVG(o.hold_duration_minutes) as avg_hold_duration_minutes,
+                            SUM(CASE WHEN o.is_winner THEN o.pnl_dollars ELSE 0 END) /
+                                NULLIF(ABS(SUM(CASE WHEN NOT o.is_winner THEN o.pnl_dollars ELSE 0 END)), 0) as profit_factor
+                        FROM trade_outcomes o
+                        LEFT JOIN trade_strategy_params p ON o.trade_id = p.trade_id
+                        LEFT JOIN bot_trades t ON o.trade_id = t.id
+                        WHERE {where_clause}
+                    """, params)
+
+                    result = cur.fetchone()
+                    return dict(result) if result else {}
+
+        except Exception as e:
+            print(f"Error calculating performance: {e}")
+            return {}
+
+    @staticmethod
+    def get_performance_by_indicator(user_id: int, min_trades: int = 10) -> List[Dict]:
+        """
+        Get performance breakdown by entry indicator
+
+        Args:
+            user_id: User ID
+            min_trades: Minimum trades required for inclusion
+
+        Returns:
+            List of performance stats per indicator
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT
+                            p.entry_indicator,
+                            COUNT(*) as total_trades,
+                            ROUND(100.0 * SUM(CASE WHEN o.is_winner THEN 1 ELSE 0 END) / COUNT(*), 2) as win_rate,
+                            ROUND(AVG(o.pnl_percent)::numeric, 2) as avg_return_percent,
+                            ROUND(SUM(o.pnl_dollars)::numeric, 2) as total_pnl
+                        FROM trade_outcomes o
+                        JOIN trade_strategy_params p ON o.trade_id = p.trade_id
+                        WHERE o.user_id = %s AND o.status = 'closed' AND p.entry_indicator IS NOT NULL
+                        GROUP BY p.entry_indicator
+                        HAVING COUNT(*) >= %s
+                        ORDER BY win_rate DESC, avg_return_percent DESC
+                    """, (user_id, min_trades))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            print(f"Error getting performance by indicator: {e}")
+            return []
+
+    @staticmethod
+    def get_performance_by_market_condition(user_id: int, min_trades: int = 10) -> List[Dict]:
+        """
+        Get performance breakdown by VIX level (market volatility)
+
+        Returns insights like: "Trades work best when VIX is 15-20"
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT
+                            CASE
+                                WHEN c.vix_price < 15 THEN 'Low VIX (<15)'
+                                WHEN c.vix_price BETWEEN 15 AND 20 THEN 'Normal VIX (15-20)'
+                                WHEN c.vix_price BETWEEN 20 AND 25 THEN 'Elevated VIX (20-25)'
+                                WHEN c.vix_price > 25 THEN 'High VIX (>25)'
+                                ELSE 'Unknown'
+                            END as vix_regime,
+                            COUNT(*) as total_trades,
+                            ROUND(100.0 * SUM(CASE WHEN o.is_winner THEN 1 ELSE 0 END) / COUNT(*), 2) as win_rate,
+                            ROUND(AVG(o.pnl_percent)::numeric, 2) as avg_return_percent,
+                            ROUND(SUM(o.pnl_dollars)::numeric, 2) as total_pnl
+                        FROM trade_outcomes o
+                        JOIN trade_market_context c ON o.trade_id = c.trade_id
+                        WHERE o.user_id = %s AND o.status = 'closed'
+                        GROUP BY vix_regime
+                        HAVING COUNT(*) >= %s
+                        ORDER BY avg_return_percent DESC
+                    """, (user_id, min_trades))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            print(f"Error getting performance by market condition: {e}")
+            return []
+
+
+class AIStrategyInsightsDB:
+    """Store and retrieve AI-discovered strategy insights"""
+
+    @staticmethod
+    def save_insight(insight: Dict) -> Optional[int]:
+        """Save an AI-generated insight"""
+        try:
+            import json
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO ai_strategy_insights (
+                            insight_type, confidence_score, sample_size,
+                            symbol, timeframe, strategy_type,
+                            title, description, conditions,
+                            observed_win_rate, observed_avg_return, observed_trades,
+                            recommendation, recommended_params
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        insight.get('insight_type'), insight.get('confidence_score'),
+                        insight.get('sample_size'), insight.get('symbol'),
+                        insight.get('timeframe'), insight.get('strategy_type'),
+                        insight.get('title'), insight.get('description'),
+                        json.dumps(insight.get('conditions')) if insight.get('conditions') else None,
+                        insight.get('observed_win_rate'), insight.get('observed_avg_return'),
+                        insight.get('observed_trades'), insight.get('recommendation'),
+                        json.dumps(insight.get('recommended_params')) if insight.get('recommended_params') else None
+                    ))
+                    result = cur.fetchone()
+                    return result[0] if result else None
+        except Exception as e:
+            print(f"Error saving insight: {e}")
+            return None
+
+    @staticmethod
+    def get_active_insights(symbol: str = None, strategy_type: str = None,
+                            min_confidence: float = 50) -> List[Dict]:
+        """Get active insights, optionally filtered"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    conditions = ["is_active = TRUE", "confidence_score >= %s"]
+                    params = [min_confidence]
+
+                    if symbol:
+                        conditions.append("(symbol = %s OR symbol IS NULL)")
+                        params.append(symbol.upper())
+                    if strategy_type:
+                        conditions.append("(strategy_type = %s OR strategy_type IS NULL)")
+                        params.append(strategy_type)
+
+                    where_clause = " AND ".join(conditions)
+
+                    cur.execute(f"""
+                        SELECT * FROM ai_strategy_insights
+                        WHERE {where_clause}
+                        ORDER BY confidence_score DESC, observed_win_rate DESC
+                    """, params)
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            print(f"Error getting insights: {e}")
+            return []

@@ -9,11 +9,48 @@ from tornado.web import RequestHandler
 
 logger = logging.getLogger(__name__)
 
+
+def normalize_timeframe(tf: str) -> str:
+    """
+    Normalize timeframe from TradingView format to our database format.
+    TradingView {{interval}} returns: 1, 5, 15, 30, 45, 60, 120, 240, D, W, M
+    Our database stores: 1min, 5min, 15min, 30min, 45min, 1h, 2h, 4h, 1d, 1w, 1m
+    """
+    if not tf:
+        return tf
+
+    tf = str(tf).strip().lower()
+
+    # Already in correct format
+    if tf in ['1min', '5min', '15min', '30min', '45min', '1h', '2h', '4h', '1d', '1w', '1m']:
+        return tf
+
+    # Map TradingView intervals to our format
+    mappings = {
+        # Minutes
+        '1': '1min', '1m': '1min', '1 min': '1min', '1min': '1min',
+        '5': '5min', '5m': '5min', '5 min': '5min', '5min': '5min',
+        '15': '15min', '15m': '15min', '15 min': '15min', '15min': '15min',
+        '30': '30min', '30m': '30min', '30 min': '30min', '30min': '30min',
+        '45': '45min', '45m': '45min', '45 min': '45min', '45min': '45min',
+        # Hours
+        '60': '1h', '1h': '1h', '1 hour': '1h', '1hour': '1h',
+        '120': '2h', '2h': '2h', '2 hour': '2h', '2hour': '2h',
+        '240': '4h', '4h': '4h', '4 hour': '4h', '4hour': '4h',
+        # Days/Weeks/Months
+        'd': '1d', '1d': '1d', 'daily': '1d', 'day': '1d',
+        'w': '1w', '1w': '1w', 'weekly': '1w', 'week': '1w',
+        'm': '1m', '1m': '1m', 'monthly': '1m', 'month': '1m',
+    }
+
+    return mappings.get(tf, tf)
+
 # Import database classes
 try:
     from bot_database import (
         BotConfigDB, WebhookTokenDB, SystemStrategyDB,
-        UserStrategySubscriptionDB, UserOutgoingWebhookDB
+        UserStrategySubscriptionDB, UserOutgoingWebhookDB,
+        StrategyParamsDB, TradeOutcomesDB
     )
     from bot_engine import TradingEngine
     import requests
@@ -21,6 +58,116 @@ try:
 except ImportError as e:
     logger.warning(f"Webhook dependencies not available: {e}")
     WEBHOOK_ENABLED = False
+
+
+def extract_strategy_params(data: dict) -> dict:
+    """
+    Extract strategy parameters from webhook payload.
+    These are optional fields that TradingView Pine Script can send
+    for AI learning purposes.
+    """
+    params = {}
+
+    # Strategy identification
+    if data.get('strategy_type'):
+        params['strategy_type'] = data.get('strategy_type')
+    if data.get('strategy_name'):
+        params['strategy_name'] = data.get('strategy_name')
+    if data.get('strategy_version'):
+        params['strategy_version'] = data.get('strategy_version')
+
+    # Entry indicator info
+    if data.get('entry_indicator'):
+        params['entry_indicator'] = data.get('entry_indicator')
+    if data.get('entry_condition'):
+        params['entry_condition'] = data.get('entry_condition')
+    if data.get('entry_threshold') is not None:
+        params['entry_threshold'] = float(data.get('entry_threshold'))
+    if data.get('entry_value') is not None:
+        params['entry_value_at_signal'] = float(data.get('entry_value'))
+
+    # RSI parameters
+    if data.get('rsi_period') is not None:
+        params['rsi_period'] = int(data.get('rsi_period'))
+    if data.get('rsi_value') is not None:
+        params['rsi_value_at_entry'] = float(data.get('rsi_value'))
+    if data.get('rsi_oversold') is not None:
+        params['rsi_oversold_level'] = int(data.get('rsi_oversold'))
+    if data.get('rsi_overbought') is not None:
+        params['rsi_overbought_level'] = int(data.get('rsi_overbought'))
+
+    # Moving average parameters
+    if data.get('ma_fast') is not None:
+        params['ma_fast_period'] = int(data.get('ma_fast'))
+    if data.get('ma_fast_type'):
+        params['ma_fast_type'] = data.get('ma_fast_type')
+    if data.get('ma_slow') is not None:
+        params['ma_slow_period'] = int(data.get('ma_slow'))
+    if data.get('ma_slow_type'):
+        params['ma_slow_type'] = data.get('ma_slow_type')
+
+    # MACD parameters
+    if data.get('macd_fast') is not None:
+        params['macd_fast_period'] = int(data.get('macd_fast'))
+    if data.get('macd_slow') is not None:
+        params['macd_slow_period'] = int(data.get('macd_slow'))
+    if data.get('macd_signal') is not None:
+        params['macd_signal_period'] = int(data.get('macd_signal'))
+    if data.get('macd_value') is not None:
+        params['macd_value_at_entry'] = float(data.get('macd_value'))
+    if data.get('macd_histogram') is not None:
+        params['macd_histogram_at_entry'] = float(data.get('macd_histogram'))
+
+    # ATR parameters
+    if data.get('atr_period') is not None:
+        params['atr_period'] = int(data.get('atr_period'))
+    if data.get('atr_value') is not None:
+        params['atr_value_at_entry'] = float(data.get('atr_value'))
+    if data.get('atr_stop_mult') is not None:
+        params['atr_multiplier_stop'] = float(data.get('atr_stop_mult'))
+    if data.get('atr_target_mult') is not None:
+        params['atr_multiplier_target'] = float(data.get('atr_target_mult'))
+
+    # Risk management
+    if data.get('stop_loss') is not None:
+        params['stop_loss_value'] = float(data.get('stop_loss'))
+    if data.get('stop_loss_type'):
+        params['stop_loss_type'] = data.get('stop_loss_type')
+    if data.get('take_profit') is not None:
+        params['take_profit_value'] = float(data.get('take_profit'))
+    if data.get('take_profit_type'):
+        params['take_profit_type'] = data.get('take_profit_type')
+    if data.get('risk_reward') is not None:
+        params['risk_reward_ratio'] = float(data.get('risk_reward'))
+
+    # Volume
+    if data.get('volume_ratio') is not None:
+        params['volume_ratio_at_entry'] = float(data.get('volume_ratio'))
+
+    # Trend context
+    if data.get('trend_short'):
+        params['trend_short'] = data.get('trend_short')
+    if data.get('trend_medium'):
+        params['trend_medium'] = data.get('trend_medium')
+    if data.get('trend_long'):
+        params['trend_long'] = data.get('trend_long')
+
+    # Any extra parameters go into custom_params
+    known_keys = {
+        'action', 'symbol', 'timeframe', 'strategy_type', 'strategy_name', 'strategy_version',
+        'entry_indicator', 'entry_condition', 'entry_threshold', 'entry_value',
+        'rsi_period', 'rsi_value', 'rsi_oversold', 'rsi_overbought',
+        'ma_fast', 'ma_fast_type', 'ma_slow', 'ma_slow_type',
+        'macd_fast', 'macd_slow', 'macd_signal', 'macd_value', 'macd_histogram',
+        'atr_period', 'atr_value', 'atr_stop_mult', 'atr_target_mult',
+        'stop_loss', 'stop_loss_type', 'take_profit', 'take_profit_type', 'risk_reward',
+        'volume_ratio', 'trend_short', 'trend_medium', 'trend_long'
+    }
+    custom = {k: v for k, v in data.items() if k not in known_keys}
+    if custom:
+        params['custom_params'] = custom
+
+    return params if params else None
 
 
 def forward_to_outgoing_webhooks(user_id: int, event_type: str, payload: dict):
@@ -86,7 +233,8 @@ class WebhookHandler(RequestHandler):
 
             action = data.get('action', '').upper()
             symbol = data.get('symbol', '').upper()
-            timeframe = data.get('timeframe', '')
+            timeframe_raw = data.get('timeframe', '')
+            timeframe = normalize_timeframe(timeframe_raw)  # Normalize TradingView format
 
             if not action or not symbol or not timeframe:
                 self.set_status(400)
@@ -98,7 +246,7 @@ class WebhookHandler(RequestHandler):
                 self.write(json.dumps({'error': f'Invalid action: {action}'}))
                 return
 
-            logger.info(f"WEBHOOK: User {user_id} - {action} {symbol} {timeframe}")
+            logger.info(f"WEBHOOK: User {user_id} - {action} {symbol} {timeframe} (raw: {timeframe_raw})")
 
             # Get bot config
             bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
@@ -110,6 +258,9 @@ class WebhookHandler(RequestHandler):
                 self.write(json.dumps({'status': 'skipped', 'reason': 'Bot is disabled'}))
                 return
 
+            # Extract strategy parameters for AI learning (optional fields)
+            strategy_params = extract_strategy_params(data)
+
             # Execute trade
             try:
                 engine = TradingEngine(user_id)
@@ -118,6 +269,45 @@ class WebhookHandler(RequestHandler):
                 self.set_status(400)
                 self.write(json.dumps({'status': 'error', 'message': str(e)}))
                 return
+
+            # Save strategy params and create outcome entry for AI learning
+            trade_id = result.get('trade_id')
+            if trade_id and result.get('status') == 'success':
+                try:
+                    # Save strategy parameters
+                    if strategy_params:
+                        StrategyParamsDB.save_params(trade_id, user_id, strategy_params)
+                        logger.info(f"Saved strategy params for trade {trade_id}")
+
+                    # Create trade outcome entry (will be closed when position exits)
+                    if action in ['BUY', 'SELL'] and result.get('filled_avg_price'):
+                        position_type = 'long' if action == 'BUY' else 'short'
+                        TradeOutcomesDB.create_entry(
+                            trade_id=trade_id,
+                            user_id=user_id,
+                            entry_price=float(result.get('filled_avg_price')),
+                            entry_time=datetime.utcnow(),
+                            quantity=float(result.get('filled_qty', 0)),
+                            position_type=position_type,
+                            entry_order_id=result.get('order_id')
+                        )
+                        logger.info(f"Created outcome entry for trade {trade_id}")
+
+                    # If CLOSE action, find and close the open position outcome
+                    if action == 'CLOSE' and result.get('filled_avg_price'):
+                        open_position = TradeOutcomesDB.get_open_position(user_id, symbol)
+                        if open_position:
+                            outcome = TradeOutcomesDB.close_trade(
+                                trade_id=open_position['trade_id'],
+                                exit_price=float(result.get('filled_avg_price')),
+                                exit_time=datetime.utcnow(),
+                                exit_reason='signal',
+                                exit_order_id=result.get('order_id')
+                            )
+                            if outcome:
+                                logger.info(f"Closed trade outcome: P&L ${outcome.get('pnl_dollars', 0):.2f} ({outcome.get('pnl_percent', 0):.2f}%)")
+                except Exception as e:
+                    logger.warning(f"Failed to save strategy learning data (non-critical): {e}")
 
             # Forward to outgoing webhooks
             forward_to_outgoing_webhooks(user_id, 'signal', {
@@ -131,6 +321,7 @@ class WebhookHandler(RequestHandler):
                 'symbol': symbol,
                 'timeframe': timeframe,
                 'timestamp': datetime.utcnow().isoformat(),
+                'strategy_params_saved': strategy_params is not None,
                 **result
             }))
 
@@ -174,7 +365,8 @@ class SystemWebhookHandler(RequestHandler):
 
             action = data.get('action', '').upper()
             symbol = data.get('symbol', '').upper()
-            timeframe = data.get('timeframe', '')
+            timeframe_raw = data.get('timeframe', '')
+            timeframe = normalize_timeframe(timeframe_raw) if timeframe_raw else ''
 
             if not action or not symbol:
                 self.set_status(400)
@@ -186,7 +378,7 @@ class SystemWebhookHandler(RequestHandler):
                 self.write(json.dumps({'error': f'Invalid action: {action}'}))
                 return
 
-            logger.info(f"SYSTEM WEBHOOK: Strategy '{strategy['name']}' - {action} {symbol}")
+            logger.info(f"SYSTEM WEBHOOK: Strategy '{strategy['name']}' - {action} {symbol} {timeframe}")
 
             SystemStrategyDB.increment_signal_count(strategy['id'])
             subscribers = UserStrategySubscriptionDB.get_strategy_subscribers(strategy['id'])

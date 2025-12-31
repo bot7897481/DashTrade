@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 try:
     from bot_database import (
         BotConfigDB, WebhookTokenDB, SystemStrategyDB,
-        UserStrategySubscriptionDB, BotAPIKeysDB, BotTradesDB
+        UserStrategySubscriptionDB, BotAPIKeysDB, BotTradesDB,
+        TradeMarketContextDB
     )
     from bot_engine import TradingEngine
     from auth import UserDB
@@ -247,8 +248,48 @@ def api_get_bots():
         for bot in bots:
             if bot.get('webhook_token'):
                 bot['webhook_url'] = f"{webhook_base}/webhook?token={bot['webhook_token']}"
+
+                # Auto-generate TradingView setup info
+                symbol = bot.get('symbol', '')
+                timeframe = bot.get('timeframe', '')
+
+                bot['tradingview_setup'] = {
+                    # Basic message - minimum required fields
+                    'basic_message': '{"action": "{{strategy.order.action}}", "symbol": "{{ticker}}", "timeframe": "{{interval}}"}',
+                    # Exit signal (when strategy closes position)
+                    'exit_message': '{"action": "CLOSE", "symbol": "{{ticker}}", "timeframe": "{{interval}}"}',
+                    # Enhanced message with strategy params for AI learning
+                    'ai_learning_message': '{"action": "{{strategy.order.action}}", "symbol": "{{ticker}}", "timeframe": "{{interval}}", "strategy_type": "momentum", "entry_indicator": "RSI", "rsi_value": {{rsi}}, "rsi_period": 14, "ma_fast": 9, "ma_slow": 21}',
+                    # Instructions for TradingView
+                    'instructions': [
+                        "1. In TradingView, create an alert on your strategy",
+                        "2. Set 'Webhook URL' to the webhook_url above",
+                        "3. For basic alerts: Use 'basic_message' format",
+                        "4. For AI learning: Use 'ai_learning_message' with your strategy params",
+                        "5. For EXIT alerts: Use 'exit_message'",
+                    ],
+                    'ai_learning_params': {
+                        'strategy_type': 'momentum, mean_reversion, breakout, scalp, trend_follow',
+                        'entry_indicator': 'RSI, MACD, MA_cross, volume_breakout',
+                        'rsi_value': 'Current RSI value (e.g., 28.5)',
+                        'rsi_period': 'RSI period (default 14)',
+                        'ma_fast': 'Fast MA period (e.g., 9)',
+                        'ma_slow': 'Slow MA period (e.g., 21)',
+                        'macd_value': 'Current MACD value',
+                        'atr_value': 'Current ATR value',
+                        'stop_loss': 'Stop loss percent (e.g., 1.5)',
+                        'take_profit': 'Take profit percent (e.g., 3.0)',
+                        'trend_short': 'Short-term trend: up, down, sideways',
+                    },
+                    'notes': {
+                        'variables': '{{ticker}} = symbol, {{interval}} = timeframe, {{strategy.order.action}} = buy/sell',
+                        'ai_benefit': 'Including strategy params helps AI learn which settings work best',
+                        'timeframe_formats': 'System accepts: 5, 15, 60, D or 5min, 15min, 1h, 1d',
+                    }
+                }
             else:
                 bot['webhook_url'] = None
+                bot['tradingview_setup'] = None
 
         return jsonify({
             'bots': bots,
@@ -299,18 +340,36 @@ def api_create_bot():
             bot = next((b for b in bots if b['id'] == bot_id), None)
 
             webhook_url = None
+            tradingview_setup = None
+
             if bot and bot.get('webhook_token'):
                 webhook_base = os.environ.get('WEBHOOK_SERVER_URL', 'https://webhook.novalgo.org')
                 if not webhook_base.startswith('http'):
                     webhook_base = f"https://{webhook_base}"
                 webhook_url = f"{webhook_base}/webhook?token={bot['webhook_token']}"
 
+                # Auto-generate TradingView setup info (fully dynamic with TradingView variables)
+                tradingview_setup = {
+                    'entry_message': '{"action": "{{strategy.order.action}}", "symbol": "{{ticker}}", "timeframe": "{{interval}}"}',
+                    'exit_message': '{"action": "CLOSE", "symbol": "{{ticker}}", "timeframe": "{{interval}}"}',
+                    'instructions': [
+                        "1. In TradingView, create an alert on your strategy",
+                        "2. Set 'Webhook URL' to the webhook_url above",
+                        "3. For ENTRY alerts: Copy the 'entry_message' into the alert message",
+                        "4. For EXIT alerts: Copy the 'exit_message' into the alert message",
+                        "5. Check 'Webhook' checkbox to enable",
+                    ],
+                    'notes': {
+                        'variables': '{{ticker}} = symbol, {{interval}} = timeframe, {{strategy.order.action}} = buy/sell',
+                    }
+                }
+
             return jsonify({
                 'success': True,
                 'bot_id': bot_id,
                 'message': f'Bot created for {symbol} {timeframe}',
                 'webhook_url': webhook_url,
-                'webhook_payload': '{"action": "{{strategy.order.action}}"}'
+                'tradingview_setup': tradingview_setup
             }), 201
         else:
             return jsonify({'error': 'Failed to create bot. May already exist for this symbol+timeframe.'}), 400
@@ -488,6 +547,170 @@ def api_get_trades():
         }), 200
     except Exception as e:
         logger.error(f"Get trades error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/trades/<int:trade_id>', methods=['GET'])
+@token_required
+def api_get_trade_detail(trade_id):
+    """
+    Get detailed trade information with full market context
+
+    This endpoint returns comprehensive data captured at the time of trade execution:
+    - Trade execution details (price, quantity, slippage, timing)
+    - Stock data (OHLCV, volume, fundamentals)
+    - Market indices (S&P 500, NASDAQ, DJI, Russell, VIX)
+    - Treasury yields and yield curve
+    - Sector ETF prices
+    - Account and position context
+    - Technical indicators (RSI, MAs)
+    """
+    try:
+        # Get trade with full market context
+        trade = TradeMarketContextDB.get_trade_with_context(trade_id, g.user_id)
+
+        if not trade:
+            return jsonify({'error': 'Trade not found'}), 404
+
+        trade = convert_decimals(trade)
+
+        # Organize response into logical sections for frontend
+        response = {
+            'trade': {
+                'id': trade.get('id'),
+                'symbol': trade.get('symbol'),
+                'timeframe': trade.get('timeframe'),
+                'action': trade.get('action'),
+                'status': trade.get('status'),
+                'created_at': trade.get('created_at'),
+                'filled_at': trade.get('filled_at'),
+            },
+            'execution': {
+                'notional': trade.get('notional'),
+                'filled_qty': trade.get('filled_qty'),
+                'filled_avg_price': trade.get('filled_avg_price'),
+                'expected_price': trade.get('expected_price'),
+                'slippage': trade.get('slippage'),
+                'slippage_percent': trade.get('slippage_percent'),
+                'bid_price': trade.get('bid_price'),
+                'ask_price': trade.get('ask_price'),
+                'spread': trade.get('spread'),
+                'spread_percent': trade.get('spread_percent'),
+                'order_id': trade.get('order_id'),
+                'order_type': trade.get('order_type'),
+                'time_in_force': trade.get('time_in_force'),
+            },
+            'timing': {
+                'signal_received_at': trade.get('signal_received_at'),
+                'order_submitted_at': trade.get('order_submitted_at'),
+                'execution_latency_ms': trade.get('execution_latency_ms'),
+                'time_to_fill_ms': trade.get('time_to_fill_ms'),
+                'market_open': trade.get('market_open'),
+                'extended_hours': trade.get('extended_hours'),
+                'signal_source': trade.get('signal_source'),
+            },
+            'stock': {
+                'open': trade.get('stock_open'),
+                'high': trade.get('stock_high'),
+                'low': trade.get('stock_low'),
+                'close': trade.get('stock_close'),
+                'volume': trade.get('stock_volume'),
+                'prev_close': trade.get('stock_prev_close'),
+                'change_percent': trade.get('stock_change_percent'),
+                'avg_volume': trade.get('stock_avg_volume'),
+                'volume_ratio': trade.get('stock_volume_ratio'),
+            },
+            'fundamentals': {
+                'market_cap': trade.get('market_cap'),
+                'pe_ratio': trade.get('pe_ratio'),
+                'forward_pe': trade.get('forward_pe'),
+                'eps': trade.get('eps'),
+                'beta': trade.get('beta'),
+                'dividend_yield': trade.get('dividend_yield'),
+                'shares_outstanding': trade.get('shares_outstanding'),
+                'short_ratio': trade.get('short_ratio'),
+                'fifty_two_week_high': trade.get('fifty_two_week_high'),
+                'fifty_two_week_low': trade.get('fifty_two_week_low'),
+                'fifty_day_ma': trade.get('fifty_day_ma'),
+                'two_hundred_day_ma': trade.get('two_hundred_day_ma'),
+            },
+            'market_indices': {
+                'sp500': {
+                    'price': trade.get('sp500_price'),
+                    'change_percent': trade.get('sp500_change_percent'),
+                },
+                'nasdaq': {
+                    'price': trade.get('nasdaq_price'),
+                    'change_percent': trade.get('nasdaq_change_percent'),
+                },
+                'dji': {
+                    'price': trade.get('dji_price'),
+                    'change_percent': trade.get('dji_change_percent'),
+                },
+                'russell': {
+                    'price': trade.get('russell_price'),
+                    'change_percent': trade.get('russell_change_percent'),
+                },
+                'vix': {
+                    'price': trade.get('vix_price'),
+                    'change_percent': trade.get('vix_change_percent'),
+                },
+            },
+            'treasury': {
+                'yield_10y': trade.get('treasury_10y_yield'),
+                'yield_2y': trade.get('treasury_2y_yield'),
+                'yield_curve_spread': trade.get('yield_curve_spread'),
+            },
+            'sector': {
+                'etf_symbol': trade.get('sector_etf_symbol'),
+                'etf_price': trade.get('sector_etf_price'),
+                'etf_change_percent': trade.get('sector_etf_change_percent'),
+                'sector_etfs': {
+                    'XLK': trade.get('xlk_price'),
+                    'XLF': trade.get('xlf_price'),
+                    'XLE': trade.get('xle_price'),
+                    'XLV': trade.get('xlv_price'),
+                    'XLY': trade.get('xly_price'),
+                    'XLP': trade.get('xlp_price'),
+                    'XLI': trade.get('xli_price'),
+                    'XLB': trade.get('xlb_price'),
+                    'XLU': trade.get('xlu_price'),
+                    'XLRE': trade.get('xlre_price'),
+                },
+            },
+            'position': {
+                'before': trade.get('position_before'),
+                'after': trade.get('position_after'),
+                'qty_before': trade.get('position_qty_before'),
+                'value_before': trade.get('position_value_before'),
+                'avg_entry': trade.get('position_avg_entry'),
+                'unrealized_pl': trade.get('position_unrealized_pl'),
+            },
+            'account': {
+                'equity': trade.get('account_equity'),
+                'cash': trade.get('account_cash'),
+                'buying_power': trade.get('account_buying_power'),
+                'portfolio_value': trade.get('account_portfolio_value'),
+                'total_positions_count': trade.get('total_positions_count'),
+                'total_positions_value': trade.get('total_positions_value'),
+            },
+            'technical': {
+                'rsi_14': trade.get('rsi_14'),
+                'price_vs_50ma_percent': trade.get('price_vs_50ma_percent'),
+                'price_vs_200ma_percent': trade.get('price_vs_200ma_percent'),
+                'price_vs_52w_high_percent': trade.get('price_vs_52w_high_percent'),
+                'price_vs_52w_low_percent': trade.get('price_vs_52w_low_percent'),
+            },
+            'metadata': {
+                'context_fetch_latency_ms': trade.get('context_fetch_latency_ms'),
+                'error_message': trade.get('error_message'),
+            },
+        }
+
+        return jsonify(response), 200
+
+    except Exception as e:
+        logger.error(f"Get trade detail error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 
@@ -735,6 +958,132 @@ def api_unsubscribe_strategy(strategy_id):
 
     except Exception as e:
         logger.error(f"Unsubscribe error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ============================================================================
+# STRATEGY PERFORMANCE & AI INSIGHTS
+# ============================================================================
+
+@app.route('/api/performance', methods=['GET'])
+@token_required
+def api_get_performance():
+    """
+    Get strategy performance metrics for the authenticated user
+
+    Query params:
+        - strategy_type: Filter by strategy type (optional)
+        - symbol: Filter by symbol (optional)
+        - timeframe: Filter by timeframe (optional)
+    """
+    try:
+        from bot_database import StrategyPerformanceDB
+
+        strategy_type = request.args.get('strategy_type')
+        symbol = request.args.get('symbol')
+        timeframe = request.args.get('timeframe')
+
+        # Get overall performance
+        summary = StrategyPerformanceDB.calculate_performance(
+            user_id=g.user_id,
+            strategy_type=strategy_type,
+            symbol=symbol,
+            timeframe=timeframe
+        )
+        summary = convert_decimals(summary)
+
+        # Get performance by indicator
+        by_indicator = StrategyPerformanceDB.get_performance_by_indicator(g.user_id, min_trades=5)
+        by_indicator = convert_decimals(by_indicator)
+
+        # Get performance by market condition
+        by_market = StrategyPerformanceDB.get_performance_by_market_condition(g.user_id, min_trades=5)
+        by_market = convert_decimals(by_market)
+
+        return jsonify({
+            'summary': summary,
+            'by_indicator': by_indicator,
+            'by_market_condition': by_market
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Get performance error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/trades/outcomes', methods=['GET'])
+@token_required
+def api_get_trade_outcomes():
+    """
+    Get trade outcomes (P&L) for the authenticated user
+
+    Query params:
+        - status: 'open', 'closed', or all (optional)
+        - limit: Number of results (default 50)
+    """
+    try:
+        from bot_database import TradeOutcomesDB
+
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 50))
+
+        outcomes = TradeOutcomesDB.get_user_outcomes(g.user_id, status=status, limit=limit)
+        outcomes = convert_decimals(outcomes)
+
+        # Calculate summary stats
+        closed_outcomes = [o for o in outcomes if o.get('status') == 'closed']
+        total_pnl = sum(o.get('pnl_dollars', 0) or 0 for o in closed_outcomes)
+        winning = sum(1 for o in closed_outcomes if o.get('is_winner'))
+        losing = len(closed_outcomes) - winning
+
+        return jsonify({
+            'outcomes': outcomes,
+            'summary': {
+                'total_trades': len(closed_outcomes),
+                'winning_trades': winning,
+                'losing_trades': losing,
+                'win_rate': (winning / len(closed_outcomes) * 100) if closed_outcomes else 0,
+                'total_pnl': total_pnl
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Get outcomes error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/insights', methods=['GET'])
+@token_required
+def api_get_insights():
+    """
+    Get AI-discovered strategy insights
+
+    Query params:
+        - symbol: Filter by symbol (optional)
+        - strategy_type: Filter by strategy type (optional)
+        - min_confidence: Minimum confidence score (default 50)
+    """
+    try:
+        from bot_database import AIStrategyInsightsDB
+
+        symbol = request.args.get('symbol')
+        strategy_type = request.args.get('strategy_type')
+        min_confidence = float(request.args.get('min_confidence', 50))
+
+        insights = AIStrategyInsightsDB.get_active_insights(
+            symbol=symbol,
+            strategy_type=strategy_type,
+            min_confidence=min_confidence
+        )
+        insights = convert_decimals(insights)
+
+        return jsonify({
+            'insights': insights,
+            'total': len(insights)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Get insights error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 

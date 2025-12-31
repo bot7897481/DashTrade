@@ -12,8 +12,9 @@ from datetime import datetime
 import time
 from typing import Dict, Optional
 from bot_database import (
-    BotAPIKeysDB, BotConfigDB, BotTradesDB, RiskEventDB
+    BotAPIKeysDB, BotConfigDB, BotTradesDB, RiskEventDB, TradeMarketContextDB
 )
+from market_data_service import MarketDataService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,6 +50,54 @@ class TradingEngine:
         self.data_client = StockHistoricalDataClient(self.api_key, self.secret_key)
 
         logger.info(f"✅ Trading engine initialized for user {user_id} ({self.mode} mode)")
+
+    def capture_market_context(self, trade_id: int, symbol: str, current_position: Dict = None) -> bool:
+        """
+        Capture comprehensive market context for a trade (async-friendly)
+        Called after a trade is logged to capture market snapshot
+
+        Args:
+            trade_id: The ID of the trade in bot_trades table
+            symbol: The stock symbol traded
+            current_position: Current position info from get_current_position
+
+        Returns:
+            bool: True if context was saved successfully
+        """
+        try:
+            logger.info(f"📊 Capturing market context for trade {trade_id} ({symbol})...")
+
+            # Get account info
+            account_info = self.get_account_info()
+
+            # Get all positions for portfolio context
+            all_positions = self.get_all_positions()
+
+            # Get complete market context from Yahoo Finance
+            context = MarketDataService.get_complete_market_context(
+                symbol=symbol,
+                alpaca_account=account_info,
+                alpaca_position=current_position,
+                alpaca_positions=all_positions
+            )
+
+            # Save to database
+            context_id = TradeMarketContextDB.save_context(
+                trade_id=trade_id,
+                user_id=self.user_id,
+                context=context
+            )
+
+            if context_id:
+                logger.info(f"✅ Market context saved (ID: {context_id}, latency: {context.get('fetch_latency_ms')}ms)")
+                return True
+            else:
+                logger.warning(f"⚠️ Failed to save market context for trade {trade_id}")
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Error capturing market context: {e}")
+            return False
 
     def get_market_clock(self) -> Dict:
         """Get Alpaca market clock"""
@@ -444,12 +493,19 @@ class TradingEngine:
                         'position_after': 'LONG'
                     })
 
+                # Capture comprehensive market context (async-friendly, won't block response)
+                try:
+                    self.capture_market_context(trade_id, symbol, current_position)
+                except Exception as ctx_err:
+                    logger.warning(f"Market context capture failed (non-critical): {ctx_err}")
+
                 return {
                     'status': 'success',
                     'action': 'BUY',
                     'symbol': symbol,
                     'timeframe': timeframe,
                     'order_id': order_id,
+                    'trade_id': trade_id,
                     'filled_qty': filled_qty,
                     'filled_price': filled_price,
                     'expected_price': expected_price,
@@ -602,12 +658,19 @@ class TradingEngine:
                         'position_after': 'SHORT'
                     })
 
+                # Capture comprehensive market context (async-friendly, won't block response)
+                try:
+                    self.capture_market_context(trade_id, symbol, current_position)
+                except Exception as ctx_err:
+                    logger.warning(f"Market context capture failed (non-critical): {ctx_err}")
+
                 return {
                     'status': 'success',
                     'action': 'SELL',
                     'symbol': symbol,
                     'timeframe': timeframe,
                     'order_id': order_id,
+                    'trade_id': trade_id,
                     'filled_qty': filled_qty,
                     'filled_price': filled_price,
                     'expected_price': expected_price,
