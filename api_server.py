@@ -343,15 +343,120 @@ def normalize_timeframe(tf: str) -> str:
     return mappings.get(tf, tf)
 
 
+def create_bots_batch(data: dict, symbols: list, timeframes: list = None):
+    """
+    Create multiple bots at once.
+
+    Args:
+        data: Request data with position_size, strategy_name, etc.
+        symbols: List of symbols to create bots for
+        timeframes: Optional list of timeframes (if not provided, uses single timeframe from data)
+
+    Returns:
+        JSON response with created bots
+    """
+    position_size = data.get('position_size')
+    if not position_size:
+        return jsonify({'error': 'position_size is required'}), 400
+
+    try:
+        position_size = float(position_size)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'position_size must be a number'}), 400
+
+    # Get timeframes list
+    if not timeframes:
+        single_tf = data.get('timeframe')
+        if not single_tf:
+            return jsonify({'error': 'timeframe or timeframes is required'}), 400
+        timeframes = [single_tf]
+
+    # Normalize all timeframes
+    timeframes = [normalize_timeframe(tf) for tf in timeframes]
+
+    # Clean up symbols
+    symbols = [s.upper().strip() for s in symbols if s and s.strip()]
+
+    if not symbols:
+        return jsonify({'error': 'At least one symbol is required'}), 400
+
+    created_bots = []
+    errors = []
+
+    # Create a bot for each symbol+timeframe combination
+    for symbol in symbols:
+        for timeframe in timeframes:
+            try:
+                bot_id = BotConfigDB.create_bot(
+                    user_id=g.user_id,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    position_size=position_size,
+                    strategy_name=data.get('strategy_name'),
+                    risk_limit_percent=float(data.get('risk_limit_percent', 10.0)),
+                    daily_loss_limit=float(data['daily_loss_limit']) if data.get('daily_loss_limit') else None,
+                    max_position_size=float(data['max_position_size']) if data.get('max_position_size') else None,
+                    signal_source=data.get('signal_source', 'webhook')
+                )
+
+                if bot_id:
+                    created_bots.append({
+                        'id': bot_id,
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'position_size': position_size
+                    })
+                else:
+                    errors.append({
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'error': 'Failed to create bot (may already exist)'
+                    })
+            except Exception as e:
+                errors.append({
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'error': str(e)
+                })
+
+    # Get webhook URL for all bots (same for user)
+    webhook_url = None
+    token_data = WebhookTokenDB.get_user_token(g.user_id)
+    if token_data:
+        webhook_base = os.environ.get('WEBHOOK_SERVER_URL', 'https://webhook.novalgo.org')
+        if not webhook_base.startswith('http'):
+            webhook_base = f"https://{webhook_base}"
+        webhook_url = f"{webhook_base}/webhook?token={token_data['token']}"
+
+    return jsonify({
+        'success': len(created_bots) > 0,
+        'created_count': len(created_bots),
+        'error_count': len(errors),
+        'created_bots': created_bots,
+        'errors': errors if errors else None,
+        'webhook_url': webhook_url,
+        'message': f"Created {len(created_bots)} bots" + (f" ({len(errors)} failed)" if errors else "")
+    }), 201 if created_bots else 400
+
+
 @app.route('/api/bots', methods=['POST'])
 @token_required
 def api_create_bot():
-    """Create a new bot configuration"""
+    """Create a new bot configuration (single or batch)"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Invalid JSON'}), 400
 
+        # Check if batch creation (symbols array)
+        symbols = data.get('symbols')
+        timeframes = data.get('timeframes')
+
+        if symbols and isinstance(symbols, list):
+            # Batch creation mode
+            return create_bots_batch(data, symbols, timeframes)
+
+        # Single bot creation
         symbol = data.get('symbol', '').upper().strip()
         timeframe = normalize_timeframe(data.get('timeframe', ''))  # Normalize timeframe!
         position_size = data.get('position_size')
@@ -1799,6 +1904,29 @@ def api_debug_whoami():
         'email': g.email,
         'role': g.role
     }), 200
+
+
+@app.route('/api/debug/user/<int:user_id>/bots', methods=['GET'])
+def api_debug_user_bots(user_id):
+    """Debug endpoint to check all bots for a user"""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, symbol, timeframe, position_size, is_active,
+                           signal_source, strategy_name, created_at
+                    FROM user_bot_configs
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                """, (user_id,))
+                bots = [dict(row) for row in cur.fetchall()]
+
+                return jsonify({
+                    'total_bots': len(bots),
+                    'bots': convert_decimals(bots)
+                }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/debug/capture-context/<int:trade_id>', methods=['POST'])

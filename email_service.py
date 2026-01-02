@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # SMTP2GO API configuration
 SMTP2GO_API_KEY = os.environ.get('SMTP2GO_API_KEY')
 SMTP2GO_API_URL = 'https://api.smtp2go.com/v3/email/send'
-FROM_EMAIL = os.environ.get('EMAIL_FROM', 'notifications@dashtrade.app')
+FROM_EMAIL = os.environ.get('EMAIL_FROM', 'notifications@novalgo.org')
 FROM_NAME = os.environ.get('EMAIL_FROM_NAME', 'DashTrade')
 
 
