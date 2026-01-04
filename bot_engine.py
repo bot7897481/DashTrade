@@ -5,8 +5,8 @@ Adapted from standalone bot, now supports per-user Alpaca accounts
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockLatestQuoteRequest
+from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
+from alpaca.data.requests import StockLatestQuoteRequest, CryptoLatestQuoteRequest
 import logging
 from datetime import datetime
 import time
@@ -18,6 +18,49 @@ from market_data_service import MarketDataService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Known crypto symbols supported by Alpaca
+CRYPTO_SYMBOLS = {
+    'BTC/USD', 'ETH/USD', 'LTC/USD', 'BCH/USD', 'AAVE/USD', 'AVAX/USD',
+    'BAT/USD', 'CRV/USD', 'DOT/USD', 'GRT/USD', 'LINK/USD', 'MKR/USD',
+    'SHIB/USD', 'SUSHI/USD', 'UNI/USD', 'USDC/USD', 'USDT/USD', 'XTZ/USD',
+    'DOGE/USD', 'SOL/USD', 'MATIC/USD', 'ALGO/USD', 'XLM/USD', 'ATOM/USD',
+    'ADA/USD', 'XRP/USD', 'TRX/USD', 'NEAR/USD', 'FTM/USD', 'APE/USD'
+}
+
+
+def is_crypto_symbol(symbol: str) -> bool:
+    """Check if a symbol is a cryptocurrency"""
+    if not symbol:
+        return False
+    symbol_upper = symbol.upper()
+    # Check if it's in our known crypto list
+    if symbol_upper in CRYPTO_SYMBOLS:
+        return True
+    # Check for /USD suffix pattern (common crypto format)
+    if '/USD' in symbol_upper:
+        return True
+    # Check for common crypto without slash (e.g., BTCUSD)
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        if f"{base}/USD" in CRYPTO_SYMBOLS:
+            return True
+    return False
+
+
+def normalize_crypto_symbol(symbol: str) -> str:
+    """Normalize crypto symbol to Alpaca format (e.g., BTCUSD -> BTC/USD)"""
+    if not symbol:
+        return symbol
+    symbol_upper = symbol.upper()
+    # Already in correct format
+    if '/' in symbol_upper:
+        return symbol_upper
+    # Convert BTCUSD to BTC/USD
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        return f"{base}/USD"
+    return symbol_upper
 
 
 class TradingEngine:
@@ -47,9 +90,12 @@ class TradingEngine:
         # Initialize Alpaca API (new alpaca-py library)
         paper = (self.mode == 'paper')
         self.api = TradingClient(self.api_key, self.secret_key, paper=paper)
-        self.data_client = StockHistoricalDataClient(self.api_key, self.secret_key)
+        self.stock_data_client = StockHistoricalDataClient(self.api_key, self.secret_key)
+        self.crypto_data_client = CryptoHistoricalDataClient(self.api_key, self.secret_key)
+        # Keep backward compatibility
+        self.data_client = self.stock_data_client
 
-        logger.info(f"✅ Trading engine initialized for user {user_id} ({self.mode} mode)")
+        logger.info(f"✅ Trading engine initialized for user {user_id} ({self.mode} mode, stocks + crypto)")
 
     def capture_market_context(self, trade_id: int, symbol: str, current_position: Dict = None) -> bool:
         """
@@ -114,47 +160,77 @@ class TradingEngine:
             return {'error': str(e)}
 
     def get_price_quote(self, symbol: str) -> Dict:
-        """Get latest quote for a stock"""
+        """Get latest quote for a stock or crypto"""
         try:
-            request_params = StockLatestQuoteRequest(symbol_or_symbols=symbol.upper())
-            quote = self.data_client.get_stock_latest_quote(request_params)
-            
-            # The result is a dictionary-like object mapping symbols to quotes
-            if symbol.upper() in quote:
-                q = quote[symbol.upper()]
-                return {
-                    'symbol': symbol.upper(),
-                    'bid_price': float(q.bid_price),
-                    'ask_price': float(q.ask_price),
-                    'timestamp': q.timestamp.isoformat()
-                }
-            return {'error': f"No quote found for {symbol}"}
+            symbol_upper = symbol.upper()
+            is_crypto = is_crypto_symbol(symbol_upper)
+
+            if is_crypto:
+                # Normalize crypto symbol (e.g., BTCUSD -> BTC/USD)
+                crypto_symbol = normalize_crypto_symbol(symbol_upper)
+                request_params = CryptoLatestQuoteRequest(symbol_or_symbols=crypto_symbol)
+                quote = self.crypto_data_client.get_crypto_latest_quote(request_params)
+
+                if crypto_symbol in quote:
+                    q = quote[crypto_symbol]
+                    return {
+                        'symbol': crypto_symbol,
+                        'bid_price': float(q.bid_price),
+                        'ask_price': float(q.ask_price),
+                        'timestamp': q.timestamp.isoformat(),
+                        'is_crypto': True
+                    }
+                return {'error': f"No crypto quote found for {crypto_symbol}"}
+            else:
+                # Stock quote
+                request_params = StockLatestQuoteRequest(symbol_or_symbols=symbol_upper)
+                quote = self.stock_data_client.get_stock_latest_quote(request_params)
+
+                if symbol_upper in quote:
+                    q = quote[symbol_upper]
+                    return {
+                        'symbol': symbol_upper,
+                        'bid_price': float(q.bid_price),
+                        'ask_price': float(q.ask_price),
+                        'timestamp': q.timestamp.isoformat(),
+                        'is_crypto': False
+                    }
+                return {'error': f"No quote found for {symbol}"}
         except Exception as e:
             logger.error(f"Error getting quote: {e}")
             return {'error': str(e)}
 
     def place_manual_order(self, symbol: str, qty: float, side: str, order_type: str = 'market', limit_price: float = None) -> Dict:
-        """Place a manual order from the AI Assistant"""
+        """Place a manual order from the AI Assistant (supports stocks and crypto)"""
         try:
+            # Check if crypto and normalize symbol
+            is_crypto = is_crypto_symbol(symbol)
+            if is_crypto:
+                symbol = normalize_crypto_symbol(symbol)
+            else:
+                symbol = symbol.upper()
+
             side_enum = OrderSide.BUY if side.upper() == 'BUY' else OrderSide.SELL
-            
+            # Use GTC for crypto, DAY for stocks
+            time_in_force = TimeInForce.GTC if is_crypto else TimeInForce.DAY
+
             if order_type.lower() == 'limit' and limit_price:
                 request = LimitOrderRequest(
-                    symbol=symbol.upper(),
+                    symbol=symbol,
                     qty=qty,
                     side=side_enum,
                     type=OrderType.LIMIT,
                     limit_price=limit_price,
-                    time_in_force=TimeInForce.DAY
+                    time_in_force=time_in_force
                 )
             else:
                 request = MarketOrderRequest(
-                    symbol=symbol.upper(),
+                    symbol=symbol,
                     qty=qty,
                     side=side_enum,
-                    time_in_force=TimeInForce.DAY
+                    time_in_force=time_in_force
                 )
-            
+
             order = self.api.submit_order(request)
             return {
                 'status': 'success',
@@ -163,7 +239,8 @@ class TradingEngine:
                 'symbol': order.symbol,
                 'qty': float(order.qty),
                 'side': order.side.value,
-                'order_status': order.status.value
+                'order_status': order.status.value,
+                'is_crypto': is_crypto
             }
         except Exception as e:
             logger.error(f"Error placing manual order: {e}")
@@ -280,7 +357,13 @@ class TradingEngine:
         position_size = float(bot_config['position_size'])
         bot_id = bot_config['id']
 
-        logger.info(f"📨 WEBHOOK: {action} ${position_size} {symbol} {timeframe} (User: {self.user_id}, Source: {signal_source})")
+        # Check if this is a crypto trade
+        is_crypto = is_crypto_symbol(symbol)
+        if is_crypto:
+            symbol = normalize_crypto_symbol(symbol)
+
+        asset_type = "CRYPTO" if is_crypto else "STOCK"
+        logger.info(f"📨 WEBHOOK: {action} ${position_size} {symbol} {timeframe} [{asset_type}] (User: {self.user_id}, Source: {signal_source})")
 
         # Get current position
         current_position = self.get_current_position(symbol)
@@ -355,7 +438,8 @@ class TradingEngine:
             return self._execute_long(bot_id, symbol, timeframe, position_size,
                                       signal_received_at=signal_received_at,
                                       current_position=current_position,
-                                      signal_source=signal_source)
+                                      signal_source=signal_source,
+                                      is_crypto=is_crypto)
 
         # Handle SELL signal
         if action == 'SELL':
@@ -377,14 +461,15 @@ class TradingEngine:
             return self._execute_short(bot_id, symbol, timeframe, position_size,
                                        signal_received_at=signal_received_at,
                                        current_position=current_position,
-                                       signal_source=signal_source)
+                                       signal_source=signal_source,
+                                       is_crypto=is_crypto)
 
         return {'status': 'error', 'message': f'Unknown action: {action}'}
 
     def _execute_long(self, bot_id: int, symbol: str, timeframe: str, position_size: float,
                        signal_received_at: datetime = None, current_position: dict = None,
-                       signal_source: str = 'webhook') -> Dict:
-        """Execute a BUY (long) order with detailed logging"""
+                       signal_source: str = 'webhook', is_crypto: bool = False) -> Dict:
+        """Execute a BUY (long) order with detailed logging (supports stocks and crypto)"""
         trade_id = None
         order_submitted_at = None
 
@@ -399,9 +484,13 @@ class TradingEngine:
             spread_percent = (spread / ask_price * 100) if spread and ask_price else None
             expected_price = ask_price  # For BUY, we expect to pay the ask
 
-            # Get market status
-            clock = self.get_market_clock()
-            market_open = clock.get('is_open', False) if 'error' not in clock else None
+            # Get market status (skip for crypto - 24/7)
+            if is_crypto:
+                market_open = True  # Crypto markets are always open
+                clock = {'is_open': True}
+            else:
+                clock = self.get_market_clock()
+                market_open = clock.get('is_open', False) if 'error' not in clock else None
 
             # Get account info
             account = self.get_account_info()
@@ -417,18 +506,20 @@ class TradingEngine:
             BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal='BUY')
 
             # Submit order to Alpaca
+            # Use GTC (good till canceled) for crypto, DAY for stocks
             order_submitted_at = datetime.utcnow()
+            time_in_force = TimeInForce.GTC if is_crypto else TimeInForce.DAY
             order_request = MarketOrderRequest(
                 symbol=symbol,
                 notional=position_size,
                 side=OrderSide.BUY,
-                time_in_force=TimeInForce.DAY
+                time_in_force=time_in_force
             )
             order = self.api.submit_order(order_request)
 
             order_id = str(order.id)
             client_order_id = str(order.client_order_id)
-            logger.info(f"✅ ORDER SUBMITTED: {order_id}")
+            logger.info(f"✅ ORDER SUBMITTED: {order_id} [{'CRYPTO' if is_crypto else 'STOCK'}]")
 
             # Log trade with detailed info
             trade_details = {
@@ -443,13 +534,14 @@ class TradingEngine:
                 'order_submitted_at': order_submitted_at,
                 'expected_price': expected_price,
                 'order_type': 'market',
-                'time_in_force': 'day',
+                'time_in_force': 'gtc' if is_crypto else 'day',
                 'position_before': position_before,
                 'position_qty_before': position_qty_before,
                 'position_value_before': position_value_before,
                 'account_equity': account_equity,
                 'account_buying_power': account_buying_power,
-                'alpaca_client_order_id': client_order_id
+                'alpaca_client_order_id': client_order_id,
+                'is_crypto': is_crypto
             }
 
             trade_id = BotTradesDB.log_trade(
@@ -537,8 +629,8 @@ class TradingEngine:
 
     def _execute_short(self, bot_id: int, symbol: str, timeframe: str, position_size: float,
                         signal_received_at: datetime = None, current_position: dict = None,
-                        signal_source: str = 'webhook') -> Dict:
-        """Execute a SELL (short) order with detailed logging"""
+                        signal_source: str = 'webhook', is_crypto: bool = False) -> Dict:
+        """Execute a SELL (short) order with detailed logging (supports stocks and crypto)"""
         trade_id = None
         order_submitted_at = None
 
@@ -565,9 +657,13 @@ class TradingEngine:
             if qty <= 0:
                 raise Exception(f"Position size ${position_size} is too small for 1 whole share of {symbol} @ ${current_price}")
 
-            # Get market status
-            clock = self.get_market_clock()
-            market_open = clock.get('is_open', False) if 'error' not in clock else None
+            # Get market status (skip for crypto - 24/7)
+            if is_crypto:
+                market_open = True  # Crypto markets are always open
+                clock = {'is_open': True}
+            else:
+                clock = self.get_market_clock()
+                market_open = clock.get('is_open', False) if 'error' not in clock else None
 
             # Get account info
             account = self.get_account_info()
@@ -579,21 +675,24 @@ class TradingEngine:
             position_qty_before = current_position.get('qty', 0) if current_position else 0
             position_value_before = current_position.get('market_value', 0) if current_position else 0
 
-            logger.info(f"🔴 Submitting SELL order: {qty} shares of {symbol} (@ ~${current_price})")
+            asset_type = "CRYPTO" if is_crypto else "STOCK"
+            logger.info(f"🔴 Submitting SELL order: {qty} of {symbol} (@ ~${current_price}) [{asset_type}]")
 
             # Submit order to Alpaca
+            # Use GTC (good till canceled) for crypto, DAY for stocks
             order_submitted_at = datetime.utcnow()
+            time_in_force = TimeInForce.GTC if is_crypto else TimeInForce.DAY
             order_request = MarketOrderRequest(
                 symbol=symbol,
                 qty=qty,
                 side=OrderSide.SELL,
-                time_in_force=TimeInForce.DAY
+                time_in_force=time_in_force
             )
             order = self.api.submit_order(order_request)
 
             order_id = str(order.id)
             client_order_id = str(order.client_order_id)
-            logger.info(f"✅ ORDER SUBMITTED: {order_id}")
+            logger.info(f"✅ ORDER SUBMITTED: {order_id} [{'CRYPTO' if is_crypto else 'STOCK'}]")
 
             # Log trade with detailed info
             trade_details = {
@@ -608,13 +707,14 @@ class TradingEngine:
                 'order_submitted_at': order_submitted_at,
                 'expected_price': expected_price,
                 'order_type': 'market',
-                'time_in_force': 'day',
+                'time_in_force': 'gtc' if is_crypto else 'day',
                 'position_before': position_before,
                 'position_qty_before': position_qty_before,
                 'position_value_before': position_value_before,
                 'account_equity': account_equity,
                 'account_buying_power': account_buying_power,
-                'alpaca_client_order_id': client_order_id
+                'alpaca_client_order_id': client_order_id,
+                'is_crypto': is_crypto
             }
 
             trade_id = BotTradesDB.log_trade(
