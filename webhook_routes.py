@@ -45,6 +45,61 @@ def normalize_timeframe(tf: str) -> str:
 
     return mappings.get(tf, tf)
 
+
+# Known crypto symbols supported by Alpaca
+CRYPTO_SYMBOLS = {
+    'BTC/USD', 'ETH/USD', 'LTC/USD', 'BCH/USD', 'AAVE/USD', 'AVAX/USD',
+    'BAT/USD', 'CRV/USD', 'DOT/USD', 'GRT/USD', 'LINK/USD', 'MKR/USD',
+    'SHIB/USD', 'SUSHI/USD', 'UNI/USD', 'USDC/USD', 'USDT/USD', 'XTZ/USD',
+    'DOGE/USD', 'SOL/USD', 'MATIC/USD', 'ALGO/USD', 'XLM/USD', 'ATOM/USD',
+    'ADA/USD', 'XRP/USD', 'TRX/USD', 'NEAR/USD', 'FTM/USD', 'APE/USD'
+}
+
+
+def is_crypto_symbol(symbol: str) -> bool:
+    """Check if a symbol is a cryptocurrency"""
+    if not symbol:
+        return False
+    symbol_upper = symbol.upper().strip()
+    # Check if it's in our known crypto list
+    if symbol_upper in CRYPTO_SYMBOLS:
+        return True
+    # Check for /USD suffix pattern
+    if '/USD' in symbol_upper:
+        return True
+    # Check for common crypto without slash (e.g., BTCUSD)
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        if f"{base}/USD" in CRYPTO_SYMBOLS:
+            return True
+    return False
+
+
+def normalize_crypto_symbol(symbol: str) -> str:
+    """
+    Normalize crypto symbol to Alpaca format.
+    TradingView sends: BTCUSD, ETHUSD
+    Alpaca expects: BTC/USD, ETH/USD
+    """
+    if not symbol:
+        return symbol
+    symbol_upper = symbol.upper().strip()
+
+    # Already in correct format with slash
+    if '/' in symbol_upper:
+        return symbol_upper
+
+    # Convert BTCUSD to BTC/USD
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        normalized = f"{base}/USD"
+        # Only convert if it's a known crypto
+        if normalized in CRYPTO_SYMBOLS:
+            return normalized
+
+    return symbol_upper
+
+
 # Import database classes
 try:
     from bot_database import (
@@ -235,8 +290,15 @@ class WebhookHandler(RequestHandler):
                 return
 
             action = data.get('action', '').upper()
-            symbol = data.get('symbol', '').upper()
+            symbol_raw = data.get('symbol', '').upper()
             timeframe_raw = data.get('timeframe', '')
+
+            # Normalize crypto symbol (BTCUSD -> BTC/USD)
+            if is_crypto_symbol(symbol_raw):
+                symbol = normalize_crypto_symbol(symbol_raw)
+            else:
+                symbol = symbol_raw
+
             timeframe = normalize_timeframe(timeframe_raw)  # Normalize TradingView format
 
             if not action or not symbol or not timeframe:
@@ -249,7 +311,7 @@ class WebhookHandler(RequestHandler):
                 self.write(json.dumps({'error': f'Invalid action: {action}'}))
                 return
 
-            logger.info(f"WEBHOOK: User {user_id} - {action} {symbol} {timeframe} (raw: {timeframe_raw})")
+            logger.info(f"WEBHOOK: User {user_id} - {action} {symbol} {timeframe} (raw symbol: {symbol_raw}, raw timeframe: {timeframe_raw})")
 
             # Get bot config
             bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
@@ -402,8 +464,15 @@ class SystemWebhookHandler(RequestHandler):
                 return
 
             action = data.get('action', '').upper()
-            symbol = data.get('symbol', '').upper()
+            symbol_raw = data.get('symbol', '').upper()
             timeframe_raw = data.get('timeframe', '')
+
+            # Normalize crypto symbol (BTCUSD -> BTC/USD)
+            if is_crypto_symbol(symbol_raw):
+                symbol = normalize_crypto_symbol(symbol_raw)
+            else:
+                symbol = symbol_raw
+
             timeframe = normalize_timeframe(timeframe_raw) if timeframe_raw else ''
 
             if not action or not symbol:
