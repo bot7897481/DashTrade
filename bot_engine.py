@@ -334,60 +334,48 @@ class TradingEngine:
         Returns:
             dict: {'status': 'success'|'error', 'message': str}
         """
-        logger.info(f"🔴 CLOSE_POSITION called with symbol: {symbol}")
+        logger.info(f"🔴 CLOSE POSITION REQUEST for: {symbol}")
         
-        # First, check what positions exist
+        # First, check what positions exist in Alpaca
         try:
             all_positions = self.api.get_all_positions()
             position_symbols = [p.symbol for p in all_positions]
-            logger.info(f"📊 Current positions in account: {position_symbols}")
+            logger.info(f"📊 Positions in Alpaca account: {position_symbols}")
+            
+            if not position_symbols:
+                logger.info(f"ℹ️  No open positions in account")
+                return {'status': 'info', 'message': 'No open positions'}
         except Exception as e:
             logger.warning(f"Could not list positions: {e}")
             position_symbols = []
         
-        # Build list of possible symbol formats to try (for crypto)
-        symbols_to_try = [symbol]
-        if '/' in symbol:
-            # BTC/USD -> also try BTCUSD
-            symbols_to_try.append(symbol.replace('/', ''))
-        elif is_crypto_symbol(symbol):
-            # BTCUSD -> also try BTC/USD
-            symbols_to_try.append(normalize_crypto_symbol(symbol))
+        # Find the exact symbol to close from Alpaca's position list
+        symbol_to_close = None
+        normalized_target = normalize_crypto_symbol(symbol).upper()
         
-        # Also add any matching position symbols directly
         for pos_sym in position_symbols:
-            pos_sym_upper = pos_sym.upper()
-            if pos_sym_upper not in [s.upper() for s in symbols_to_try]:
-                # Check if this position matches our target symbol
-                normalized_target = normalize_crypto_symbol(symbol).upper()
-                normalized_pos = normalize_crypto_symbol(pos_sym).upper()
-                if normalized_target == normalized_pos:
-                    symbols_to_try.insert(0, pos_sym)  # Try actual position symbol first
-                    logger.info(f"📌 Found matching position symbol: {pos_sym}")
-
-        logger.info(f"🔄 Will try closing with symbols: {symbols_to_try}")
-
-        last_error = None
-        for sym in symbols_to_try:
-            try:
-                logger.info(f"🔴 Attempting to close position: {sym}")
-                result = self.api.close_position(sym)
-                logger.info(f"✅ Close position API response: {result}")
-                time.sleep(2)  # Wait for order to process
-                return {'status': 'success', 'message': f'Position closed for {sym}'}
-            except Exception as e:
-                last_error = e
-                error_str = str(e)
-                logger.warning(f"❌ Could not close position with symbol {sym}: {error_str}")
-                # Check for specific error messages
-                if 'position does not exist' in error_str.lower():
-                    logger.info(f"ℹ️  No position exists for {sym}")
-                elif 'not found' in error_str.lower():
-                    logger.info(f"ℹ️  Symbol {sym} not found in positions")
-                continue
-
-        logger.error(f"❌ Error closing position {symbol}: {last_error}")
-        return {'status': 'error', 'message': str(last_error)}
+            normalized_pos = normalize_crypto_symbol(pos_sym).upper()
+            if normalized_target == normalized_pos:
+                symbol_to_close = pos_sym  # Use exact symbol from Alpaca
+                logger.info(f"✅ Found matching position: {pos_sym}")
+                break
+        
+        if not symbol_to_close:
+            # Fallback: try the requested symbol directly
+            symbol_to_close = normalize_crypto_symbol(symbol) if is_crypto_symbol(symbol) else symbol
+            logger.info(f"⚠️  No exact match found, trying: {symbol_to_close}")
+        
+        # Send ONE close order to Alpaca
+        try:
+            logger.info(f"🔴 SENDING CLOSE ORDER to Alpaca for: {symbol_to_close}")
+            result = self.api.close_position(symbol_to_close)
+            logger.info(f"✅ POSITION CLOSED: {symbol_to_close}")
+            time.sleep(2)  # Wait for order to process
+            return {'status': 'success', 'message': f'Position closed for {symbol_to_close}'}
+        except Exception as e:
+            error_str = str(e)
+            logger.error(f"❌ Failed to close {symbol_to_close}: {error_str}")
+            return {'status': 'error', 'message': error_str}
 
     def execute_trade(self, bot_config: Dict, action: str, signal_received_at: datetime = None,
                        signal_source: str = 'webhook') -> Dict:
