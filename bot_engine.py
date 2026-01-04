@@ -255,8 +255,18 @@ class TradingEngine:
         """
         try:
             positions = self.api.get_all_positions()
+
+            # Build list of possible symbol formats to check (for crypto)
+            symbols_to_check = [symbol]
+            if '/' in symbol:
+                # BTC/USD -> also check BTCUSD
+                symbols_to_check.append(symbol.replace('/', ''))
+            elif is_crypto_symbol(symbol):
+                # BTCUSD -> also check BTC/USD
+                symbols_to_check.append(normalize_crypto_symbol(symbol))
+
             for pos in positions:
-                if pos.symbol == symbol:
+                if pos.symbol in symbols_to_check:
                     qty = float(pos.qty)
                     return {
                         'side': 'LONG' if qty > 0 else 'SHORT',
@@ -324,15 +334,29 @@ class TradingEngine:
         Returns:
             dict: {'status': 'success'|'error', 'message': str}
         """
-        try:
-            logger.info(f"🔴 Closing position: {symbol}")
-            self.api.close_position(symbol)
-            time.sleep(2)  # Wait for order to process
+        # Build list of possible symbol formats to try (for crypto)
+        symbols_to_try = [symbol]
+        if '/' in symbol:
+            # BTC/USD -> also try BTCUSD
+            symbols_to_try.append(symbol.replace('/', ''))
+        elif is_crypto_symbol(symbol):
+            # BTCUSD -> also try BTC/USD
+            symbols_to_try.append(normalize_crypto_symbol(symbol))
 
-            return {'status': 'success', 'message': f'Position closed for {symbol}'}
-        except Exception as e:
-            logger.error(f"❌ Error closing position {symbol}: {e}")
-            return {'status': 'error', 'message': str(e)}
+        last_error = None
+        for sym in symbols_to_try:
+            try:
+                logger.info(f"🔴 Closing position: {sym}")
+                self.api.close_position(sym)
+                time.sleep(2)  # Wait for order to process
+                return {'status': 'success', 'message': f'Position closed for {sym}'}
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Could not close position with symbol {sym}: {e}")
+                continue
+
+        logger.error(f"❌ Error closing position {symbol}: {last_error}")
+        return {'status': 'error', 'message': str(last_error)}
 
     def execute_trade(self, bot_config: Dict, action: str, signal_received_at: datetime = None,
                        signal_source: str = 'webhook') -> Dict:
