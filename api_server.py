@@ -771,6 +771,43 @@ def api_get_trades():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/trades/recent', methods=['GET'])
+@token_required
+def api_get_recent_trades():
+    """Get recent trades directly from Alpaca API (fixes $NaN issue)"""
+    try:
+        days = request.args.get('days', 7, type=int)
+        limit = request.args.get('limit', 20, type=int)
+
+        engine = TradingEngine(g.user_id)
+        trades = engine.get_recent_trades(days=days, limit=limit)
+        
+        # Format trades for frontend
+        formatted_trades = []
+        for trade in trades:
+            formatted_trades.append({
+                'symbol': trade['symbol'],
+                'side': trade['side'],
+                'action': trade['side'],  # BUY/SELL/CLOSE
+                'qty': trade['qty'],
+                'price': trade['price'],
+                'transaction_time': trade['transaction_time'].isoformat() if isinstance(trade['transaction_time'], datetime) else str(trade['transaction_time']),
+                'order_id': trade.get('order_id'),
+                'value': abs(trade['qty'] * trade['price'])
+            })
+        
+        return jsonify({
+            'trades': formatted_trades,
+            'total': len(formatted_trades),
+            'source': 'alpaca_api'
+        }), 200
+    except ValueError as e:
+        return jsonify({'error': 'Alpaca API keys not configured', 'details': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Get recent trades error: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch recent trades'}), 500
+
+
 @app.route('/api/trades/<int:trade_id>', methods=['GET'])
 @token_required
 def api_get_trade_detail(trade_id):
@@ -1480,16 +1517,23 @@ def api_get_dashboard():
         bots = BotConfigDB.get_user_bots(g.user_id)
         active_bots = sum(1 for b in bots if b.get('is_active'))
 
-        # Get recent trades
-        trades = BotTradesDB.get_user_trades(g.user_id, limit=10)
+        # Get recent trades from database (for bot tracking)
+        db_trades = BotTradesDB.get_user_trades(g.user_id, limit=10)
 
-        # Try to get account info (may fail if no API keys)
+        # Try to get account info and recent trades from Alpaca (may fail if no API keys)
         account = None
         positions = []
+        recent_trades_alpaca = []
         try:
             engine = TradingEngine(g.user_id)
             account = engine.get_account_info()
             positions = engine.get_all_positions()
+            # Get recent trades directly from Alpaca API (fixes $NaN issue)
+            recent_trades_alpaca = engine.get_recent_trades(days=7, limit=10)
+            # Format for frontend
+            for trade in recent_trades_alpaca:
+                trade['transaction_time'] = trade['transaction_time'].isoformat() if isinstance(trade['transaction_time'], datetime) else str(trade['transaction_time'])
+                trade['value'] = abs(trade['qty'] * trade['price'])
         except:
             pass
 
@@ -1500,7 +1544,8 @@ def api_get_dashboard():
                 'total': len(bots),
                 'active': active_bots
             },
-            'recent_trades': trades[:5],
+            'recent_trades': recent_trades_alpaca[:5] if recent_trades_alpaca else db_trades[:5],  # Prefer Alpaca, fallback to DB
+            'recent_trades_source': 'alpaca' if recent_trades_alpaca else 'database',
             'api_keys_configured': account is not None
         })), 200
 
@@ -2169,8 +2214,9 @@ def not_found(error):
             ],
             'trading': [
                 'GET /api/account - Alpaca account info',
-                'GET /api/positions - Open positions',
-                'GET /api/trades - Trade history',
+                'GET /api/positions - Open positions (from Alpaca API)',
+                'GET /api/trades - Trade history (from database)',
+                'GET /api/trades/recent - Recent trades (from Alpaca API, fixes $NaN)',
                 'GET /api/trades/:id - Trade detail with market context',
                 'GET /api/dashboard - Dashboard summary'
             ],
