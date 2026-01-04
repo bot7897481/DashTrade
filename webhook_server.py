@@ -215,13 +215,26 @@ def webhook():
 
             logger.info(f"USER WEBHOOK: User {user_id} - {action} {symbol} {timeframe} (raw: {symbol_raw}, {timeframe_raw})")
 
-            # Get bot configuration - try normalized first, then raw as fallback
+            # Get bot configuration - try multiple formats
             bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
 
-            # Fallback: try with raw values if normalized didn't match
+            # Fallback 1: try with raw values if normalized didn't match
             if not bot_config and (symbol != symbol_raw or timeframe != timeframe_raw):
-                logger.info(f"Trying fallback with raw values: {symbol_raw} {timeframe_raw}")
+                logger.info(f"Fallback 1: trying raw values: {symbol_raw} {timeframe_raw}")
                 bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol_raw, timeframe_raw, signal_source='webhook')
+
+            # Fallback 2: for crypto, also try without slash (BTC/USD -> BTCUSD)
+            if not bot_config and '/' in symbol:
+                symbol_no_slash = symbol.replace('/', '')
+                logger.info(f"Fallback 2: trying without slash: {symbol_no_slash} {timeframe}")
+                bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol_no_slash, timeframe, signal_source='webhook')
+
+            # Fallback 3: for crypto without slash, also try with slash (BTCUSD -> BTC/USD)
+            if not bot_config and not '/' in symbol and is_crypto_symbol(symbol):
+                symbol_with_slash = normalize_crypto_symbol(symbol)
+                if symbol_with_slash != symbol:
+                    logger.info(f"Fallback 3: trying with slash: {symbol_with_slash} {timeframe}")
+                    bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol_with_slash, timeframe, signal_source='webhook')
 
             if not bot_config:
                 logger.info(f"No bot config found: {symbol} {timeframe}")
