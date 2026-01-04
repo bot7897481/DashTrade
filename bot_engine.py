@@ -875,6 +875,53 @@ class TradingEngine:
             logger.error(f"Error getting positions: {e}")
             return []
 
+    def get_recent_trades(self, days: int = 7, limit: int = 20) -> list:
+        """Get recent trades from Alpaca API"""
+        try:
+            from datetime import timedelta
+            import requests
+            
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            
+            # Use REST API directly for account activities
+            base_url = "https://paper-api.alpaca.markets" if self.mode == 'paper' else "https://api.alpaca.markets"
+            url = f"{base_url}/v2/account/activities"
+            
+            headers = {
+                "APCA-API-KEY-ID": self.api_key,
+                "APCA-API-SECRET-KEY": self.secret_key
+            }
+            
+            params = {
+                "activity_types": "FILL",
+                "date": start_date.strftime('%Y-%m-%d'),
+                "page_size": limit
+            }
+            
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            activities = response.json()
+            
+            # Convert to list of dicts
+            trades = []
+            for activity in activities[:limit]:
+                trades.append({
+                    'symbol': activity.get('symbol', ''),
+                    'side': activity.get('side', '').upper(),
+                    'qty': float(activity.get('qty', 0)),
+                    'price': float(activity.get('price', 0)),
+                    'transaction_time': datetime.fromisoformat(activity.get('transaction_time', '').replace('Z', '+00:00')) if activity.get('transaction_time') else datetime.now(),
+                    'order_id': activity.get('order_id')
+                })
+            
+            # Sort by most recent first
+            trades.sort(key=lambda x: x['transaction_time'], reverse=True)
+            return trades[:limit]
+        except Exception as e:
+            logger.error(f"Error getting recent trades: {e}")
+            return []
+
     def cancel_all_orders(self):
         """Cancel all open orders"""
         try:

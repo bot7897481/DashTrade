@@ -23,6 +23,8 @@ from alpha_vantage_data import AlphaVantageProvider, fetch_alpha_vantage_data
 from yahoo_finance_data import fetch_yahoo_data
 from auth import UserDB
 from ai_assistant import AIAssistant, LLMKeysDB
+from bot_database import BotAPIKeysDB
+from bot_engine import TradingEngine
 
 # Page configuration
 st.set_page_config(
@@ -1399,7 +1401,98 @@ def main():
             sum_cols[2].metric("Long Signals", long_signals)
             sum_cols[3].metric("Short Signals", short_signals)
             
+            # Open Positions from Alpaca API
+            st.markdown("---")
+            st.markdown("### 📊 Open Positions (Alpaca)")
+            
+            try:
+                # Check if user has Alpaca API keys configured
+                has_keys = BotAPIKeysDB.get_api_keys(user_id) is not None
+                
+                if has_keys:
+                    engine = TradingEngine(user_id)
+                    positions = engine.get_all_positions()
+                    
+                    if positions:
+                        # Calculate portfolio metrics
+                        total_market_value = sum(float(p['market_value']) for p in positions)
+                        total_unrealized_pl = sum(float(p['unrealized_pl']) for p in positions)
+                        
+                        # Display summary
+                        pos_cols = st.columns(4)
+                        pos_cols[0].metric("Total Positions", len(positions))
+                        pos_cols[1].metric("Total Value", f"${total_market_value:,.2f}")
+                        pos_cols[2].metric("Unrealized P&L", f"${total_unrealized_pl:,.2f}")
+                        pos_cols[3].metric("Daily P&L", f"${total_unrealized_pl:,.2f}")
+                        
+                        # Display positions table
+                        pos_data = []
+                        for pos in positions:
+                            pos_data.append({
+                                'Symbol': pos['symbol'],
+                                'Side': pos['side'],
+                                'Quantity': f"{pos['qty']:.6f}",
+                                'Entry Price': f"${pos['entry_price']:.2f}",
+                                'Current Price': f"${pos['current_price']:.2f}",
+                                'Market Value': f"${pos['market_value']:,.2f}",
+                                'Unrealized P&L': f"${pos['unrealized_pl']:,.2f}",
+                                'P&L %': f"{pos['unrealized_plpc']:.2f}%"
+                            })
+                        
+                        pos_df = pd.DataFrame(pos_data)
+                        st.dataframe(pos_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No open positions in your Alpaca account")
+                else:
+                    st.info("💡 Configure your Alpaca API keys in the Trading Bot page to see live positions")
+            except Exception as e:
+                st.warning(f"⚠️ Could not load positions: {str(e)}")
+            
+            # Recent Trades from Alpaca API
+            st.markdown("---")
+            st.markdown("### 📜 Recent Trades (Alpaca)")
+            
+            try:
+                if has_keys:
+                    recent_trades = engine.get_recent_trades(days=7, limit=10)
+                    
+                    if recent_trades:
+                        # Display trades table
+                        trade_data = []
+                        for trade in recent_trades:
+                            # Format timestamp
+                            trade_time = trade['transaction_time']
+                            if isinstance(trade_time, str):
+                                try:
+                                    trade_time = datetime.fromisoformat(trade_time.replace('Z', '+00:00'))
+                                except:
+                                    trade_time = datetime.now()
+                            
+                            if isinstance(trade_time, datetime):
+                                time_str = trade_time.strftime('%Y-%m-%d %H:%M:%S')
+                            else:
+                                time_str = str(trade_time)
+                            
+                            trade_data.append({
+                                'Time': time_str,
+                                'Symbol': trade['symbol'],
+                                'Action': trade['side'],
+                                'Quantity': f"{trade['qty']:.6f}",
+                                'Price': f"${trade['price']:.2f}",
+                                'Value': f"${abs(trade['qty'] * trade['price']):,.2f}"
+                            })
+                        
+                        trade_df = pd.DataFrame(trade_data)
+                        st.dataframe(trade_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No recent trades in the last 7 days")
+                else:
+                    st.info("💡 Configure your Alpaca API keys in the Trading Bot page to see recent trades")
+            except Exception as e:
+                st.warning(f"⚠️ Could not load recent trades: {str(e)}")
+            
             # Portfolio table
+            st.markdown("---")
             st.markdown("### 📋 Stock Overview")
             
             # Format the display
