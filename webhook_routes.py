@@ -313,10 +313,14 @@ class WebhookHandler(RequestHandler):
 
             logger.info(f"WEBHOOK: User {user_id} - {action} {symbol} {timeframe} (raw symbol: {symbol_raw}, raw timeframe: {timeframe_raw})")
 
-            # Get bot config
+            # Get bot config - try normalized symbol first, then raw symbol as fallback
             bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
+            if not bot_config and symbol != symbol_raw:
+                # Fallback: try with raw symbol (in case bot was stored before normalization)
+                logger.info(f"WEBHOOK: Bot not found with {symbol}, trying raw symbol {symbol_raw}")
+                bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol_raw, timeframe, signal_source='webhook')
             if not bot_config:
-                self.write(json.dumps({'status': 'skipped', 'reason': 'No webhook bot found for this symbol+timeframe'}))
+                self.write(json.dumps({'status': 'skipped', 'reason': 'No webhook bot found for this symbol+timeframe', 'symbol': symbol, 'timeframe': timeframe}))
                 return
 
             if not bot_config['is_active']:
