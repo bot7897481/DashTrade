@@ -48,6 +48,80 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.environ.get('ENCRYPTI
 # Enable CORS for React frontend (allow all origins for development)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# Crypto symbol helpers
+CRYPTO_SYMBOLS = {
+    'BTC/USD': 'Bitcoin',
+    'ETH/USD': 'Ethereum',
+    'SOL/USD': 'Solana',
+    'DOGE/USD': 'Dogecoin',
+    'XRP/USD': 'Ripple',
+    'ADA/USD': 'Cardano',
+    'DOT/USD': 'Polkadot',
+    'LINK/USD': 'Chainlink',
+    'AVAX/USD': 'Avalanche',
+    'MATIC/USD': 'Polygon',
+    'SHIB/USD': 'Shiba Inu',
+    'LTC/USD': 'Litecoin',
+    'UNI/USD': 'Uniswap',
+    'ATOM/USD': 'Cosmos',
+    'XLM/USD': 'Stellar',
+    'ALGO/USD': 'Algorand',
+    'NEAR/USD': 'NEAR Protocol',
+    'FTM/USD': 'Fantom',
+    'AAVE/USD': 'Aave',
+    'MKR/USD': 'Maker',
+    'BCH/USD': 'Bitcoin Cash',
+    'TRX/USD': 'TRON',
+    'APE/USD': 'ApeCoin',
+    'CRV/USD': 'Curve DAO',
+    'GRT/USD': 'The Graph',
+    'SUSHI/USD': 'SushiSwap',
+    'BAT/USD': 'Basic Attention Token',
+    'XTZ/USD': 'Tezos',
+    'USDC/USD': 'USD Coin',
+    'USDT/USD': 'Tether',
+}
+
+
+def is_crypto_symbol(symbol: str) -> bool:
+    """Check if a symbol is a cryptocurrency"""
+    if not symbol:
+        return False
+    symbol_upper = symbol.upper().strip()
+    # Check if it's in our known crypto list
+    if symbol_upper in CRYPTO_SYMBOLS:
+        return True
+    # Check for /USD suffix pattern
+    if '/USD' in symbol_upper:
+        return True
+    # Check for common crypto without slash (e.g., BTCUSD)
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        if f"{base}/USD" in CRYPTO_SYMBOLS:
+            return True
+    return False
+
+
+def normalize_crypto_symbol(symbol: str) -> str:
+    """Normalize crypto symbol to Alpaca format (e.g., BTCUSD -> BTC/USD)"""
+    if not symbol:
+        return symbol
+    symbol_upper = symbol.upper().strip()
+    # Already in correct format
+    if '/' in symbol_upper:
+        return symbol_upper
+    # Convert BTCUSD to BTC/USD
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        return f"{base}/USD"
+    return symbol_upper
+
+
+def get_crypto_name(symbol: str) -> str:
+    """Get the name of a cryptocurrency from its symbol"""
+    normalized = normalize_crypto_symbol(symbol)
+    return CRYPTO_SYMBOLS.get(normalized, normalized.replace('/USD', ''))
+
 # Run migrations on startup
 try:
     from run_migrations import run_migrations
@@ -869,10 +943,12 @@ def api_get_trade_detail(trade_id):
 @token_required
 def api_get_stock_quote():
     """
-    Get comprehensive stock quote data from Alpaca
+    Get comprehensive stock/crypto quote data from Alpaca
 
     Query params:
-        - symbol: Stock symbol (required)
+        - symbol: Stock or crypto symbol (required)
+                  Stocks: AAPL, TSLA, etc.
+                  Crypto: BTC/USD, BTCUSD, ETH/USD, etc.
 
     Returns:
         - price, open, high, low, close, previousClose
@@ -880,6 +956,7 @@ def api_get_stock_quote():
         - week52High, week52Low
         - change, changePercent
         - marketCap (from Yahoo Finance as backup)
+        - is_crypto: true/false
     """
     try:
         symbol = request.args.get('symbol', '').upper().strip()
@@ -887,9 +964,15 @@ def api_get_stock_quote():
         if not symbol:
             return jsonify({'error': 'Symbol is required'}), 400
 
-        # Import Alpaca data client
-        from alpaca.data.historical import StockHistoricalDataClient
+        # Check if this is a crypto symbol
+        is_crypto = is_crypto_symbol(symbol)
+        if is_crypto:
+            symbol = normalize_crypto_symbol(symbol)
+
+        # Import Alpaca data clients
+        from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
         from alpaca.data.requests import StockLatestQuoteRequest, StockBarsRequest, StockLatestBarRequest
+        from alpaca.data.requests import CryptoLatestQuoteRequest, CryptoBarsRequest, CryptoLatestBarRequest
         from alpaca.data.timeframe import TimeFrame
         from alpaca.trading.client import TradingClient
 
@@ -898,12 +981,17 @@ def api_get_stock_quote():
         if not keys:
             return jsonify({'error': 'Alpaca API keys not configured'}), 400
 
-        data_client = StockHistoricalDataClient(keys['api_key'], keys['secret_key'])
         trading_client = TradingClient(keys['api_key'], keys['secret_key'], paper=(keys['mode'] == 'paper'))
+
+        # Use appropriate data client based on asset type
+        if is_crypto:
+            data_client = CryptoHistoricalDataClient(keys['api_key'], keys['secret_key'])
+        else:
+            data_client = StockHistoricalDataClient(keys['api_key'], keys['secret_key'])
 
         result = {
             'symbol': symbol,
-            'name': symbol,  # Will be updated if we can get asset info
+            'name': get_crypto_name(symbol) if is_crypto else symbol,
             'price': None,
             'open': None,
             'high': None,
@@ -919,22 +1007,33 @@ def api_get_stock_quote():
             'marketCap': None,
             'bid': None,
             'ask': None,
-            'timestamp': None
+            'timestamp': None,
+            'is_crypto': is_crypto,
+            'asset_type': 'crypto' if is_crypto else 'stock'
         }
 
-        # Get asset info (name)
-        try:
-            asset = trading_client.get_asset(symbol)
-            result['name'] = asset.name or symbol
-            result['exchange'] = asset.exchange.value if asset.exchange else None
-            result['tradable'] = asset.tradable
-        except Exception as e:
-            logger.warning(f"Could not get asset info for {symbol}: {e}")
+        # Get asset info (name) - for stocks
+        if not is_crypto:
+            try:
+                asset = trading_client.get_asset(symbol)
+                result['name'] = asset.name or symbol
+                result['exchange'] = asset.exchange.value if asset.exchange else None
+                result['tradable'] = asset.tradable
+            except Exception as e:
+                logger.warning(f"Could not get asset info for {symbol}: {e}")
+        else:
+            result['exchange'] = 'CRYPTO'
+            result['tradable'] = True
 
         # Get latest quote (bid/ask)
         try:
-            quote_request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
-            quotes = data_client.get_stock_latest_quote(quote_request)
+            if is_crypto:
+                quote_request = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
+                quotes = data_client.get_crypto_latest_quote(quote_request)
+            else:
+                quote_request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+                quotes = data_client.get_stock_latest_quote(quote_request)
+
             if symbol in quotes:
                 q = quotes[symbol]
                 result['bid'] = float(q.bid_price) if q.bid_price else None
@@ -948,15 +1047,20 @@ def api_get_stock_quote():
 
         # Get latest bar (OHLCV)
         try:
-            bar_request = StockLatestBarRequest(symbol_or_symbols=symbol)
-            bars = data_client.get_stock_latest_bar(bar_request)
+            if is_crypto:
+                bar_request = CryptoLatestBarRequest(symbol_or_symbols=symbol)
+                bars = data_client.get_crypto_latest_bar(bar_request)
+            else:
+                bar_request = StockLatestBarRequest(symbol_or_symbols=symbol)
+                bars = data_client.get_stock_latest_bar(bar_request)
+
             if symbol in bars:
                 bar = bars[symbol]
                 result['open'] = float(bar.open) if bar.open else None
                 result['high'] = float(bar.high) if bar.high else None
                 result['low'] = float(bar.low) if bar.low else None
                 result['close'] = float(bar.close) if bar.close else None
-                result['volume'] = int(bar.volume) if bar.volume else None
+                result['volume'] = float(bar.volume) if bar.volume else None
                 # Use close as price if we don't have quote
                 if result['price'] is None and bar.close:
                     result['price'] = float(bar.close)
@@ -967,7 +1071,9 @@ def api_get_stock_quote():
         # Yahoo Finance provides 52-week high/low, previous close, market cap, etc.
         try:
             import yfinance as yf
-            ticker = yf.Ticker(symbol)
+            # Yahoo Finance uses different format for crypto (BTC-USD instead of BTC/USD)
+            yf_symbol = symbol.replace('/', '-') if is_crypto else symbol
+            ticker = yf.Ticker(yf_symbol)
             info = ticker.info
 
             # 52-week high/low (Yahoo Finance has this directly)
@@ -1038,13 +1144,22 @@ def api_get_stock_quote():
                 end_date = datetime.now()
                 start_date = end_date - timedelta(days=365)
 
-                hist_request = StockBarsRequest(
-                    symbol_or_symbols=symbol,
-                    timeframe=TimeFrame.Day,
-                    start=start_date,
-                    end=end_date
-                )
-                hist_bars = data_client.get_stock_bars(hist_request)
+                if is_crypto:
+                    hist_request = CryptoBarsRequest(
+                        symbol_or_symbols=symbol,
+                        timeframe=TimeFrame.Day,
+                        start=start_date,
+                        end=end_date
+                    )
+                    hist_bars = data_client.get_crypto_bars(hist_request)
+                else:
+                    hist_request = StockBarsRequest(
+                        symbol_or_symbols=symbol,
+                        timeframe=TimeFrame.Day,
+                        start=start_date,
+                        end=end_date
+                    )
+                    hist_bars = data_client.get_stock_bars(hist_request)
 
                 if symbol in hist_bars and len(hist_bars[symbol]) > 0:
                     bars_list = list(hist_bars[symbol])
@@ -1083,18 +1198,20 @@ def api_get_stock_quote():
 @token_required
 def api_search_stocks():
     """
-    Search for stocks by symbol or name
+    Search for stocks and crypto by symbol or name
 
     Query params:
         - query: Search query (required, min 1 character)
         - limit: Max results (default 10)
+        - type: Filter by type: 'all', 'stock', 'crypto' (default 'all')
 
     Returns:
-        - Array of {symbol, name, exchange, tradable}
+        - Array of {symbol, name, exchange, tradable, asset_type}
     """
     try:
         query = request.args.get('query', '').upper().strip()
         limit = int(request.args.get('limit', 10))
+        asset_type_filter = request.args.get('type', 'all').lower()
 
         if not query:
             return jsonify({'error': 'Query is required'}), 400
@@ -1102,59 +1219,72 @@ def api_search_stocks():
         if len(query) < 1:
             return jsonify({'results': []}), 200
 
-        # Import Alpaca trading client
-        from alpaca.trading.client import TradingClient
-        from alpaca.trading.enums import AssetClass, AssetStatus
+        results = []
 
-        # Get user's API keys
-        keys = BotAPIKeysDB.get_api_keys(g.user_id)
-        if not keys:
-            return jsonify({'error': 'Alpaca API keys not configured'}), 400
-
-        trading_client = TradingClient(keys['api_key'], keys['secret_key'], paper=(keys['mode'] == 'paper'))
-
-        # Get all tradeable US stocks
-        try:
-            assets = trading_client.get_all_assets()
-
-            # Filter by query (symbol starts with or name contains)
-            results = []
-            for asset in assets:
-                # Only include US equities that are tradeable
-                if asset.asset_class != AssetClass.US_EQUITY:
-                    continue
-                if asset.status != AssetStatus.ACTIVE:
-                    continue
-                if not asset.tradable:
-                    continue
-
-                # Match by symbol prefix or name contains
-                symbol_match = asset.symbol.upper().startswith(query)
-                name_match = query.lower() in (asset.name or '').lower() if asset.name else False
+        # Search crypto symbols first (they match faster)
+        if asset_type_filter in ['all', 'crypto']:
+            for crypto_symbol, crypto_name in CRYPTO_SYMBOLS.items():
+                # Match by symbol (BTC, ETH) or name (Bitcoin, Ethereum)
+                base_symbol = crypto_symbol.replace('/USD', '')
+                symbol_match = base_symbol.startswith(query) or crypto_symbol.startswith(query)
+                name_match = query.lower() in crypto_name.lower()
 
                 if symbol_match or name_match:
                     results.append({
-                        'symbol': asset.symbol,
-                        'name': asset.name or asset.symbol,
-                        'exchange': asset.exchange.value if asset.exchange else None,
-                        'tradable': asset.tradable
+                        'symbol': crypto_symbol,
+                        'name': crypto_name,
+                        'exchange': 'CRYPTO',
+                        'tradable': True,
+                        'asset_type': 'crypto'
                     })
 
-                if len(results) >= limit:
-                    break
+        # Search stocks from Alpaca
+        if asset_type_filter in ['all', 'stock']:
+            try:
+                from alpaca.trading.client import TradingClient
+                from alpaca.trading.enums import AssetClass, AssetStatus
 
-            # Sort: exact symbol matches first, then alphabetically
-            results.sort(key=lambda x: (
-                0 if x['symbol'] == query else 1,
-                0 if x['symbol'].startswith(query) else 1,
-                x['symbol']
-            ))
+                keys = BotAPIKeysDB.get_api_keys(g.user_id)
+                if keys:
+                    trading_client = TradingClient(keys['api_key'], keys['secret_key'], paper=(keys['mode'] == 'paper'))
+                    assets = trading_client.get_all_assets()
 
-            return jsonify({'results': results[:limit]}), 200
+                    for asset in assets:
+                        if len(results) >= limit * 2:  # Get extra for sorting
+                            break
 
-        except Exception as e:
-            logger.error(f"Error searching assets: {e}")
-            return jsonify({'error': f'Search failed: {str(e)}'}), 500
+                        # Only include US equities that are tradeable
+                        if asset.asset_class != AssetClass.US_EQUITY:
+                            continue
+                        if asset.status != AssetStatus.ACTIVE:
+                            continue
+                        if not asset.tradable:
+                            continue
+
+                        # Match by symbol prefix or name contains
+                        symbol_match = asset.symbol.upper().startswith(query)
+                        name_match = query.lower() in (asset.name or '').lower() if asset.name else False
+
+                        if symbol_match or name_match:
+                            results.append({
+                                'symbol': asset.symbol,
+                                'name': asset.name or asset.symbol,
+                                'exchange': asset.exchange.value if asset.exchange else None,
+                                'tradable': asset.tradable,
+                                'asset_type': 'stock'
+                            })
+            except Exception as e:
+                logger.warning(f"Error searching stock assets: {e}")
+
+        # Sort: exact matches first, then crypto, then alphabetically
+        results.sort(key=lambda x: (
+            0 if x['symbol'].replace('/USD', '') == query else 1,
+            0 if x['symbol'].startswith(query) else 1,
+            0 if x['asset_type'] == 'crypto' else 1,  # Crypto first when typing partial
+            x['symbol']
+        ))
+
+        return jsonify({'results': results[:limit]}), 200
 
     except Exception as e:
         logger.error(f"Stock search error: {e}", exc_info=True)
@@ -1164,37 +1294,52 @@ def api_search_stocks():
 @app.route('/api/stocks/popular', methods=['GET'])
 def api_get_popular_stocks():
     """
-    Get a list of popular/common stocks for quick selection
+    Get a list of popular stocks and crypto for quick selection
     No authentication required - returns static list
+
+    Query params:
+        - type: 'all', 'stock', 'crypto' (default 'all')
     """
-    popular = [
-        {'symbol': 'AAPL', 'name': 'Apple Inc.'},
-        {'symbol': 'MSFT', 'name': 'Microsoft Corporation'},
-        {'symbol': 'GOOGL', 'name': 'Alphabet Inc.'},
-        {'symbol': 'AMZN', 'name': 'Amazon.com Inc.'},
-        {'symbol': 'TSLA', 'name': 'Tesla Inc.'},
-        {'symbol': 'META', 'name': 'Meta Platforms Inc.'},
-        {'symbol': 'NVDA', 'name': 'NVIDIA Corporation'},
-        {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.'},
-        {'symbol': 'V', 'name': 'Visa Inc.'},
-        {'symbol': 'JNJ', 'name': 'Johnson & Johnson'},
-        {'symbol': 'WMT', 'name': 'Walmart Inc.'},
-        {'symbol': 'PG', 'name': 'Procter & Gamble Co.'},
-        {'symbol': 'MA', 'name': 'Mastercard Inc.'},
-        {'symbol': 'UNH', 'name': 'UnitedHealth Group Inc.'},
-        {'symbol': 'HD', 'name': 'Home Depot Inc.'},
-        {'symbol': 'DIS', 'name': 'Walt Disney Co.'},
-        {'symbol': 'BAC', 'name': 'Bank of America Corp.'},
-        {'symbol': 'NFLX', 'name': 'Netflix Inc.'},
-        {'symbol': 'AMD', 'name': 'Advanced Micro Devices'},
-        {'symbol': 'INTC', 'name': 'Intel Corporation'},
-        {'symbol': 'SPY', 'name': 'SPDR S&P 500 ETF'},
-        {'symbol': 'QQQ', 'name': 'Invesco QQQ Trust'},
-        {'symbol': 'IWM', 'name': 'iShares Russell 2000 ETF'},
-        {'symbol': 'GLD', 'name': 'SPDR Gold Shares'},
-        {'symbol': 'SLV', 'name': 'iShares Silver Trust'},
+    asset_type = request.args.get('type', 'all').lower()
+
+    popular_stocks = [
+        {'symbol': 'AAPL', 'name': 'Apple Inc.', 'asset_type': 'stock'},
+        {'symbol': 'MSFT', 'name': 'Microsoft Corporation', 'asset_type': 'stock'},
+        {'symbol': 'GOOGL', 'name': 'Alphabet Inc.', 'asset_type': 'stock'},
+        {'symbol': 'AMZN', 'name': 'Amazon.com Inc.', 'asset_type': 'stock'},
+        {'symbol': 'TSLA', 'name': 'Tesla Inc.', 'asset_type': 'stock'},
+        {'symbol': 'META', 'name': 'Meta Platforms Inc.', 'asset_type': 'stock'},
+        {'symbol': 'NVDA', 'name': 'NVIDIA Corporation', 'asset_type': 'stock'},
+        {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.', 'asset_type': 'stock'},
+        {'symbol': 'V', 'name': 'Visa Inc.', 'asset_type': 'stock'},
+        {'symbol': 'NFLX', 'name': 'Netflix Inc.', 'asset_type': 'stock'},
+        {'symbol': 'AMD', 'name': 'Advanced Micro Devices', 'asset_type': 'stock'},
+        {'symbol': 'SPY', 'name': 'SPDR S&P 500 ETF', 'asset_type': 'stock'},
+        {'symbol': 'QQQ', 'name': 'Invesco QQQ Trust', 'asset_type': 'stock'},
     ]
-    return jsonify({'stocks': popular}), 200
+
+    popular_crypto = [
+        {'symbol': 'BTC/USD', 'name': 'Bitcoin', 'asset_type': 'crypto'},
+        {'symbol': 'ETH/USD', 'name': 'Ethereum', 'asset_type': 'crypto'},
+        {'symbol': 'SOL/USD', 'name': 'Solana', 'asset_type': 'crypto'},
+        {'symbol': 'DOGE/USD', 'name': 'Dogecoin', 'asset_type': 'crypto'},
+        {'symbol': 'XRP/USD', 'name': 'Ripple', 'asset_type': 'crypto'},
+        {'symbol': 'ADA/USD', 'name': 'Cardano', 'asset_type': 'crypto'},
+        {'symbol': 'AVAX/USD', 'name': 'Avalanche', 'asset_type': 'crypto'},
+        {'symbol': 'LINK/USD', 'name': 'Chainlink', 'asset_type': 'crypto'},
+        {'symbol': 'DOT/USD', 'name': 'Polkadot', 'asset_type': 'crypto'},
+        {'symbol': 'MATIC/USD', 'name': 'Polygon', 'asset_type': 'crypto'},
+        {'symbol': 'SHIB/USD', 'name': 'Shiba Inu', 'asset_type': 'crypto'},
+        {'symbol': 'LTC/USD', 'name': 'Litecoin', 'asset_type': 'crypto'},
+    ]
+
+    if asset_type == 'stock':
+        return jsonify({'stocks': popular_stocks}), 200
+    elif asset_type == 'crypto':
+        return jsonify({'stocks': popular_crypto}), 200
+    else:
+        # Return both, with crypto first for visibility
+        return jsonify({'stocks': popular_crypto + popular_stocks}), 200
 
 
 # ============================================================================
