@@ -17,6 +17,87 @@ from bot_database import (
 )
 from bot_engine import TradingEngine
 
+# ============================================================================
+# NORMALIZATION HELPERS
+# ============================================================================
+
+def normalize_timeframe(tf: str) -> str:
+    """
+    Normalize timeframe from TradingView format to our database format.
+    TradingView {{interval}} returns: 1, 5, 15, 30, 45, 60, 120, 240, D, W, M
+    Our database stores: 1min, 5min, 15min, 30min, 45min, 1h, 2h, 4h, 1d, 1w, 1m
+    """
+    if not tf:
+        return tf
+
+    tf = str(tf).strip().lower()
+
+    # Already in correct format
+    if tf in ['1min', '5min', '15min', '30min', '45min', '1h', '2h', '4h', '1d', '1w', '1m']:
+        return tf
+
+    # Map TradingView intervals to our format
+    mappings = {
+        # Minutes
+        '1': '1min', '1m': '1min', '1 min': '1min',
+        '5': '5min', '5m': '5min', '5 min': '5min',
+        '15': '15min', '15m': '15min', '15 min': '15min',
+        '30': '30min', '30m': '30min', '30 min': '30min',
+        '45': '45min', '45m': '45min', '45 min': '45min',
+        # Hours
+        '60': '1h', '1h': '1h', '1 hour': '1h', '1hour': '1h',
+        '120': '2h', '2h': '2h', '2 hour': '2h', '2hour': '2h',
+        '240': '4h', '4h': '4h', '4 hour': '4h', '4hour': '4h',
+        # Days/Weeks/Months
+        'd': '1d', '1d': '1d', 'daily': '1d', 'day': '1d',
+        'w': '1w', '1w': '1w', 'weekly': '1w', 'week': '1w',
+        'm': '1m', 'monthly': '1m', 'month': '1m',
+    }
+
+    return mappings.get(tf, tf)
+
+
+# Known crypto symbols supported by Alpaca
+CRYPTO_SYMBOLS = {
+    'BTC/USD', 'ETH/USD', 'LTC/USD', 'BCH/USD', 'AAVE/USD', 'AVAX/USD',
+    'BAT/USD', 'CRV/USD', 'DOT/USD', 'GRT/USD', 'LINK/USD', 'MKR/USD',
+    'SHIB/USD', 'SUSHI/USD', 'UNI/USD', 'USDC/USD', 'USDT/USD', 'XTZ/USD',
+    'DOGE/USD', 'SOL/USD', 'MATIC/USD', 'ALGO/USD', 'XLM/USD', 'ATOM/USD',
+    'ADA/USD', 'XRP/USD', 'TRX/USD', 'NEAR/USD', 'FTM/USD', 'APE/USD'
+}
+
+
+def is_crypto_symbol(symbol: str) -> bool:
+    """Check if a symbol is a cryptocurrency"""
+    if not symbol:
+        return False
+    symbol_upper = symbol.upper().strip()
+    if symbol_upper in CRYPTO_SYMBOLS:
+        return True
+    if '/USD' in symbol_upper:
+        return True
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        if f"{base}/USD" in CRYPTO_SYMBOLS:
+            return True
+    return False
+
+
+def normalize_crypto_symbol(symbol: str) -> str:
+    """Normalize crypto symbol to Alpaca format (BTCUSD -> BTC/USD)"""
+    if not symbol:
+        return symbol
+    symbol_upper = symbol.upper().strip()
+    if '/' in symbol_upper:
+        return symbol_upper
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        normalized = f"{base}/USD"
+        if normalized in CRYPTO_SYMBOLS:
+            return normalized
+    return symbol_upper
+
+
 # Setup Flask app
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
@@ -112,21 +193,35 @@ def webhook():
                 logger.warning(f"Invalid user token: {token[:15]}...")
                 return jsonify({'error': 'Invalid or inactive token'}), 401
 
-            symbol = data.get('symbol', '').upper()
-            timeframe = data.get('timeframe', '')
+            symbol_raw = data.get('symbol', '').upper()
+            timeframe_raw = data.get('timeframe', '')
             signal_source = 'user_webhook'
 
-            if not symbol or not timeframe:
+            if not symbol_raw or not timeframe_raw:
                 return jsonify({
                     'error': 'Missing required fields for user token',
                     'required': ['action', 'symbol', 'timeframe'],
                     'tip': 'Use a bot-specific token (bot_xxx) to skip symbol/timeframe'
                 }), 400
 
-            logger.info(f"USER WEBHOOK: User {user_id} - {action} {symbol} {timeframe}")
+            # Normalize symbol (BTCUSD -> BTC/USD)
+            if is_crypto_symbol(symbol_raw):
+                symbol = normalize_crypto_symbol(symbol_raw)
+            else:
+                symbol = symbol_raw
 
-            # Get bot configuration (specifically for 'webhook' signal source)
+            # Normalize timeframe (1 -> 1min, 5 -> 5min)
+            timeframe = normalize_timeframe(timeframe_raw)
+
+            logger.info(f"USER WEBHOOK: User {user_id} - {action} {symbol} {timeframe} (raw: {symbol_raw}, {timeframe_raw})")
+
+            # Get bot configuration - try normalized first, then raw as fallback
             bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol, timeframe, signal_source='webhook')
+
+            # Fallback: try with raw values if normalized didn't match
+            if not bot_config and (symbol != symbol_raw or timeframe != timeframe_raw):
+                logger.info(f"Trying fallback with raw values: {symbol_raw} {timeframe_raw}")
+                bot_config = BotConfigDB.get_bot_by_symbol_timeframe(user_id, symbol_raw, timeframe_raw, signal_source='webhook')
 
             if not bot_config:
                 logger.info(f"No bot config found: {symbol} {timeframe}")
