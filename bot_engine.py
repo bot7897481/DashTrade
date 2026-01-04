@@ -334,6 +334,17 @@ class TradingEngine:
         Returns:
             dict: {'status': 'success'|'error', 'message': str}
         """
+        logger.info(f"🔴 CLOSE_POSITION called with symbol: {symbol}")
+        
+        # First, check what positions exist
+        try:
+            all_positions = self.api.get_all_positions()
+            position_symbols = [p.symbol for p in all_positions]
+            logger.info(f"📊 Current positions in account: {position_symbols}")
+        except Exception as e:
+            logger.warning(f"Could not list positions: {e}")
+            position_symbols = []
+        
         # Build list of possible symbol formats to try (for crypto)
         symbols_to_try = [symbol]
         if '/' in symbol:
@@ -342,17 +353,37 @@ class TradingEngine:
         elif is_crypto_symbol(symbol):
             # BTCUSD -> also try BTC/USD
             symbols_to_try.append(normalize_crypto_symbol(symbol))
+        
+        # Also add any matching position symbols directly
+        for pos_sym in position_symbols:
+            pos_sym_upper = pos_sym.upper()
+            if pos_sym_upper not in [s.upper() for s in symbols_to_try]:
+                # Check if this position matches our target symbol
+                normalized_target = normalize_crypto_symbol(symbol).upper()
+                normalized_pos = normalize_crypto_symbol(pos_sym).upper()
+                if normalized_target == normalized_pos:
+                    symbols_to_try.insert(0, pos_sym)  # Try actual position symbol first
+                    logger.info(f"📌 Found matching position symbol: {pos_sym}")
+
+        logger.info(f"🔄 Will try closing with symbols: {symbols_to_try}")
 
         last_error = None
         for sym in symbols_to_try:
             try:
-                logger.info(f"🔴 Closing position: {sym}")
-                self.api.close_position(sym)
+                logger.info(f"🔴 Attempting to close position: {sym}")
+                result = self.api.close_position(sym)
+                logger.info(f"✅ Close position API response: {result}")
                 time.sleep(2)  # Wait for order to process
                 return {'status': 'success', 'message': f'Position closed for {sym}'}
             except Exception as e:
                 last_error = e
-                logger.warning(f"Could not close position with symbol {sym}: {e}")
+                error_str = str(e)
+                logger.warning(f"❌ Could not close position with symbol {sym}: {error_str}")
+                # Check for specific error messages
+                if 'position does not exist' in error_str.lower():
+                    logger.info(f"ℹ️  No position exists for {sym}")
+                elif 'not found' in error_str.lower():
+                    logger.info(f"ℹ️  Symbol {sym} not found in positions")
                 continue
 
         logger.error(f"❌ Error closing position {symbol}: {last_error}")

@@ -243,11 +243,34 @@ except Exception as e:
 # HELPER FUNCTIONS
 # ============================================================================
 
+def normalize_crypto_symbol(symbol):
+    """Normalize crypto symbol to Alpaca format (e.g., BTCUSD -> BTC/USD)"""
+    if not symbol:
+        return symbol
+    symbol_upper = symbol.upper()
+    # Already in correct format
+    if '/' in symbol_upper:
+        return symbol_upper
+    # Convert BTCUSD to BTC/USD
+    if symbol_upper.endswith('USD') and len(symbol_upper) >= 6:
+        base = symbol_upper[:-3]
+        return f"{base}/USD"
+    return symbol_upper
+
 def get_current_position(symbol):
     try:
         positions = api.list_positions()
+        # Build list of possible symbol formats to check (for crypto)
+        symbols_to_check = [symbol]
+        normalized = normalize_crypto_symbol(symbol)
+        if normalized != symbol:
+            symbols_to_check.append(normalized)
+            # Also check reverse (if symbol has /, check without)
+            if '/' in symbol:
+                symbols_to_check.append(symbol.replace('/', ''))
+        
         for position in positions:
-            if position.symbol == symbol:
+            if position.symbol in symbols_to_check:
                 return position
         return None
     except Exception as e:
@@ -262,9 +285,35 @@ def close_position(symbol, timeframe):
             side = "LONG" if float(position.qty) > 0 else "SHORT"
             avg_price = float(position.avg_entry_price)
             
-            # Close the position
-            closing_order = api.close_position(symbol)
-            logger.info(f"✅ CLOSED: {symbol} {timeframe} - {side} ({qty} shares)")
+            # Normalize symbol for crypto (BTCUSD -> BTC/USD)
+            # Use the actual position symbol to ensure we close the correct one
+            position_symbol = position.symbol
+            symbols_to_try = [position_symbol]
+            
+            # Also try normalized version if different
+            normalized = normalize_crypto_symbol(symbol)
+            if normalized != position_symbol and normalized not in symbols_to_try:
+                symbols_to_try.append(normalized)
+            if symbol != position_symbol and symbol not in symbols_to_try:
+                symbols_to_try.append(symbol)
+            
+            # Try closing with each symbol format
+            closing_order = None
+            last_error = None
+            for sym in symbols_to_try:
+                try:
+                    logger.info(f"🔴 Attempting to close position with symbol: {sym}")
+                    closing_order = api.close_position(sym)
+                    logger.info(f"✅ CLOSED: {symbol} {timeframe} - {side} ({qty} shares) using symbol {sym}")
+                    break
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"⚠️ Could not close with symbol {sym}: {e}")
+                    continue
+            
+            if not closing_order:
+                logger.error(f"❌ Failed to close position for {symbol}: {last_error}")
+                return False
             
             # Wait a moment for the order to fill
             time.sleep(2)
