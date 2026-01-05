@@ -346,7 +346,7 @@ class TradingEngine:
             if not position_symbols:
                 logger.info(f"ℹ️  No open positions in account")
                 return {'status': 'info', 'message': 'No open positions'}
-        except Exception as e:
+            except Exception as e:
             logger.warning(f"Could not list positions: {e}")
             position_symbols = []
         
@@ -415,10 +415,17 @@ class TradingEngine:
 
         # Get current position
         current_position = self.get_current_position(symbol)
-        if not current_position:
-            return {'status': 'error', 'message': 'Failed to get current position'}
-
-        current_side = current_position['side']
+        if current_position is None:
+            logger.error(f"❌ Failed to get current position for {symbol} - API error")
+            return {'status': 'error', 'message': 'Failed to get current position from Alpaca API'}
+        
+        # Ensure we have a valid position dict (get_current_position should always return a dict)
+        if not isinstance(current_position, dict):
+            logger.error(f"❌ Invalid position data type: {type(current_position)}")
+            return {'status': 'error', 'message': 'Invalid position data'}
+        
+        current_side = current_position.get('side', 'FLAT')
+        logger.info(f"📊 Current position: {current_side} | Qty: {current_position.get('qty', 0)} | Value: ${current_position.get('market_value', 0):.2f}")
 
         # Check risk limits BEFORE executing
         risk_check = self.check_risk_limits(bot_config, current_position)
@@ -436,9 +443,33 @@ class TradingEngine:
 
         # Handle CLOSE signal
         if action == 'CLOSE':
+            logger.info(f"🔴 CLOSE SIGNAL RECEIVED for {symbol} | Current side: {current_side}")
+            
             if current_side == 'FLAT':
-                logger.info(f"ℹ️  {symbol} already flat")
-                return {'status': 'info', 'message': 'Already flat'}
+                logger.info(f"ℹ️  {symbol} already flat - no position to close")
+                return {'status': 'info', 'message': 'Already flat - no position to close'}
+            
+            # Double-check: verify position actually exists in Alpaca
+            # Sometimes get_current_position might return FLAT incorrectly
+            try:
+                all_positions = self.api.get_all_positions()
+                position_exists = False
+                for pos in all_positions:
+                    pos_symbol = pos.symbol
+                    # Check both normalized formats
+                    if (pos_symbol == symbol or 
+                        pos_symbol == symbol.replace('/', '') or
+                        normalize_crypto_symbol(pos_symbol) == symbol or
+                        normalize_crypto_symbol(symbol) == pos_symbol):
+                        position_exists = True
+                        logger.info(f"✅ Verified position exists in Alpaca: {pos_symbol} (qty: {pos.qty})")
+                        break
+                
+                if not position_exists and current_side != 'FLAT':
+                    logger.warning(f"⚠️  Position mismatch: get_current_position says {current_side}, but Alpaca shows no position")
+                    return {'status': 'info', 'message': 'No position found in Alpaca account'}
+            except Exception as e:
+                logger.warning(f"⚠️  Could not verify position in Alpaca: {e} - proceeding with close anyway")
 
             # Get position info before closing (including entry price for P&L calculation)
             position_qty_before = abs(current_position.get('qty', 0))

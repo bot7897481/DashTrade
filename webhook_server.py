@@ -270,11 +270,23 @@ def webhook():
             }), 400
 
         # 7. Execute trade with timing info
-        result = engine.execute_trade(
-            bot_config, action,
-            signal_received_at=signal_received_at,
-            signal_source=signal_source
-        )
+        logger.info(f"🚀 Executing {action} trade for {symbol} {timeframe} (Bot ID: {bot_config['id']})")
+        try:
+            result = engine.execute_trade(
+                bot_config, action,
+                signal_received_at=signal_received_at,
+                signal_source=signal_source
+            )
+            logger.info(f"✅ Trade execution result: {result.get('status')} - {result.get('message', 'No message')}")
+        except Exception as e:
+            logger.error(f"❌ Exception during trade execution: {e}", exc_info=True)
+            return jsonify({
+                'status': 'error',
+                'message': f'Trade execution failed: {str(e)}',
+                'action': action,
+                'symbol': symbol,
+                'timeframe': timeframe
+            }), 500
 
         # 8. Forward to outgoing webhooks
         forward_to_outgoing_webhooks(user_id, 'signal', {
