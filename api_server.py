@@ -758,6 +758,18 @@ def api_get_trades():
     try:
         limit = request.args.get('limit', 50, type=int)
         symbol = request.args.get('symbol')
+        
+        # Auto-update pending CLOSE orders before returning trades
+        # This ensures the frontend always sees the latest status
+        try:
+            from update_pending_orders import update_pending_close_orders
+            # Only check orders from last 24 hours to avoid performance issues
+            updated = update_pending_close_orders(user_id=g.user_id, hours_back=24)
+            if updated > 0:
+                logger.info(f"Auto-updated {updated} pending CLOSE orders for user {g.user_id}")
+        except Exception as e:
+            # Don't fail the request if update fails, just log it
+            logger.warning(f"Failed to auto-update pending orders: {e}")
 
         trades = BotTradesDB.get_user_trades(g.user_id, limit=limit, symbol=symbol)
         trades = convert_decimals(trades)
@@ -824,6 +836,16 @@ def api_get_trade_detail(trade_id):
     - Technical indicators (RSI, MAs)
     """
     try:
+        # Auto-update pending CLOSE orders before returning trade details
+        # This ensures the trade status is up-to-date
+        try:
+            from update_pending_orders import update_pending_close_orders
+            # Check orders from last 24 hours (will include this trade if it's pending)
+            update_pending_close_orders(user_id=g.user_id, hours_back=24)
+        except Exception as e:
+            # Don't fail the request if update fails, just log it
+            logger.warning(f"Failed to auto-update pending orders: {e}")
+        
         # Get trade with full market context
         trade = TradeMarketContextDB.get_trade_with_context(trade_id, g.user_id)
 

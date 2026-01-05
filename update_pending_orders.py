@@ -31,7 +31,8 @@ def update_pending_close_orders(user_id: int = None, hours_back: int = 24):
                     SELECT id, user_id, order_id, symbol, action, status, created_at
                     FROM bot_trades
                     WHERE action = 'CLOSE'
-                    AND status IN ('SUBMITTED', 'PENDING', 'ACCEPTED', 'PENDING_NEW')
+                    AND status IN ('SUBMITTED', 'PENDING', 'ACCEPTED', 'PENDING_NEW', 'PARTIALLY_FILLED')
+                    AND order_id IS NOT NULL
                     AND created_at >= %s
                 """
                 params = [cutoff_time]
