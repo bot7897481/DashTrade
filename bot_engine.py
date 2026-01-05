@@ -561,12 +561,12 @@ class TradingEngine:
                         slippage_percent = None
                         if expected_price:
                             if current_side == 'LONG':
-                                # Selling: negative slippage means we got less than expected (bad)
+                                # Selling: positive slippage if filled > expected (got more money)
                                 slippage = filled_price - expected_price
                             elif current_side == 'SHORT':
-                                # Buying to cover: negative slippage means we paid more than expected (bad)
-                                slippage = filled_price - expected_price
-                            
+                                # Buying to cover: positive slippage if filled < expected (paid less)
+                                slippage = expected_price - filled_price
+
                             if slippage is not None and expected_price:
                                 slippage_percent = (slippage / expected_price * 100)
 

@@ -75,15 +75,17 @@ def update_pending_close_orders(user_id: int = None, hours_back: int = 24):
                             # Order filled! Update the trade record
                             filled_qty = float(alpaca_order.filled_qty)
                             filled_price = float(alpaca_order.filled_avg_price)
-                            
-                            # Get original trade details to calculate P&L
+                            fill_check_time = datetime.utcnow()
+
+                            # Get original trade details to calculate P&L and slippage
                             cur.execute("""
-                                SELECT trade_details::text, action
+                                SELECT trade_details::text, action, created_at
                                 FROM bot_trades
                                 WHERE id = %s
                             """, (trade_id,))
                             trade_data = cur.fetchone()
-                            
+                            order_created_at = trade_data.get('created_at') if trade_data else None
+
                             import json
                             trade_details = {}
                             if trade_data and trade_data['trade_details']:
@@ -91,51 +93,136 @@ def update_pending_close_orders(user_id: int = None, hours_back: int = 24):
                                     trade_details = json.loads(trade_data['trade_details'])
                                 else:
                                     trade_details = trade_data['trade_details']
-                            
+
+                            # Get position_before to determine if this was closing LONG or SHORT
+                            position_before = trade_details.get('position_before', 'LONG')
+
                             # Try multiple ways to get entry price
                             position_entry_price = None
                             if trade_details:
-                                position_entry_price = (
-                                    trade_details.get('position_entry_price') or 
-                                    trade_details.get('entry_price') or
-                                    trade_details.get('position_qty_before')  # Fallback
-                                )
-                            
-                            # If still no entry price, try to get from position before close
+                                # Try to get from Alpaca position first (most accurate)
+                                try:
+                                    position = engine.api.get_open_position(symbol)
+                                    position_entry_price = float(position.avg_entry_price)
+                                except:
+                                    # Position is closed, try from trade_details
+                                    position_entry_price = (
+                                        trade_details.get('entry_price') or
+                                        trade_details.get('position_entry_price')
+                                    )
+
+                            # If still no entry price, calculate from trade history
                             if not position_entry_price:
-                                # Get position_before to determine if LONG or SHORT
-                                position_before = trade_details.get('position_before', 'LONG')
-                                # We can't calculate P&L without entry price, but we can still update the order
-                                print(f"⚠️  No entry price found for trade {trade_id}, P&L will be NULL")
-                            
+                                # Get entry price from previous BUY/SELL orders
+                                if position_before == 'LONG':
+                                    # Find the most recent BUY order before this CLOSE
+                                    cur.execute("""
+                                        SELECT filled_avg_price FROM bot_trades
+                                        WHERE user_id = %s AND symbol = %s
+                                        AND action = 'BUY' AND status = 'FILLED'
+                                        AND created_at < %s
+                                        ORDER BY created_at DESC LIMIT 1
+                                    """, (order_user_id, symbol, order_created_at))
+                                elif position_before == 'SHORT':
+                                    # Find the most recent SELL order before this CLOSE
+                                    cur.execute("""
+                                        SELECT filled_avg_price FROM bot_trades
+                                        WHERE user_id = %s AND symbol = %s
+                                        AND action = 'SELL' AND status = 'FILLED'
+                                        AND created_at < %s
+                                        ORDER BY created_at DESC LIMIT 1
+                                    """, (order_user_id, symbol, order_created_at))
+
+                                entry_row = cur.fetchone()
+                                if entry_row and entry_row.get('filled_avg_price'):
+                                    position_entry_price = float(entry_row['filled_avg_price'])
+                                    print(f"📊 Found entry price from trade history: ${position_entry_price:.2f}")
+                                else:
+                                    print(f"⚠️  No entry price found for trade {trade_id}, P&L will be NULL")
+
                             # Calculate P&L if we have entry price
                             realized_pnl = None
                             if position_entry_price:
-                                # For CLOSE, we need to know if it was LONG or SHORT
-                                # Check position_before from trade_details
-                                position_before = trade_details.get('position_before', 'LONG')
                                 if position_before == 'LONG':
                                     realized_pnl = (filled_price - position_entry_price) * filled_qty
                                 elif position_before == 'SHORT':
                                     realized_pnl = (position_entry_price - filled_price) * filled_qty
-                            
-                            # Update trade status
+
+                            # Calculate slippage (compare to expected price from trade_details)
+                            slippage = None
+                            slippage_percent = None
+                            expected_price = trade_details.get('expected_price')
+
+                            if expected_price:
+                                expected_price = float(expected_price)
+                                # For CLOSE orders:
+                                # - Closing LONG: selling, positive slippage if filled > expected
+                                # - Closing SHORT: buying, positive slippage if filled < expected
+                                if position_before == 'LONG':
+                                    slippage = filled_price - expected_price
+                                elif position_before == 'SHORT':
+                                    slippage = expected_price - filled_price
+
+                                if slippage is not None and expected_price:
+                                    slippage_percent = (slippage / expected_price * 100)
+
+                            # Calculate timing metrics (approximate, since we're checking later)
+                            execution_latency_ms = None
+                            time_to_fill_ms = None
+
+                            signal_received_at = trade_details.get('signal_received_at')
+                            order_submitted_at = trade_details.get('order_submitted_at')
+
+                            if signal_received_at and order_submitted_at:
+                                try:
+                                    # Parse datetime strings if needed
+                                    if isinstance(signal_received_at, str):
+                                        from dateutil import parser
+                                        signal_received_at = parser.parse(signal_received_at)
+                                    if isinstance(order_submitted_at, str):
+                                        from dateutil import parser
+                                        order_submitted_at = parser.parse(order_submitted_at)
+
+                                    execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000)
+                                except:
+                                    pass
+
+                            if order_created_at:
+                                try:
+                                    time_to_fill_ms = int((fill_check_time - order_created_at).total_seconds() * 1000)
+                                except:
+                                    pass
+
+                            # Update trade status with all execution details
                             execution_details = {
                                 'alpaca_order_status': 'filled',
                                 'position_after': 'FLAT',
                                 'realized_pnl': realized_pnl,
-                                'entry_price': position_entry_price
+                                'entry_price': position_entry_price,
+                                'slippage': slippage,
+                                'slippage_percent': slippage_percent,
+                                'execution_latency_ms': execution_latency_ms,
+                                'time_to_fill_ms': time_to_fill_ms,
+                                'market_open': trade_details.get('market_open')
                             }
                             
                             BotTradesDB.update_trade_status(
-                                trade_id, 
-                                'FILLED', 
-                                filled_qty, 
+                                trade_id,
+                                'FILLED',
+                                filled_qty,
                                 filled_price,
                                 execution_details=execution_details
                             )
-                            
-                            print(f"✅ Updated trade {trade_id}: FILLED - {filled_qty} @ ${filled_price:.2f} | P&L: ${realized_pnl:.2f}" if realized_pnl else f"✅ Updated trade {trade_id}: FILLED - {filled_qty} @ ${filled_price:.2f}")
+
+                            # Format output message with all details
+                            msg_parts = [f"✅ Updated trade {trade_id}: FILLED - {filled_qty} @ ${filled_price:.2f}"]
+                            if realized_pnl is not None:
+                                msg_parts.append(f"P&L: ${realized_pnl:.2f}")
+                            if slippage is not None:
+                                msg_parts.append(f"Slippage: ${slippage:.4f} ({slippage_percent:.2f}%)")
+                            if time_to_fill_ms:
+                                msg_parts.append(f"Fill time: {time_to_fill_ms}ms")
+                            print(" | ".join(msg_parts))
                             updated_count += 1
                             
                         elif alpaca_order.status in ['partially_filled', 'pending_new', 'accepted', 'pending_replace']:
