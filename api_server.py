@@ -1701,6 +1701,32 @@ def api_get_performance():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/trades/update-pending', methods=['POST'])
+@token_required
+def api_update_pending_orders():
+    """
+    Manually check and update pending CLOSE orders that may have filled
+    
+    This endpoint checks all pending CLOSE orders for the authenticated user
+    and updates them if they've been filled on Alpaca.
+    """
+    try:
+        from update_pending_orders import update_pending_close_orders
+        
+        hours_back = request.args.get('hours', 24, type=int)
+        updated_count = update_pending_close_orders(user_id=g.user_id, hours_back=hours_back)
+        
+        return jsonify({
+            'success': True,
+            'updated': updated_count,
+            'message': f'Updated {updated_count} pending orders'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Update pending orders error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/api/trades/outcomes', methods=['GET'])
 @token_required
 def api_get_trade_outcomes():
@@ -2235,6 +2261,7 @@ def not_found(error):
                 'GET /api/trades - Trade history (from database)',
                 'GET /api/trades/recent - Recent trades (from Alpaca API, fixes $NaN)',
                 'GET /api/trades/:id - Trade detail with market context',
+                'POST /api/trades/update-pending - Update pending CLOSE orders status',
                 'GET /api/dashboard - Dashboard summary'
             ],
             'ai_analysis': [

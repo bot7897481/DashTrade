@@ -15,6 +15,7 @@ from bot_database import (
     BotAPIKeysDB, BotConfigDB, BotTradesDB, RiskEventDB, TradeMarketContextDB
 )
 from market_data_service import MarketDataService
+from email_service import TradeNotificationService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -444,6 +445,35 @@ class TradingEngine:
             position_value_before = current_position.get('market_value', 0)
             position_entry_price = current_position.get('entry_price', 0)  # Capture entry price for P&L calculation
 
+            # Get pre-trade market data (same as BUY/SELL orders)
+            quote = self.get_price_quote(symbol)
+            bid_price = quote.get('bid_price') if 'error' not in quote else None
+            ask_price = quote.get('ask_price') if 'error' not in quote else None
+            spread = (ask_price - bid_price) if bid_price and ask_price else None
+            spread_percent = (spread / bid_price * 100) if spread and bid_price else None
+            
+            # For CLOSE: if LONG, we're selling (expect bid), if SHORT, we're buying (expect ask)
+            if current_side == 'LONG':
+                expected_price = bid_price  # Selling, expect bid price
+            elif current_side == 'SHORT':
+                expected_price = ask_price  # Buying to cover, expect ask price
+            else:
+                expected_price = bid_price if bid_price else ask_price
+
+            # Get market status (skip for crypto - 24/7)
+            is_crypto = is_crypto_symbol(symbol)
+            if is_crypto:
+                market_open = True  # Crypto markets are always open
+                clock = {'is_open': True}
+            else:
+                clock = self.get_market_clock()
+                market_open = clock.get('is_open', False) if 'error' not in clock else None
+
+            # Get account info
+            account = self.get_account_info()
+            account_equity = account.get('equity')
+            account_buying_power = account.get('buying_power')
+
             close_result = self.close_position(symbol)
             
             if close_result.get('status') != 'success' or not close_result.get('order_id'):
@@ -455,15 +485,49 @@ class TradingEngine:
             order_submitted_at = datetime.utcnow()
             BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal='CLOSE')
 
-            # Log trade with order ID
+            # Send email notification when CLOSE order is submitted
+            try:
+                bot_name = f"{symbol} {timeframe}"
+                TradeNotificationService.send_trade_executed_email(
+                    user_id=self.user_id,
+                    trade_data={
+                        'symbol': symbol,
+                        'action': 'CLOSE',
+                        'quantity': position_qty_before,
+                        'filled_qty': position_qty_before,
+                        'filled_price': None,  # Will be filled when order executes
+                        'filled_avg_price': None,
+                        'status': 'SUBMITTED',
+                        'bot_name': bot_name,
+                        'timeframe': timeframe,
+                        'order_id': order_id,
+                        'trade_id': None  # Will be set after logging
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send email notification: {e}")
+
+            # Log trade with order ID (include all details like BUY/SELL)
             trade_details = {
+                'bid_price': bid_price,
+                'ask_price': ask_price,
+                'spread': spread,
+                'spread_percent': spread_percent,
+                'market_open': market_open,
+                'extended_hours': not market_open if market_open is not None else None,
                 'signal_source': signal_source,
                 'signal_received_at': signal_received_at,
                 'order_submitted_at': order_submitted_at,
+                'expected_price': expected_price,
+                'order_type': 'market',
+                'time_in_force': 'gtc' if is_crypto else 'day',
                 'position_before': current_side,
                 'position_after': 'FLAT',
                 'position_qty_before': position_qty_before,
-                'position_value_before': position_value_before
+                'position_value_before': position_value_before,
+                'account_equity': account_equity,
+                'account_buying_power': account_buying_power,
+                'is_crypto': is_crypto
             }
 
             trade_id = BotTradesDB.log_trade(
@@ -477,84 +541,129 @@ class TradingEngine:
                 trade_details=trade_details
             )
 
-            # Wait 2 seconds and check order status (same as BUY/SELL)
-            time.sleep(2)
-            try:
-                order_status = self.api.get_order_by_id(order_id)
-                
-                if order_status.status == 'filled':
-                    filled_qty = float(order_status.filled_qty)
-                    filled_price = float(order_status.filled_avg_price)
-                    fill_check_time = datetime.utcnow()
-
-                    # Calculate realized P&L: (exit_price - entry_price) * quantity
-                    # For LONG positions: profit when exit > entry
-                    # For SHORT positions: profit when exit < entry (but we're closing, so it's a sell)
-                    if current_side == 'LONG':
-                        realized_pnl = (filled_price - position_entry_price) * filled_qty
-                    elif current_side == 'SHORT':
-                        # For SHORT: profit = (entry_price - exit_price) * qty
-                        realized_pnl = (position_entry_price - filled_price) * filled_qty
-                    else:
-                        realized_pnl = 0.0
-
-                    # Calculate timing
-                    execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000) if signal_received_at else None
-                    time_to_fill_ms = int((fill_check_time - order_submitted_at).total_seconds() * 1000)
-
-                    logger.info(f"✅ CLOSE ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f} | Entry: ${position_entry_price:.2f} | P&L: ${realized_pnl:.2f}")
-
-                    BotConfigDB.update_bot_status(bot_id, self.user_id, 'WAITING', last_signal='CLOSE', position_side='FLAT')
+            # Wait and check order status with retry logic (same as BUY/SELL)
+            max_retries = 3
+            retry_delay = 2
+            order_status = None
+            
+            for attempt in range(max_retries):
+                time.sleep(retry_delay)
+                try:
+                    order_status = self.api.get_order_by_id(order_id)
                     
-                    # Update trade with P&L
-                    BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price,
-                        execution_details={
-                            'execution_latency_ms': execution_latency_ms,
-                            'time_to_fill_ms': time_to_fill_ms,
-                            'alpaca_order_status': 'filled',
-                            'position_after': 'FLAT',
+                    if order_status.status == 'filled':
+                        filled_qty = float(order_status.filled_qty)
+                        filled_price = float(order_status.filled_avg_price)
+                        fill_check_time = datetime.utcnow()
+
+                        # Calculate slippage (same as BUY/SELL)
+                        slippage = None
+                        slippage_percent = None
+                        if expected_price:
+                            if current_side == 'LONG':
+                                # Selling: negative slippage means we got less than expected (bad)
+                                slippage = filled_price - expected_price
+                            elif current_side == 'SHORT':
+                                # Buying to cover: negative slippage means we paid more than expected (bad)
+                                slippage = filled_price - expected_price
+                            
+                            if slippage is not None and expected_price:
+                                slippage_percent = (slippage / expected_price * 100)
+
+                        # Calculate realized P&L: (exit_price - entry_price) * quantity
+                        # For LONG positions: profit when exit > entry
+                        # For SHORT positions: profit when exit < entry (but we're closing, so it's a sell)
+                        if current_side == 'LONG':
+                            realized_pnl = (filled_price - position_entry_price) * filled_qty
+                        elif current_side == 'SHORT':
+                            # For SHORT: profit = (entry_price - exit_price) * qty
+                            realized_pnl = (position_entry_price - filled_price) * filled_qty
+                        else:
+                            realized_pnl = 0.0
+
+                        # Calculate timing
+                        execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000) if signal_received_at else None
+                        time_to_fill_ms = int((fill_check_time - order_submitted_at).total_seconds() * 1000)
+
+                        logger.info(f"✅ CLOSE ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f} | Entry: ${position_entry_price:.2f} | P&L: ${realized_pnl:.2f}" + (f" | Slippage: ${slippage:.4f}" if slippage else ""))
+
+                        BotConfigDB.update_bot_status(bot_id, self.user_id, 'WAITING', last_signal='CLOSE', position_side='FLAT')
+                        
+                        # Update trade with P&L and all details (same as BUY/SELL)
+                        BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price,
+                            execution_details={
+                                'slippage': slippage,
+                                'slippage_percent': slippage_percent,
+                                'execution_latency_ms': execution_latency_ms,
+                                'time_to_fill_ms': time_to_fill_ms,
+                                'alpaca_order_status': 'filled',
+                                'position_after': 'FLAT',
+                                'realized_pnl': realized_pnl,
+                                'entry_price': position_entry_price,
+                                'market_open': market_open
+                            })
+
+                        # Update bot's total P&L
+                        BotConfigDB.update_bot_pnl(bot_id, self.user_id, realized_pnl)
+                        logger.info(f"💰 Updated bot P&L: ${realized_pnl:.2f} (Total P&L updated)")
+
+                        return {
+                            'status': 'success',
+                            'action': 'CLOSE',
+                            'symbol': symbol,
+                            'timeframe': timeframe,
+                            'order_id': order_id,
+                            'trade_id': trade_id,
+                            'filled_qty': filled_qty,
+                            'filled_price': filled_price,
+                            'entry_price': position_entry_price,
                             'realized_pnl': realized_pnl,
-                            'entry_price': position_entry_price
-                        })
-
-                    # Update bot's total P&L
-                    BotConfigDB.update_bot_pnl(bot_id, self.user_id, realized_pnl)
-                    logger.info(f"💰 Updated bot P&L: ${realized_pnl:.2f} (Total P&L updated)")
-
-                    return {
-                        'status': 'success',
-                        'action': 'CLOSE',
-                        'symbol': symbol,
-                        'timeframe': timeframe,
-                        'order_id': order_id,
-                        'trade_id': trade_id,
-                        'filled_qty': filled_qty,
-                        'filled_price': filled_price,
-                        'entry_price': position_entry_price,
-                        'realized_pnl': realized_pnl,
-                        'execution_latency_ms': execution_latency_ms,
-                        'time_to_fill_ms': time_to_fill_ms
-                    }
-                else:
-                    logger.warning(f"⏳ CLOSE ORDER PENDING: {order_status.status}")
-                    BotTradesDB.update_trade_status(trade_id, order_status.status.upper(),
-                        execution_details={'alpaca_order_status': str(order_status.status)})
-                    return {
-                        'status': 'pending',
-                        'order_id': order_id,
-                        'order_status': order_status.status
-                    }
-            except Exception as e:
-                logger.error(f"❌ Error checking close order status: {e}")
-                # Order was submitted, just couldn't check status
-                return {
-                    'status': 'success',
-                    'action': 'CLOSE',
-                    'symbol': symbol,
-                    'timeframe': timeframe,
-                    'order_id': order_id,
-                    'message': 'Order submitted, status check failed'
-                }
+                            'slippage': slippage,
+                            'slippage_percent': slippage_percent,
+                            'execution_latency_ms': execution_latency_ms,
+                            'time_to_fill_ms': time_to_fill_ms
+                        }
+                    elif order_status.status in ['partially_filled', 'pending_new', 'accepted', 'pending_replace']:
+                        # Order is still processing, retry
+                        logger.info(f"⏳ CLOSE ORDER {order_status.status.upper()} (attempt {attempt + 1}/{max_retries})")
+                        if attempt < max_retries - 1:
+                            continue  # Retry
+                    else:
+                        # Order failed or rejected
+                        logger.warning(f"❌ CLOSE ORDER {order_status.status.upper()}")
+                        BotTradesDB.update_trade_status(trade_id, order_status.status.upper(),
+                            execution_details={'alpaca_order_status': str(order_status.status)})
+                        return {
+                            'status': 'error',
+                            'order_id': order_id,
+                            'order_status': order_status.status,
+                            'message': f"Order {order_status.status}"
+                        }
+                except Exception as e:
+                    logger.error(f"❌ Error checking close order status (attempt {attempt + 1}): {e}")
+                    if attempt < max_retries - 1:
+                        continue  # Retry
+                    else:
+                        # Final attempt failed
+                        logger.error(f"❌ Failed to check order status after {max_retries} attempts")
+                        BotTradesDB.update_trade_status(trade_id, 'ERROR',
+                            error_msg=f"Failed to check order status: {str(e)}")
+                        return {
+                            'status': 'error',
+                            'order_id': order_id,
+                            'message': f"Failed to check order status: {str(e)}"
+                        }
+            
+            # If we get here, order is still pending after all retries
+            logger.warning(f"⏳ CLOSE ORDER STILL PENDING after {max_retries} attempts")
+            BotTradesDB.update_trade_status(trade_id, 'PENDING',
+                execution_details={'alpaca_order_status': 'pending'})
+            return {
+                'status': 'pending',
+                'order_id': order_id,
+                'order_status': 'pending',
+                'message': f"Order still pending after {max_retries} checks"
+            }
 
         # Handle BUY signal
         if action == 'BUY':
@@ -658,6 +767,28 @@ class TradingEngine:
             order_id = str(order.id)
             client_order_id = str(order.client_order_id)
             logger.info(f"✅ ORDER SUBMITTED: {order_id} [{'CRYPTO' if is_crypto else 'STOCK'}]")
+
+            # Send email notification when BUY order is submitted
+            try:
+                bot_name = f"{symbol} {timeframe}"
+                TradeNotificationService.send_trade_executed_email(
+                    user_id=self.user_id,
+                    trade_data={
+                        'symbol': symbol,
+                        'action': 'BUY',
+                        'quantity': None,  # Will be filled when order executes
+                        'filled_qty': None,
+                        'filled_price': expected_price,  # Expected price
+                        'filled_avg_price': expected_price,
+                        'status': 'SUBMITTED',
+                        'bot_name': bot_name,
+                        'timeframe': timeframe,
+                        'order_id': order_id,
+                        'trade_id': None  # Will be set after logging
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send email notification: {e}")
 
             # Log trade with detailed info
             trade_details = {
@@ -831,6 +962,28 @@ class TradingEngine:
             order_id = str(order.id)
             client_order_id = str(order.client_order_id)
             logger.info(f"✅ ORDER SUBMITTED: {order_id} [{'CRYPTO' if is_crypto else 'STOCK'}]")
+
+            # Send email notification when SELL order is submitted
+            try:
+                bot_name = f"{symbol} {timeframe}"
+                TradeNotificationService.send_trade_executed_email(
+                    user_id=self.user_id,
+                    trade_data={
+                        'symbol': symbol,
+                        'action': 'SELL',
+                        'quantity': qty,
+                        'filled_qty': qty,
+                        'filled_price': expected_price,  # Expected price
+                        'filled_avg_price': expected_price,
+                        'status': 'SUBMITTED',
+                        'bot_name': bot_name,
+                        'timeframe': timeframe,
+                        'order_id': order_id,
+                        'trade_id': None  # Will be set after logging
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send email notification: {e}")
 
             # Log trade with detailed info
             trade_details = {
