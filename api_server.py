@@ -1701,6 +1701,46 @@ def api_get_performance():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/trades/recalculate-pnl', methods=['POST'])
+@token_required
+def api_recalculate_pnl():
+    """
+    Recalculate P&L for CLOSE orders using FIFO method
+    
+    Query params:
+        - trade_id: Specific trade ID (optional, if not provided, recalculates all)
+        - days: Days back to check (default: 30)
+    """
+    try:
+        from fix_pnl_calculation import recalculate_close_order_pnl, fix_all_close_orders_pnl
+        
+        trade_id = request.args.get('trade_id', type=int)
+        days = request.args.get('days', 30, type=int)
+        
+        if trade_id:
+            pnl = recalculate_close_order_pnl(trade_id)
+            if pnl is not None:
+                return jsonify({
+                    'success': True,
+                    'trade_id': trade_id,
+                    'realized_pnl': pnl,
+                    'message': f'Recalculated P&L for trade {trade_id}'
+                }), 200
+            else:
+                return jsonify({'error': 'Failed to recalculate P&L'}), 400
+        else:
+            fixed_count = fix_all_close_orders_pnl(user_id=g.user_id, days_back=days)
+            return jsonify({
+                'success': True,
+                'updated': fixed_count,
+                'message': f'Recalculated P&L for {fixed_count} trades'
+            }), 200
+        
+    except Exception as e:
+        logger.error(f"Recalculate P&L error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/api/trades/update-pending', methods=['POST'])
 @token_required
 def api_update_pending_orders():

@@ -346,7 +346,7 @@ class TradingEngine:
             if not position_symbols:
                 logger.info(f"ℹ️  No open positions in account")
                 return {'status': 'info', 'message': 'No open positions'}
-        except Exception as e:
+            except Exception as e:
             logger.warning(f"Could not list positions: {e}")
             position_symbols = []
         
@@ -570,16 +570,64 @@ class TradingEngine:
                             if slippage is not None and expected_price:
                                 slippage_percent = (slippage / expected_price * 100)
 
-                        # Calculate realized P&L: (exit_price - entry_price) * quantity
+                        # Calculate realized P&L using Alpaca's avg_entry_price (weighted average method)
+                        # This is correct for closing the entire position
                         # For LONG positions: profit when exit > entry
                         # For SHORT positions: profit when exit < entry (but we're closing, so it's a sell)
                         if current_side == 'LONG':
+                            # Use Alpaca's avg_entry_price (weighted average of all buys)
                             realized_pnl = (filled_price - position_entry_price) * filled_qty
+                            logger.info(f"💰 P&L Calculation: Exit ${filled_price:.2f} - Entry ${position_entry_price:.2f} × {filled_qty} = ${realized_pnl:.2f}")
                         elif current_side == 'SHORT':
                             # For SHORT: profit = (entry_price - exit_price) * qty
                             realized_pnl = (position_entry_price - filled_price) * filled_qty
+                            logger.info(f"💰 P&L Calculation: Entry ${position_entry_price:.2f} - Exit ${filled_price:.2f} × {filled_qty} = ${realized_pnl:.2f}")
                         else:
                             realized_pnl = 0.0
+                        
+                        # Verify entry price is valid
+                        if position_entry_price == 0 or position_entry_price is None:
+                            logger.warning(f"⚠️  Entry price is {position_entry_price}, P&L may be incorrect!")
+                            # Try to get entry price from trade history using FIFO
+                            try:
+                                from bot_database import BotTradesDB
+                                buy_orders = BotTradesDB.get_user_trades(
+                                    self.user_id, 
+                                    limit=100, 
+                                    symbol=symbol
+                                )
+                                # Filter for BUY orders before this close, sorted by time
+                                buy_orders = [
+                                    b for b in buy_orders 
+                                    if b.get('action') == 'BUY' 
+                                    and b.get('status') == 'FILLED'
+                                    and b.get('filled_avg_price')
+                                    and b.get('created_at') < order_submitted_at
+                                ]
+                                buy_orders.sort(key=lambda x: x.get('created_at', datetime.min))
+                                
+                                if buy_orders:
+                                    # Calculate weighted average entry price from buys
+                                    total_qty = 0
+                                    total_cost = 0
+                                    for buy in buy_orders:
+                                        qty = float(buy.get('filled_qty', 0))
+                                        price = float(buy.get('filled_avg_price', 0))
+                                        if qty > 0 and price > 0:
+                                            total_qty += qty
+                                            total_cost += qty * price
+                                    
+                                    if total_qty > 0:
+                                        calculated_entry = total_cost / total_qty
+                                        logger.info(f"📊 Calculated entry price from trade history: ${calculated_entry:.2f}")
+                                        position_entry_price = calculated_entry
+                                        # Recalculate P&L with correct entry price
+                                        if current_side == 'LONG':
+                                            realized_pnl = (filled_price - position_entry_price) * filled_qty
+                                        elif current_side == 'SHORT':
+                                            realized_pnl = (position_entry_price - filled_price) * filled_qty
+                            except Exception as e:
+                                logger.error(f"❌ Error calculating entry price from history: {e}")
 
                         # Calculate timing
                         execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000) if signal_received_at else None
