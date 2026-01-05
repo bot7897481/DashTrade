@@ -346,7 +346,7 @@ class TradingEngine:
             if not position_symbols:
                 logger.info(f"ℹ️  No open positions in account")
                 return {'status': 'info', 'message': 'No open positions'}
-            except Exception as e:
+        except Exception as e:
             logger.warning(f"Could not list positions: {e}")
             position_symbols = []
         
