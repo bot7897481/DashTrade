@@ -439,9 +439,10 @@ class TradingEngine:
                 logger.info(f"ℹ️  {symbol} already flat")
                 return {'status': 'info', 'message': 'Already flat'}
 
-            # Get position info before closing
+            # Get position info before closing (including entry price for P&L calculation)
             position_qty_before = abs(current_position.get('qty', 0))
             position_value_before = current_position.get('market_value', 0)
+            position_entry_price = current_position.get('entry_price', 0)  # Capture entry price for P&L calculation
 
             close_result = self.close_position(symbol)
             
@@ -486,20 +487,39 @@ class TradingEngine:
                     filled_price = float(order_status.filled_avg_price)
                     fill_check_time = datetime.utcnow()
 
+                    # Calculate realized P&L: (exit_price - entry_price) * quantity
+                    # For LONG positions: profit when exit > entry
+                    # For SHORT positions: profit when exit < entry (but we're closing, so it's a sell)
+                    if current_side == 'LONG':
+                        realized_pnl = (filled_price - position_entry_price) * filled_qty
+                    elif current_side == 'SHORT':
+                        # For SHORT: profit = (entry_price - exit_price) * qty
+                        realized_pnl = (position_entry_price - filled_price) * filled_qty
+                    else:
+                        realized_pnl = 0.0
+
                     # Calculate timing
                     execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000) if signal_received_at else None
                     time_to_fill_ms = int((fill_check_time - order_submitted_at).total_seconds() * 1000)
 
-                    logger.info(f"✅ CLOSE ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f}")
+                    logger.info(f"✅ CLOSE ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f} | Entry: ${position_entry_price:.2f} | P&L: ${realized_pnl:.2f}")
 
                     BotConfigDB.update_bot_status(bot_id, self.user_id, 'WAITING', last_signal='CLOSE', position_side='FLAT')
+                    
+                    # Update trade with P&L
                     BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price,
                         execution_details={
                             'execution_latency_ms': execution_latency_ms,
                             'time_to_fill_ms': time_to_fill_ms,
                             'alpaca_order_status': 'filled',
-                            'position_after': 'FLAT'
+                            'position_after': 'FLAT',
+                            'realized_pnl': realized_pnl,
+                            'entry_price': position_entry_price
                         })
+
+                    # Update bot's total P&L
+                    BotConfigDB.update_bot_pnl(bot_id, self.user_id, realized_pnl)
+                    logger.info(f"💰 Updated bot P&L: ${realized_pnl:.2f} (Total P&L updated)")
 
                     return {
                         'status': 'success',
@@ -510,6 +530,8 @@ class TradingEngine:
                         'trade_id': trade_id,
                         'filled_qty': filled_qty,
                         'filled_price': filled_price,
+                        'entry_price': position_entry_price,
+                        'realized_pnl': realized_pnl,
                         'execution_latency_ms': execution_latency_ms,
                         'time_to_fill_ms': time_to_fill_ms
                     }

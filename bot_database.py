@@ -502,6 +502,11 @@ class BotTradesDB:
                         updates.append("position_after = %s")
                         params.append(details['position_after'])
 
+                    # Update realized P&L if provided (for CLOSE orders)
+                    if details.get('realized_pnl') is not None:
+                        updates.append("realized_pnl = %s")
+                        params.append(details['realized_pnl'])
+
                     params.append(trade_id)
 
                     query = f"""

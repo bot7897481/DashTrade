@@ -1537,12 +1537,29 @@ def api_get_dashboard():
         except:
             pass
 
+        # Calculate total P&L from all bots
+        total_pnl = sum(float(bot.get('total_pnl', 0) or 0) for bot in bots)
+        total_trades = sum(bot.get('total_trades', 0) or 0 for bot in bots)
+        
+        # Calculate realized P&L from closed trades (CLOSE orders with realized_pnl)
+        realized_pnl = 0.0
+        for trade in db_trades:
+            if trade.get('action') == 'CLOSE' and trade.get('realized_pnl') is not None:
+                realized_pnl += float(trade.get('realized_pnl', 0) or 0)
+
         return jsonify(convert_decimals({
             'account': account,
             'positions': positions,
             'bots': {
                 'total': len(bots),
-                'active': active_bots
+                'active': active_bots,
+                'total_pnl': total_pnl,
+                'total_trades': total_trades
+            },
+            'pnl': {
+                'total_pnl': total_pnl,
+                'realized_pnl': realized_pnl,
+                'unrealized_pnl': sum(float(p.get('unrealized_pl', 0) or 0) for p in positions) if positions else 0.0
             },
             'recent_trades': recent_trades_alpaca[:5] if recent_trades_alpaca else db_trades[:5],  # Prefer Alpaca, fallback to DB
             'recent_trades_source': 'alpaca' if recent_trades_alpaca else 'database',
