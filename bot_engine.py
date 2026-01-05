@@ -368,10 +368,14 @@ class TradingEngine:
         # Send ONE close order to Alpaca
         try:
             logger.info(f"🔴 SENDING CLOSE ORDER to Alpaca for: {symbol_to_close}")
-            result = self.api.close_position(symbol_to_close)
-            logger.info(f"✅ POSITION CLOSED: {symbol_to_close}")
-            time.sleep(2)  # Wait for order to process
-            return {'status': 'success', 'message': f'Position closed for {symbol_to_close}'}
+            order = self.api.close_position(symbol_to_close)
+            logger.info(f"✅ CLOSE ORDER SUBMITTED: {symbol_to_close} - Order ID: {order.id}")
+            return {
+                'status': 'success', 
+                'message': f'Position closed for {symbol_to_close}',
+                'order': order,
+                'order_id': order.id
+            }
         except Exception as e:
             error_str = str(e)
             logger.error(f"❌ Failed to close {symbol_to_close}: {error_str}")
@@ -435,31 +439,100 @@ class TradingEngine:
                 logger.info(f"ℹ️  {symbol} already flat")
                 return {'status': 'info', 'message': 'Already flat'}
 
-            close_result = self.close_position(symbol)
-            BotConfigDB.update_bot_status(bot_id, self.user_id, 'WAITING', last_signal='CLOSE', position_side='FLAT')
+            # Get position info before closing
+            position_qty_before = abs(current_position.get('qty', 0))
+            position_value_before = current_position.get('market_value', 0)
 
-            # Log trade with details
+            close_result = self.close_position(symbol)
+            
+            if close_result.get('status') != 'success' or not close_result.get('order_id'):
+                logger.error(f"❌ Failed to close position: {close_result.get('message')}")
+                BotConfigDB.update_bot_status(bot_id, self.user_id, 'FAILED', last_signal='CLOSE')
+                return close_result
+
+            order_id = close_result['order_id']
+            order_submitted_at = datetime.utcnow()
+            BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal='CLOSE')
+
+            # Log trade with order ID
             trade_details = {
                 'signal_source': signal_source,
                 'signal_received_at': signal_received_at,
+                'order_submitted_at': order_submitted_at,
                 'position_before': current_side,
                 'position_after': 'FLAT',
-                'position_qty_before': current_position.get('qty', 0),
-                'position_value_before': current_position.get('market_value', 0)
+                'position_qty_before': position_qty_before,
+                'position_value_before': position_value_before
             }
 
-            BotTradesDB.log_trade(
+            trade_id = BotTradesDB.log_trade(
                 user_id=self.user_id,
                 bot_config_id=bot_id,
                 symbol=symbol,
                 timeframe=timeframe,
                 action='CLOSE',
-                notional=0,
-                order_id=None,
+                notional=position_value_before,  # Use position value as notional
+                order_id=order_id,
                 trade_details=trade_details
             )
 
-            return close_result
+            # Wait 2 seconds and check order status (same as BUY/SELL)
+            time.sleep(2)
+            try:
+                order_status = self.api.get_order_by_id(order_id)
+                
+                if order_status.status == 'filled':
+                    filled_qty = float(order_status.filled_qty)
+                    filled_price = float(order_status.filled_avg_price)
+                    fill_check_time = datetime.utcnow()
+
+                    # Calculate timing
+                    execution_latency_ms = int((order_submitted_at - signal_received_at).total_seconds() * 1000) if signal_received_at else None
+                    time_to_fill_ms = int((fill_check_time - order_submitted_at).total_seconds() * 1000)
+
+                    logger.info(f"✅ CLOSE ORDER FILLED: {filled_qty} shares @ ${filled_price:.2f}")
+
+                    BotConfigDB.update_bot_status(bot_id, self.user_id, 'WAITING', last_signal='CLOSE', position_side='FLAT')
+                    BotTradesDB.update_trade_status(trade_id, 'FILLED', filled_qty, filled_price,
+                        execution_details={
+                            'execution_latency_ms': execution_latency_ms,
+                            'time_to_fill_ms': time_to_fill_ms,
+                            'alpaca_order_status': 'filled',
+                            'position_after': 'FLAT'
+                        })
+
+                    return {
+                        'status': 'success',
+                        'action': 'CLOSE',
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'order_id': order_id,
+                        'trade_id': trade_id,
+                        'filled_qty': filled_qty,
+                        'filled_price': filled_price,
+                        'execution_latency_ms': execution_latency_ms,
+                        'time_to_fill_ms': time_to_fill_ms
+                    }
+                else:
+                    logger.warning(f"⏳ CLOSE ORDER PENDING: {order_status.status}")
+                    BotTradesDB.update_trade_status(trade_id, order_status.status.upper(),
+                        execution_details={'alpaca_order_status': str(order_status.status)})
+                    return {
+                        'status': 'pending',
+                        'order_id': order_id,
+                        'order_status': order_status.status
+                    }
+            except Exception as e:
+                logger.error(f"❌ Error checking close order status: {e}")
+                # Order was submitted, just couldn't check status
+                return {
+                    'status': 'success',
+                    'action': 'CLOSE',
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'order_id': order_id,
+                    'message': 'Order submitted, status check failed'
+                }
 
         # Handle BUY signal
         if action == 'BUY':
