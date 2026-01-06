@@ -522,7 +522,7 @@ class BotTradesDB:
 
     @staticmethod
     def get_user_trades(user_id: int, limit: int = 100, symbol: str = None) -> List[Dict]:
-        """Get user's trade history"""
+        """Get user's trade history - includes all actions: BUY, SELL, CLOSE"""
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
@@ -535,11 +535,23 @@ class BotTradesDB:
                     query += " AND symbol = %s"
                     params.append(symbol.upper())
 
+                # No filtering by action - return ALL trades (BUY, SELL, CLOSE)
                 query += " ORDER BY created_at DESC LIMIT %s"
                 params.append(limit)
 
                 cur.execute(query, params)
-                return [dict(row) for row in cur.fetchall()]
+                trades = [dict(row) for row in cur.fetchall()]
+                
+                # Debug: Log action distribution
+                action_counts = {}
+                for trade in trades:
+                    action = trade.get('action', 'UNKNOWN')
+                    action_counts[action] = action_counts.get(action, 0) + 1
+                
+                if action_counts:
+                    print(f"[DEBUG] get_user_trades: {action_counts}")
+                
+                return trades
 
 
 class WebhookTokenDB:

@@ -773,10 +773,22 @@ def api_get_trades():
 
         trades = BotTradesDB.get_user_trades(g.user_id, limit=limit, symbol=symbol)
         trades = convert_decimals(trades)
-
+        
+        # Debug: Log trade counts by action
+        buy_count = sum(1 for t in trades if t.get('action') == 'BUY')
+        sell_count = sum(1 for t in trades if t.get('action') == 'SELL')
+        close_count = sum(1 for t in trades if t.get('action') == 'CLOSE')
+        logger.info(f"📊 Trades returned: BUY={buy_count}, SELL={sell_count}, CLOSE={close_count}, Total={len(trades)}")
+        
+        # Ensure all trades are included (no filtering)
         return jsonify({
             'trades': trades,
-            'total': len(trades)
+            'total': len(trades),
+            'counts': {
+                'buy': buy_count,
+                'sell': sell_count,
+                'close': close_count
+            }
         }), 200
     except Exception as e:
         logger.error(f"Get trades error: {e}", exc_info=True)
