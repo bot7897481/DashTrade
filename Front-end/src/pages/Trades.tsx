@@ -10,8 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import type { Trade } from '@/types/api';
+import { api } from '@/lib/api.ts';
+import type { Trade } from '@/types/api.ts';
 
 function formatTime(timestamp: string): string {
   const date = new Date(timestamp);

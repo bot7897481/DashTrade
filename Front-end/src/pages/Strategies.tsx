@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import type { Strategy, Bot } from '@/types/api';
+import { api } from '@/lib/api.ts';
+import type { Strategy, Bot } from '@/types/api.ts';
 
 export default function Strategies() {
   const [strategies, setStrategies] = useState<Strategy[]>([]);

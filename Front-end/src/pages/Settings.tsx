@@ -11,8 +11,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import type { ApiKeyStatus, WebhookToken, NotificationSettings } from '@/types/api';
+import { api } from '@/lib/api.ts';
+import type { ApiKeyStatus, WebhookToken, NotificationSettings } from '@/types/api.ts';
 
 export default function Settings() {
   const [isLoading, setIsLoading] = useState(true);

@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api } from '@/lib/api.ts';
 import { 
   formatCurrency, 
   formatLargeNumber, 
@@ -35,8 +35,8 @@ import {
   getChangeColor,
   getRsiStatus,
   getVolumeStatus
-} from '@/lib/formatters';
-import type { TradeDetailResponse } from '@/types/trade-detail';
+} from '@/lib/formatters.ts';
+import type { TradeDetailResponse } from '@/types/trade-detail.ts';
 
 function StatCard({ 
   label, 

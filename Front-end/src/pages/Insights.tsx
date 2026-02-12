@@ -44,15 +44,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import { formatCurrency, formatPercent, getChangeColor, formatDuration } from '@/lib/formatters';
+import { api } from '@/lib/api.ts';
+import { formatCurrency, formatPercent, getChangeColor, formatDuration } from '@/lib/formatters.ts';
 import type { 
   InsightsResponse, 
   Insight, 
   AnalysisResponse, 
   PatternsResponse,
   TradeOutcomesResponse 
-} from '@/types/trade-detail';
+} from '@/types/trade-detail.ts';
 
 const getInsightTypeIcon = (type: string) => {
   switch (type) {

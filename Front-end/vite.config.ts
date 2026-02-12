@@ -14,16 +14,24 @@ export default defineConfig(({ mode }) => ({
     port: parseInt(process.env.PORT || "8080"),
     strictPort: true,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
   },
   build: {
     outDir: "dist",
     sourcemap: false,
     minify: "esbuild",
+    rollupOptions: {
+      external: [],
+    },
+  },
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' },
   },
 }));

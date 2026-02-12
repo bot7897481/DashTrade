@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast.ts';
+import { api } from '@/lib/api.ts';
 import { Loader2, ArrowLeft, CheckCircle, Mail } from 'lucide-react';
 import { z } from 'zod';
 

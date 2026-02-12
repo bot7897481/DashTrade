@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { api } from '@/lib/api';
-import type { DashboardData, Position, Trade } from '@/types/api';
+import { api } from '@/lib/api.ts';
+import type { DashboardData, Position, Trade } from '@/types/api.ts';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { 
   TrendingUp, 
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast.ts';
 import { Link } from 'react-router-dom';
 
 function formatCurrency(value: number): string {

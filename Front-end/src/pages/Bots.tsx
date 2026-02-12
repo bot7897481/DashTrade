@@ -15,8 +15,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import type { Bot as BotType, CreateBotPayload, UpdateBotPayload, WebhookToken, BatchCreateBotPayload } from '@/types/api';
+import { api } from '@/lib/api.ts';
+import type { Bot as BotType, CreateBotPayload, UpdateBotPayload, WebhookToken, BatchCreateBotPayload } from '@/types/api.ts';
 
 const TIMEFRAMES = ['1 Min', '5 Min', '15 Min', '30 Min', '1 Hour', '4 Hour', 'Daily'];
 

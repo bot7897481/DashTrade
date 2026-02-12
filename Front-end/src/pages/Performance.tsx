@@ -16,9 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { api } from '@/lib/api';
-import { formatCurrency, formatPercent, getChangeColor } from '@/lib/formatters';
-import type { PerformanceResponse } from '@/types/trade-detail';
+import { api } from '@/lib/api.ts';
+import { formatCurrency, formatPercent, getChangeColor } from '@/lib/formatters.ts';
+import type { PerformanceResponse } from '@/types/trade-detail.ts';
 
 export default function Performance() {
   const [performance, setPerformance] = useState<PerformanceResponse | null>(null);

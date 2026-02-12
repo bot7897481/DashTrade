@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import type { TradingViewSetup as TradingViewSetupType } from '@/types/trade-detail';
+import type { TradingViewSetup as TradingViewSetupType } from '@/types/trade-detail.ts';
 
 interface TradingViewSetupProps {
   webhookUrl: string;
