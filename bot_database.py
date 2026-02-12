@@ -553,6 +553,72 @@ class BotTradesDB:
                 
                 return trades
 
+    @staticmethod
+    def get_trade_statistics(user_id: int = None) -> Dict:
+        """Get trade statistics - counts by action type"""
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if user_id:
+                    # Get stats for specific user
+                    cur.execute("""
+                        SELECT 
+                            action,
+                            COUNT(*) as count,
+                            COUNT(CASE WHEN status = 'FILLED' THEN 1 END) as filled_count,
+                            COUNT(CASE WHEN status = 'SUBMITTED' THEN 1 END) as submitted_count,
+                            COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed_count,
+                            COALESCE(SUM(notional), 0) as total_notional,
+                            COALESCE(SUM(CASE WHEN realized_pnl IS NOT NULL THEN realized_pnl ELSE 0 END), 0) as total_pnl
+                        FROM bot_trades
+                        WHERE user_id = %s
+                        GROUP BY action
+                        ORDER BY action
+                    """, (user_id,))
+                else:
+                    # Get stats for all users
+                    cur.execute("""
+                        SELECT 
+                            action,
+                            COUNT(*) as count,
+                            COUNT(CASE WHEN status = 'FILLED' THEN 1 END) as filled_count,
+                            COUNT(CASE WHEN status = 'SUBMITTED' THEN 1 END) as submitted_count,
+                            COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed_count,
+                            COALESCE(SUM(notional), 0) as total_notional,
+                            COALESCE(SUM(CASE WHEN realized_pnl IS NOT NULL THEN realized_pnl ELSE 0 END), 0) as total_pnl
+                        FROM bot_trades
+                        GROUP BY action
+                        ORDER BY action
+                    """)
+                
+                results = cur.fetchall()
+                
+                # Get total count
+                if user_id:
+                    cur.execute("SELECT COUNT(*) as total FROM bot_trades WHERE user_id = %s", (user_id,))
+                else:
+                    cur.execute("SELECT COUNT(*) as total FROM bot_trades")
+                
+                total_row = cur.fetchone()
+                total = total_row['total'] if total_row else 0
+                
+                stats = {
+                    'total_trades': total,
+                    'by_action': {}
+                }
+                
+                for row in results:
+                    action = row['action']
+                    stats['by_action'][action] = {
+                        'count': row['count'],
+                        'filled': row['filled_count'] or 0,
+                        'submitted': row['submitted_count'] or 0,
+                        'failed': row['failed_count'] or 0,
+                        'total_notional': float(row['total_notional'] or 0),
+                        'total_pnl': float(row['total_pnl'] or 0)
+                    }
+                
+                return stats
+
 
 class WebhookTokenDB:
     """Manage webhook tokens"""

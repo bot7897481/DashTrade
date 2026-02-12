@@ -304,6 +304,155 @@ def api_get_current_user():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def api_forgot_password():
+    """
+    Request password reset - sends email with reset link
+    
+    Body: { "email": "user@example.com" }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+        
+        email = data.get('email', '').strip().lower()
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        # Ensure password reset tokens table exists
+        UserDB.create_password_reset_tokens_table()
+        
+        # Generate reset token
+        result = UserDB.generate_password_reset_token(email)
+        
+        if not result['success']:
+            # Don't reveal if email exists (security best practice)
+            # Return success even if email doesn't exist to prevent email enumeration
+            return jsonify({
+                'success': True,
+                'message': 'If the email exists, a password reset link has been sent'
+            }), 200
+        
+        # Send email with reset link
+        try:
+            from notification_service import NotificationService
+            
+            reset_url = f"https://alert-to-action-bot.lovable.app/reset-password?token={result['token']}"
+            
+            email_body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                    <div style="background-color: #1976d2; color: white; padding: 20px; text-align: center;">
+                        <h2 style="margin: 0;">🔐 Password Reset Request</h2>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p>Hello {result.get('username', 'User')},</p>
+                        <p>You requested to reset your password for your DashTrade account.</p>
+                        <p>Click the button below to reset your password:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="{reset_url}" 
+                               style="background-color: #1976d2; color: white; padding: 12px 30px; 
+                                      text-decoration: none; border-radius: 5px; display: inline-block; 
+                                      font-weight: bold;">
+                                Reset Password
+                            </a>
+                        </div>
+                        <p>Or copy and paste this link into your browser:</p>
+                        <p style="word-break: break-all; color: #1976d2;">{reset_url}</p>
+                        <p><strong>This link will expire in 1 hour.</strong></p>
+                        <p style="color: #666; font-size: 12px; margin-top: 30px;">
+                            If you didn't request a password reset, please ignore this email. 
+                            Your password will remain unchanged.
+                        </p>
+                        <p style="color: #666; font-size: 12px;">
+                            This is an automated email from DashTrade.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            notifier = NotificationService()
+            email_sent = notifier.send_email(
+                to_email=result['email'],
+                subject='🔐 DashTrade Password Reset',
+                body=email_body,
+                is_html=True
+            )
+            
+            if email_sent:
+                logger.info(f"Password reset email sent to {result['email']}")
+                return jsonify({
+                    'success': True,
+                    'message': 'If the email exists, a password reset link has been sent'
+                }), 200
+            else:
+                logger.warning(f"Failed to send password reset email to {result['email']}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to send reset email. Please try again later.'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"Error sending password reset email: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'error': 'Failed to send reset email. Please try again later.'
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def api_reset_password():
+    """
+    Reset password using a valid reset token
+    
+    Body: { "token": "reset_token_here", "new_password": "new_password_here" }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+        
+        token = data.get('token', '').strip()
+        new_password = data.get('new_password', '').strip()
+        
+        if not token:
+            return jsonify({'error': 'Reset token is required'}), 400
+        
+        if not new_password:
+            return jsonify({'error': 'New password is required'}), 400
+        
+        # Validate password length
+        if len(new_password) < 6:
+            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+        
+        # Reset password
+        result = UserDB.reset_password_with_token(token, new_password)
+        
+        if result['success']:
+            logger.info(f"Password reset successful for token: {token[:10]}...")
+            return jsonify({
+                'success': True,
+                'message': 'Password has been reset successfully'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to reset password')
+            }), 400
+        
+    except Exception as e:
+        logger.error(f"Reset password error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 # ============================================================================
 # REST API - BOT MANAGEMENT
 # ============================================================================
@@ -1798,6 +1947,19 @@ def api_update_pending_orders():
         
     except Exception as e:
         logger.error(f"Update pending orders error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/trades/statistics', methods=['GET'])
+@token_required
+def api_get_trade_statistics():
+    """Get trade statistics (counts by action type: BUY, SELL, CLOSE)"""
+    try:
+        # Get stats for the authenticated user
+        stats = BotTradesDB.get_trade_statistics(user_id=g.user_id)
+        return jsonify(convert_decimals(stats)), 200
+    except Exception as e:
+        logger.error(f"Get trade statistics error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 

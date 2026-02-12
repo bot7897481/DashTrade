@@ -3,11 +3,12 @@ Authentication module for DashTrade
 """
 import os
 import bcrypt
+import secrets
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 from typing import Optional, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database import get_db_connection, DATABASE_URL
 
@@ -457,6 +458,170 @@ class UserDB:
                     return dict(user) if user else None
         except Exception:
             return None
+
+    @staticmethod
+    def create_password_reset_tokens_table():
+        """Create password_reset_tokens table if it doesn't exist"""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            token VARCHAR(255) UNIQUE NOT NULL,
+                            expires_at TIMESTAMP NOT NULL,
+                            used BOOLEAN DEFAULT FALSE,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                    # Create index for faster lookups
+                    cur.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_password_reset_token 
+                        ON password_reset_tokens(token)
+                    """)
+                    cur.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_password_reset_user 
+                        ON password_reset_tokens(user_id)
+                    """)
+        except Exception as e:
+            print(f"Error creating password_reset_tokens table: {e}")
+
+    @staticmethod
+    def generate_password_reset_token(email: str) -> Dict:
+        """
+        Generate a password reset token for a user
+        
+        Args:
+            email: User's email address
+            
+        Returns: {'success': True, 'token': str, 'user_id': int} or {'success': False, 'error': str}
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Find user by email
+                    cur.execute("""
+                        SELECT id, email, username FROM users 
+                        WHERE LOWER(email) = %s
+                    """, (email.lower(),))
+                    
+                    user = cur.fetchone()
+                    if not user:
+                        # Don't reveal if email exists or not (security best practice)
+                        return {'success': True, 'message': 'If the email exists, a reset link has been sent'}
+                    
+                    # Generate secure token
+                    token = secrets.token_urlsafe(32)
+                    
+                    # Token expires in 1 hour
+                    expires_at = datetime.now() + timedelta(hours=1)
+                    
+                    # Invalidate any existing tokens for this user
+                    cur.execute("""
+                        UPDATE password_reset_tokens 
+                        SET used = TRUE 
+                        WHERE user_id = %s AND used = FALSE
+                    """, (user['id'],))
+                    
+                    # Insert new token
+                    cur.execute("""
+                        INSERT INTO password_reset_tokens (user_id, token, expires_at)
+                        VALUES (%s, %s, %s)
+                    """, (user['id'], token, expires_at))
+                    
+                    return {
+                        'success': True,
+                        'token': token,
+                        'user_id': user['id'],
+                        'email': user['email'],
+                        'username': user['username']
+                    }
+                    
+        except Exception as e:
+            return {'success': False, 'error': f'Error generating reset token: {str(e)}'}
+
+    @staticmethod
+    def validate_reset_token(token: str) -> Dict:
+        """
+        Validate a password reset token
+        
+        Args:
+            token: Reset token to validate
+            
+        Returns: {'success': True, 'user_id': int} or {'success': False, 'error': str}
+        """
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT user_id, expires_at, used
+                        FROM password_reset_tokens
+                        WHERE token = %s
+                    """, (token,))
+                    
+                    result = cur.fetchone()
+                    
+                    if not result:
+                        return {'success': False, 'error': 'Invalid or expired reset token'}
+                    
+                    if result['used']:
+                        return {'success': False, 'error': 'This reset token has already been used'}
+                    
+                    if datetime.now() > result['expires_at']:
+                        return {'success': False, 'error': 'Reset token has expired'}
+                    
+                    return {
+                        'success': True,
+                        'user_id': result['user_id']
+                    }
+                    
+        except Exception as e:
+            return {'success': False, 'error': f'Error validating token: {str(e)}'}
+
+    @staticmethod
+    def reset_password_with_token(token: str, new_password: str) -> Dict:
+        """
+        Reset user password using a valid reset token
+        
+        Args:
+            token: Valid reset token
+            new_password: New password to set
+            
+        Returns: {'success': True} or {'success': False, 'error': str}
+        """
+        try:
+            # Validate new password
+            if len(new_password) < 6:
+                return {'success': False, 'error': 'Password must be at least 6 characters'}
+            
+            # Validate token
+            token_validation = UserDB.validate_reset_token(token)
+            if not token_validation['success']:
+                return token_validation
+            
+            user_id = token_validation['user_id']
+            
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    # Update password
+                    new_hash = UserDB.hash_password(new_password)
+                    cur.execute("""
+                        UPDATE users SET password_hash = %s
+                        WHERE id = %s
+                    """, (new_hash, user_id))
+                    
+                    # Mark token as used
+                    cur.execute("""
+                        UPDATE password_reset_tokens 
+                        SET used = TRUE 
+                        WHERE token = %s
+                    """, (token,))
+                    
+                    return {'success': True}
+                    
+        except Exception as e:
+            return {'success': False, 'error': f'Password reset error: {str(e)}'}
 
     @staticmethod
     def update_password(user_id: int, old_password: str, new_password: str) -> Dict:
