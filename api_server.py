@@ -338,7 +338,9 @@ def api_forgot_password():
         try:
             from email_service import EmailService
 
-            reset_url = f"https://alert-to-action-bot.lovable.app/reset-password?token={result['token']}"
+            # Get frontend URL from environment variable or use default
+            frontend_url = os.getenv('FRONTEND_URL', 'https://alert-to-action-bot.lovable.app')
+            reset_url = f"{frontend_url}/reset-password?token={result['token']}"
 
             html_body = f"""
             <!DOCTYPE html>
