@@ -334,68 +334,97 @@ def api_forgot_password():
                 'message': 'If the email exists, a password reset link has been sent'
             }), 200
         
-        # Send email with reset link
+        # Send email with reset link using SMTP2GO (same as trade emails)
         try:
-            from notification_service import NotificationService
-            
+            from email_service import EmailService
+
             reset_url = f"https://alert-to-action-bot.lovable.app/reset-password?token={result['token']}"
-            
-            email_body = f"""
+
+            html_body = f"""
+            <!DOCTYPE html>
             <html>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-                    <div style="background-color: #1976d2; color: white; padding: 20px; text-align: center;">
-                        <h2 style="margin: 0;">🔐 Password Reset Request</h2>
+            <head>
+                <style>
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f3f4f6; padding: 20px; }}
+                    .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); color: white; padding: 24px; text-align: center; }}
+                    .header h1 {{ margin: 0; font-size: 24px; }}
+                    .content {{ padding: 24px; }}
+                    .reset-button {{ display: inline-block; background: #1976d2; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }}
+                    .reset-button:hover {{ background: #1565c0; }}
+                    .footer {{ background: #f9fafb; padding: 16px 24px; text-align: center; color: #6b7280; font-size: 12px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🔐 Password Reset Request</h1>
+                        <p style="margin: 8px 0 0 0; opacity: 0.9;">DashTrade</p>
                     </div>
-                    <div style="padding: 20px;">
-                        <p>Hello {result.get('username', 'User')},</p>
+                    <div class="content">
+                        <p>Hello <strong>{result.get('username', 'User')}</strong>,</p>
                         <p>You requested to reset your password for your DashTrade account.</p>
                         <p>Click the button below to reset your password:</p>
+
                         <div style="text-align: center; margin: 30px 0;">
-                            <a href="{reset_url}" 
-                               style="background-color: #1976d2; color: white; padding: 12px 30px; 
-                                      text-decoration: none; border-radius: 5px; display: inline-block; 
-                                      font-weight: bold;">
-                                Reset Password
-                            </a>
+                            <a href="{reset_url}" class="reset-button">Reset Password</a>
                         </div>
+
                         <p>Or copy and paste this link into your browser:</p>
-                        <p style="word-break: break-all; color: #1976d2;">{reset_url}</p>
-                        <p><strong>This link will expire in 1 hour.</strong></p>
-                        <p style="color: #666; font-size: 12px; margin-top: 30px;">
-                            If you didn't request a password reset, please ignore this email. 
-                            Your password will remain unchanged.
+                        <p style="word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px; font-size: 12px; color: #1976d2;">
+                            {reset_url}
                         </p>
-                        <p style="color: #666; font-size: 12px;">
-                            This is an automated email from DashTrade.
-                        </p>
+
+                        <p style="margin-top: 20px;"><strong>⏰ This link will expire in 1 hour.</strong></p>
+                    </div>
+                    <div class="footer">
+                        <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
+                        <p>This is an automated notification from DashTrade.</p>
                     </div>
                 </div>
             </body>
             </html>
             """
-            
-            notifier = NotificationService()
-            email_sent = notifier.send_email(
+
+            text_body = f"""
+Password Reset Request - DashTrade
+
+Hello {result.get('username', 'User')},
+
+You requested to reset your password for your DashTrade account.
+
+Click this link to reset your password:
+{reset_url}
+
+This link will expire in 1 hour.
+
+If you didn't request a password reset, please ignore this email.
+
+---
+This is an automated notification from DashTrade.
+            """
+
+            # Use EmailService (SMTP2GO) instead of NotificationService (SMTP)
+            email_result = EmailService.send_email(
                 to_email=result['email'],
                 subject='🔐 DashTrade Password Reset',
-                body=email_body,
-                is_html=True
+                html_body=html_body,
+                text_body=text_body
             )
-            
-            if email_sent:
+
+            if email_result['success']:
                 logger.info(f"Password reset email sent to {result['email']}")
                 return jsonify({
                     'success': True,
                     'message': 'If the email exists, a password reset link has been sent'
                 }), 200
             else:
-                logger.warning(f"Failed to send password reset email to {result['email']}")
+                logger.warning(f"Failed to send password reset email to {result['email']}: {email_result['message']}")
                 return jsonify({
                     'success': False,
                     'error': 'Failed to send reset email. Please try again later.'
                 }), 500
-                
+
         except Exception as e:
             logger.error(f"Error sending password reset email: {e}", exc_info=True)
             return jsonify({
