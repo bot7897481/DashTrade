@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Key, Webhook, Shield, Copy, RefreshCw, Check, AlertTriangle, Bell, Mail, Send } from 'lucide-react';
+import { Key, Webhook, Shield, Copy, RefreshCw, Check, AlertTriangle, Bell, Mail, Send, Link2, Unlink, ExternalLink, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +26,12 @@ export default function Settings() {
   const [mode, setMode] = useState<'paper' | 'live'>('paper');
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
+
+  // Robinhood state
+  const [rhStatus, setRhStatus] = useState<{ connected: boolean; expires_at?: string; expired?: boolean } | null>(null);
+  const [rhToken, setRhToken] = useState('');
+  const [isConnectingRh, setIsConnectingRh] = useState(false);
+  const [isDisconnectingRh, setIsDisconnectingRh] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,6 +60,14 @@ export default function Settings() {
       } catch (error) {
         console.error('Failed to load notification settings:', error);
         setNotifications(null);
+      }
+
+      try {
+        const rhRes = await api.getRobinhoodStatus();
+        setRhStatus(rhRes);
+      } catch (error) {
+        console.error('Failed to load Robinhood status:', error);
+        setRhStatus(null);
       }
 
       setIsLoading(false);
@@ -134,6 +148,37 @@ export default function Settings() {
     }
   };
 
+  const handleConnectRobinhood = async () => {
+    if (!rhToken.trim()) {
+      toast.error('Please enter your Robinhood access token');
+      return;
+    }
+    setIsConnectingRh(true);
+    try {
+      await api.connectRobinhood({ access_token: rhToken.trim() });
+      setRhStatus({ connected: true });
+      setRhToken('');
+      toast.success('Robinhood connected successfully');
+    } catch (error) {
+      toast.error('Failed to connect Robinhood');
+    } finally {
+      setIsConnectingRh(false);
+    }
+  };
+
+  const handleDisconnectRobinhood = async () => {
+    setIsDisconnectingRh(true);
+    try {
+      await api.disconnectRobinhood();
+      setRhStatus({ connected: false });
+      toast.success('Robinhood disconnected');
+    } catch (error) {
+      toast.error('Failed to disconnect Robinhood');
+    } finally {
+      setIsDisconnectingRh(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -155,9 +200,12 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="api-keys" className="w-full">
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="api-keys" className="gap-2">
-              <Key className="h-4 w-4" /> API Keys
+              <Key className="h-4 w-4" /> Alpaca
+            </TabsTrigger>
+            <TabsTrigger value="robinhood" className="gap-2">
+              <Link2 className="h-4 w-4" /> Robinhood
             </TabsTrigger>
             <TabsTrigger value="webhook" className="gap-2">
               <Webhook className="h-4 w-4" /> Webhook
@@ -246,6 +294,126 @@ export default function Settings() {
                   <Button onClick={handleSaveApiKeys} disabled={isSaving} className="w-full sm:w-auto">
                     {isSaving ? 'Saving...' : 'Save API Keys'}
                   </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="robinhood" className="mt-6">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-primary" />
+                    Robinhood Agentic Trading
+                  </CardTitle>
+                  <CardDescription>
+                    Connect your Robinhood account via MCP to trade equities through the Agentic Trading API.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Status indicator */}
+                  <div className={`flex items-center gap-2 px-4 py-3 rounded-lg ${rhStatus?.connected ? 'bg-primary/10 border border-primary/20' : 'bg-muted'}`}>
+                    {rhStatus?.connected ? (
+                      <>
+                        <Check className="h-5 w-5 text-primary" />
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">Robinhood Connected</p>
+                          <p className="text-sm text-muted-foreground">
+                            {rhStatus.expired ? 'Token expired - please reconnect' : 'Agentic Trading account linked'}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDisconnectRobinhood}
+                          disabled={isDisconnectingRh}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          {isDisconnectingRh ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4 mr-1" />}
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                        <div>
+                          <p className="font-medium text-foreground">Robinhood Not Connected</p>
+                          <p className="text-sm text-muted-foreground">Connect to trade equities via Robinhood</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Setup instructions */}
+                  <div className="p-4 rounded-lg bg-muted space-y-4">
+                    <h4 className="font-medium text-foreground">How to Connect</h4>
+                    <ol className="text-sm text-muted-foreground space-y-3 list-decimal list-inside">
+                      <li>
+                        Open a terminal and run:
+                        <div className="mt-1 p-2 bg-background rounded border border-border">
+                          <div className="flex items-center justify-between">
+                            <code className="text-xs text-primary break-all">
+                              claude mcp add robinhood-trading --transport http https://agent.robinhood.com/mcp/trading
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs ml-2 shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText('claude mcp add robinhood-trading --transport http https://agent.robinhood.com/mcp/trading');
+                                toast.success('Command copied');
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </li>
+                      <li>Complete the Robinhood OAuth login in your browser</li>
+                      <li>Copy the access token and paste it below</li>
+                    </ol>
+
+                    <div className="p-3 bg-primary/5 rounded border border-primary/20">
+                      <p className="text-xs text-muted-foreground">
+                        Robinhood Agentic Trading creates a <strong>separate isolated account</strong> with its own budget.
+                        Currently supports <strong>equities only</strong> (options, crypto coming soon).
+                      </p>
+                    </div>
+                  </div>
+
+                  {!rhStatus?.connected && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="rh-token">Access Token</Label>
+                        <Input
+                          id="rh-token"
+                          type="password"
+                          value={rhToken}
+                          onChange={(e) => setRhToken(e.target.value)}
+                          placeholder="Paste your Robinhood OAuth access token"
+                        />
+                      </div>
+                      <Button onClick={handleConnectRobinhood} disabled={isConnectingRh} className="w-full sm:w-auto">
+                        {isConnectingRh ? (
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Connecting...</>
+                        ) : (
+                          <><Link2 className="h-4 w-4 mr-2" /> Connect Robinhood</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <a
+                      href="https://robinhood.com/us/en/agentic-trading/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      Learn more about Robinhood Agentic Trading <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>

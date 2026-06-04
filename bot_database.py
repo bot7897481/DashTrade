@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 import secrets
-from encryption import encrypt_alpaca_keys, decrypt_alpaca_keys
+from encryption import encrypt_alpaca_keys, decrypt_alpaca_keys, encrypt_api_key, decrypt_api_key
 
 from database import get_db_connection, DATABASE_URL
 
@@ -131,7 +131,8 @@ class BotConfigDB:
     def create_bot(user_id: int, symbol: str, timeframe: str, position_size: float,
                    strategy_name: str = None, risk_limit_percent: float = 10.0,
                    daily_loss_limit: float = None, max_position_size: float = None,
-                   signal_source: str = 'webhook', strategy_type: str = 'none') -> Optional[int]:
+                   signal_source: str = 'webhook', strategy_type: str = 'none',
+                   broker: str = 'alpaca') -> Optional[int]:
         """
         Create a new bot configuration with unique webhook token
 
@@ -148,12 +149,12 @@ class BotConfigDB:
                         INSERT INTO user_bot_configs
                         (user_id, symbol, timeframe, position_size, strategy_name,
                          risk_limit_percent, daily_loss_limit, max_position_size,
-                         signal_source, strategy_type, webhook_token)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         signal_source, strategy_type, webhook_token, broker)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (user_id, symbol.upper(), timeframe, position_size, strategy_name,
                           risk_limit_percent, daily_loss_limit, max_position_size,
-                          signal_source, strategy_type, webhook_token))
+                          signal_source, strategy_type, webhook_token, broker))
                     return cur.fetchone()[0]
         except Exception as e:
             print(f"Error creating bot: {e}")
@@ -1751,3 +1752,94 @@ class AIStrategyInsightsDB:
         except Exception as e:
             print(f"Error getting insights: {e}")
             return []
+
+
+class RobinhoodTokenDB:
+    """Manage user Robinhood OAuth tokens for MCP integration"""
+
+    @staticmethod
+    def save_tokens(user_id: int, access_token: str, refresh_token: str = None,
+                    token_type: str = 'Bearer', expires_at: datetime = None,
+                    scope: str = None) -> Tuple[bool, str]:
+        try:
+            enc_access = encrypt_api_key(access_token)
+            enc_refresh = encrypt_api_key(refresh_token) if refresh_token else None
+
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO user_robinhood_tokens
+                        (user_id, access_token_encrypted, refresh_token_encrypted,
+                         token_type, expires_at, scope, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (user_id) DO UPDATE
+                        SET access_token_encrypted = %s,
+                            refresh_token_encrypted = %s,
+                            token_type = %s,
+                            expires_at = %s,
+                            scope = %s,
+                            is_active = TRUE,
+                            updated_at = CURRENT_TIMESTAMP
+                    """, (user_id, enc_access, enc_refresh, token_type, expires_at, scope,
+                          enc_access, enc_refresh, token_type, expires_at, scope))
+            return True, ""
+        except Exception as e:
+            print(f"Error saving Robinhood tokens: {e}")
+            return False, str(e)
+
+    @staticmethod
+    def get_tokens(user_id: int) -> Optional[Dict]:
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT access_token_encrypted, refresh_token_encrypted,
+                               token_type, expires_at, scope
+                        FROM user_robinhood_tokens
+                        WHERE user_id = %s AND is_active = TRUE
+                    """, (user_id,))
+                    row = cur.fetchone()
+                    if not row:
+                        return None
+
+                    access_token = decrypt_api_key(row['access_token_encrypted'])
+                    refresh_token = (decrypt_api_key(row['refresh_token_encrypted'])
+                                     if row['refresh_token_encrypted'] else None)
+
+                    return {
+                        'access_token': access_token,
+                        'refresh_token': refresh_token,
+                        'token_type': row['token_type'],
+                        'expires_at': row['expires_at'],
+                        'scope': row['scope']
+                    }
+        except Exception as e:
+            print(f"Error getting Robinhood tokens: {e}")
+            return None
+
+    @staticmethod
+    def has_tokens(user_id: int) -> bool:
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT 1 FROM user_robinhood_tokens
+                        WHERE user_id = %s AND is_active = TRUE
+                    """, (user_id,))
+                    return cur.fetchone() is not None
+        except Exception:
+            return False
+
+    @staticmethod
+    def delete_tokens(user_id: int) -> bool:
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE user_robinhood_tokens
+                        SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = %s
+                    """, (user_id,))
+            return True
+        except Exception:
+            return False

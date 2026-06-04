@@ -108,6 +108,7 @@ try:
         StrategyParamsDB, TradeOutcomesDB
     )
     from bot_engine import TradingEngine
+    from robinhood_engine import get_trading_engine
     from email_service import TradeNotificationService
     import requests
     WEBHOOK_ENABLED = True
@@ -330,9 +331,10 @@ class WebhookHandler(RequestHandler):
             # Extract strategy parameters for AI learning (optional fields)
             strategy_params = extract_strategy_params(data)
 
-            # Execute trade
+            # Execute trade (use broker from bot config)
             try:
-                engine = TradingEngine(user_id)
+                broker = bot_config.get('broker', 'alpaca')
+                engine = get_trading_engine(user_id, broker)
                 result = engine.execute_trade(bot_config, action)
             except ValueError as e:
                 # Send error notification email
@@ -514,7 +516,8 @@ class SystemWebhookHandler(RequestHandler):
                         results.append({'user_id': user_id, 'status': 'skipped'})
                         continue
 
-                    engine = TradingEngine(user_id)
+                    broker = bot_config.get('broker', 'alpaca')
+                    engine = get_trading_engine(user_id, broker)
                     result = engine.execute_trade(bot_config, action)
 
                     if result.get('status') == 'success':

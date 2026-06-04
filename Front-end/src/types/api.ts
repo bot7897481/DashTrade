@@ -41,6 +41,7 @@ export interface Bot {
   order_status?: 'IDLE' | 'READY' | 'SUBMITTED' | 'FILLED' | 'FAILED' | 'ORDER SUBMITTED';
   current_position_side?: 'FLAT' | 'LONG' | 'SHORT';
   signal_source?: 'webhook' | 'bot_webhook' | 'user_webhook' | 'system';
+  broker?: 'alpaca' | 'robinhood';
   created_at?: string;
   updated_at?: string;
   // Per-bot webhook
@@ -71,6 +72,7 @@ export interface CreateBotPayload {
   daily_loss_limit?: number;
   max_position_size?: number;
   signal_source?: 'webhook';
+  broker?: 'alpaca' | 'robinhood';
   is_active?: boolean;
 }
 

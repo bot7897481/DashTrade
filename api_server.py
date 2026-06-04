@@ -27,9 +27,10 @@ try:
     from bot_database import (
         BotConfigDB, WebhookTokenDB, SystemStrategyDB,
         UserStrategySubscriptionDB, BotAPIKeysDB, BotTradesDB,
-        TradeMarketContextDB
+        TradeMarketContextDB, RobinhoodTokenDB
     )
     from bot_engine import TradingEngine
+    from robinhood_engine import RobinhoodTradingEngine, get_trading_engine
     from auth import UserDB
     from database import get_db_connection
     from psycopg2.extras import RealDictCursor
@@ -723,6 +724,10 @@ def api_create_bot():
         except (ValueError, TypeError):
             return jsonify({'error': 'position_size must be a number'}), 400
 
+        broker = data.get('broker', 'alpaca')
+        if broker not in ('alpaca', 'robinhood'):
+            broker = 'alpaca'
+
         bot_id = BotConfigDB.create_bot(
             user_id=g.user_id,
             symbol=symbol,
@@ -732,7 +737,8 @@ def api_create_bot():
             risk_limit_percent=float(data.get('risk_limit_percent', 10.0)),
             daily_loss_limit=float(data['daily_loss_limit']) if data.get('daily_loss_limit') else None,
             max_position_size=float(data['max_position_size']) if data.get('max_position_size') else None,
-            signal_source=data.get('signal_source', 'webhook')
+            signal_source=data.get('signal_source', 'webhook'),
+            broker=broker
         )
 
         if bot_id:
@@ -901,13 +907,14 @@ def api_regenerate_bot_token(bot_id):
 @app.route('/api/account', methods=['GET'])
 @token_required
 def api_get_account():
-    """Get Alpaca account info for the authenticated user"""
+    """Get account info for the authenticated user (supports ?broker=alpaca|robinhood)"""
     try:
-        engine = TradingEngine(g.user_id)
+        broker = request.args.get('broker', 'alpaca')
+        engine = get_trading_engine(g.user_id, broker)
         account = engine.get_account_info()
         return jsonify(convert_decimals(account)), 200
     except ValueError as e:
-        return jsonify({'error': 'Alpaca API keys not configured', 'details': str(e)}), 400
+        return jsonify({'error': 'Broker not configured', 'details': str(e)}), 400
     except Exception as e:
         logger.error(f"Get account error: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch account info'}), 500
@@ -916,16 +923,17 @@ def api_get_account():
 @app.route('/api/positions', methods=['GET'])
 @token_required
 def api_get_positions():
-    """Get all open positions for the authenticated user"""
+    """Get all open positions for the authenticated user (supports ?broker=alpaca|robinhood)"""
     try:
-        engine = TradingEngine(g.user_id)
+        broker = request.args.get('broker', 'alpaca')
+        engine = get_trading_engine(g.user_id, broker)
         positions = engine.get_all_positions()
         return jsonify({
             'positions': convert_decimals(positions),
             'total': len(positions)
         }), 200
     except ValueError as e:
-        return jsonify({'error': 'Alpaca API keys not configured', 'details': str(e)}), 400
+        return jsonify({'error': 'Broker not configured', 'details': str(e)}), 400
     except Exception as e:
         logger.error(f"Get positions error: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch positions'}), 500
@@ -1653,6 +1661,149 @@ def api_get_api_keys_status():
 
     except Exception as e:
         logger.error(f"Get API keys status error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ============================================================================
+# REST API - ROBINHOOD CONNECTION
+# ============================================================================
+
+@app.route('/api/settings/robinhood/connect', methods=['POST'])
+@token_required
+def api_connect_robinhood():
+    """
+    Save Robinhood OAuth tokens after the user completes browser-based auth.
+    The frontend handles the OAuth flow and sends the tokens here.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+
+        access_token = data.get('access_token', '').strip()
+        refresh_token = data.get('refresh_token', '').strip() or None
+        expires_at = data.get('expires_at')
+
+        if not access_token:
+            return jsonify({'error': 'access_token is required'}), 400
+
+        # Parse expires_at if provided
+        exp_dt = None
+        if expires_at:
+            try:
+                exp_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        success, err = RobinhoodTokenDB.save_tokens(
+            user_id=g.user_id,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_at=exp_dt
+        )
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Robinhood connected successfully'
+            }), 200
+        else:
+            return jsonify({'error': f'Failed to save tokens: {err}'}), 500
+
+    except Exception as e:
+        logger.error(f"Connect Robinhood error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/robinhood/status', methods=['GET'])
+@token_required
+def api_robinhood_status():
+    """Check if user has Robinhood connected"""
+    try:
+        has_tokens = RobinhoodTokenDB.has_tokens(g.user_id)
+        result = {'connected': has_tokens, 'broker': 'robinhood'}
+
+        if has_tokens:
+            tokens = RobinhoodTokenDB.get_tokens(g.user_id)
+            if tokens and tokens.get('expires_at'):
+                result['expires_at'] = tokens['expires_at'].isoformat()
+                result['expired'] = tokens['expires_at'] < datetime.utcnow()
+            else:
+                result['expired'] = False
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"Robinhood status error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/robinhood/disconnect', methods=['POST'])
+@token_required
+def api_disconnect_robinhood():
+    """Disconnect Robinhood (revoke tokens)"""
+    try:
+        success = RobinhoodTokenDB.delete_tokens(g.user_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Robinhood disconnected'}), 200
+        return jsonify({'error': 'Failed to disconnect'}), 500
+    except Exception as e:
+        logger.error(f"Disconnect Robinhood error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/robinhood/account', methods=['GET'])
+@token_required
+def api_robinhood_account():
+    """Get Robinhood account info via MCP"""
+    try:
+        engine = RobinhoodTradingEngine(g.user_id)
+        account = engine.get_account_info()
+        return jsonify(convert_decimals(account)), 200
+    except ValueError as e:
+        return jsonify({'error': 'Robinhood not connected', 'details': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Robinhood account error: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch Robinhood account'}), 500
+
+
+@app.route('/api/settings/robinhood/tools', methods=['GET'])
+@token_required
+def api_robinhood_tools():
+    """List available MCP tools from Robinhood (for debugging/discovery)"""
+    try:
+        from robinhood_mcp_client import RobinhoodMCPClient, run_sync
+        tokens = RobinhoodTokenDB.get_tokens(g.user_id)
+        if not tokens:
+            return jsonify({'error': 'Robinhood not connected'}), 400
+
+        client = RobinhoodMCPClient(tokens['access_token'])
+        tools = run_sync(client.list_tools())
+        return jsonify({'tools': tools, 'count': len(tools)}), 200
+    except Exception as e:
+        logger.error(f"Robinhood tools error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/settings/brokers/status', methods=['GET'])
+@token_required
+def api_brokers_status():
+    """Get connection status of all brokers"""
+    try:
+        alpaca_keys = BotAPIKeysDB.get_api_keys(g.user_id)
+        rh_connected = RobinhoodTokenDB.has_tokens(g.user_id)
+
+        return jsonify({
+            'alpaca': {
+                'configured': alpaca_keys is not None,
+                'mode': alpaca_keys.get('mode', 'paper') if alpaca_keys else None,
+            },
+            'robinhood': {
+                'connected': rh_connected,
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Brokers status error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 

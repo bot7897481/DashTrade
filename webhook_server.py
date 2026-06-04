@@ -16,6 +16,7 @@ from bot_database import (
     UserStrategySubscriptionDB, UserOutgoingWebhookDB
 )
 from bot_engine import TradingEngine
+from robinhood_engine import get_trading_engine
 
 # ============================================================================
 # NORMALIZATION HELPERS
@@ -259,14 +260,15 @@ def webhook():
                 'timeframe': timeframe
             }), 200
 
-        # 6. Initialize trading engine for this user
+        # 6. Initialize trading engine for this user (broker from bot config)
         try:
-            engine = TradingEngine(user_id)
+            broker = bot_config.get('broker', 'alpaca')
+            engine = get_trading_engine(user_id, broker)
         except ValueError as e:
             logger.error(f"Failed to initialize trading engine: {e}")
             return jsonify({
                 'status': 'error',
-                'message': 'Alpaca API keys not configured. Please add them in Bot Settings.'
+                'message': 'Broker not configured. Please add API keys/connection in Settings.'
             }), 400
 
         # 7. Execute trade with timing info
@@ -473,8 +475,9 @@ def system_webhook():
                     })
                     continue
 
-                # Initialize trading engine
-                engine = TradingEngine(user_id)
+                # Initialize trading engine (broker from bot config)
+                broker = bot_config.get('broker', 'alpaca')
+                engine = get_trading_engine(user_id, broker)
 
                 # Execute trade
                 result = engine.execute_trade(bot_config, action)

@@ -412,6 +412,7 @@ SETUP INSTRUCTIONS:
           timeframe: toApiTimeframe(formData.timeframe),
           position_size: formData.position_size,
           strategy_name: formData.strategy_name,
+          broker: formData.broker || 'alpaca',
           is_active: formData.is_active ?? true,
         };
         await api.createBot(payload);
@@ -670,6 +671,11 @@ SETUP INSTRUCTIONS:
                             <span className={`text-xs px-2 py-0.5 rounded-full ${bot.is_active ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
                               {bot.is_active ? 'Active' : 'Inactive'}
                             </span>
+                            {bot.broker === 'robinhood' && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-600">
+                                Robinhood
+                              </span>
+                            )}
                           </div>
                           <Switch checked={bot.is_active} onCheckedChange={() => handleToggle(bot)} />
                         </div>
@@ -994,6 +1000,25 @@ SETUP INSTRUCTIONS:
                     placeholder="e.g., momentum, mean_reversion"
                   />
                 </div>
+                {!selectedBot && (
+                  <div className="space-y-2">
+                    <Label>Broker</Label>
+                    <Select value={formData.broker || 'alpaca'} onValueChange={(v) => setFormData({ ...formData, broker: v as 'alpaca' | 'robinhood' })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="alpaca">Alpaca</SelectItem>
+                        <SelectItem value="robinhood">Robinhood</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {formData.broker === 'robinhood'
+                        ? 'Trades via Robinhood Agentic Trading (equities only)'
+                        : 'Trades via Alpaca (stocks & crypto)'}
+                    </p>
+                  </div>
+                )}
                 {/* Active Toggle - only show in create mode */}
                 {!selectedBot && (
                   <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">

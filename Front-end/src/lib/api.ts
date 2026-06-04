@@ -233,6 +233,39 @@ class ApiClient {
     });
   }
 
+  // Robinhood connection endpoints
+  async connectRobinhood(tokens: { access_token: string; refresh_token?: string; expires_at?: string }): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/settings/robinhood/connect', {
+      method: 'POST',
+      body: JSON.stringify(tokens),
+    });
+  }
+
+  async getRobinhoodStatus(): Promise<{ connected: boolean; broker: string; expires_at?: string; expired?: boolean }> {
+    return this.request('/api/settings/robinhood/status');
+  }
+
+  async disconnectRobinhood(): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/settings/robinhood/disconnect', {
+      method: 'POST',
+    });
+  }
+
+  async getRobinhoodAccount(): Promise<Account> {
+    return this.request<Account>('/api/settings/robinhood/account');
+  }
+
+  async getRobinhoodTools(): Promise<{ tools: Array<{ name: string; description: string; schema: unknown }>; count: number }> {
+    return this.request('/api/settings/robinhood/tools');
+  }
+
+  async getBrokersStatus(): Promise<{
+    alpaca: { configured: boolean; mode: string | null };
+    robinhood: { connected: boolean };
+  }> {
+    return this.request('/api/settings/brokers/status');
+  }
+
   // Strategy endpoints
   async getStrategies(): Promise<StrategyListResponse> {
     return this.request<StrategyListResponse>('/api/strategies');
