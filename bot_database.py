@@ -1843,3 +1843,73 @@ class RobinhoodTokenDB:
             return True
         except Exception:
             return False
+
+
+class RobinhoodOAuthDB:
+    """OAuth client registration cache and per-login state storage."""
+
+    @staticmethod
+    def get_client() -> Optional[Dict]:
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT client_id, redirect_uri FROM robinhood_oauth_client
+                        ORDER BY id DESC LIMIT 1
+                    """)
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+        except Exception as e:
+            print(f"Error getting Robinhood OAuth client: {e}")
+            return None
+
+    @staticmethod
+    def save_client(client_id: str, redirect_uri: str) -> bool:
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO robinhood_oauth_client (client_id, redirect_uri)
+                        VALUES (%s, %s)
+                    """, (client_id, redirect_uri))
+            return True
+        except Exception as e:
+            print(f"Error saving Robinhood OAuth client: {e}")
+            return False
+
+    @staticmethod
+    def save_state(state: str, user_id: int, code_verifier: str) -> bool:
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO robinhood_oauth_states (state, user_id, code_verifier)
+                        VALUES (%s, %s, %s)
+                    """, (state, user_id, code_verifier))
+            return True
+        except Exception as e:
+            print(f"Error saving Robinhood OAuth state: {e}")
+            return False
+
+    @staticmethod
+    def pop_state(state: str) -> Optional[Dict]:
+        """Fetch and delete a state entry (single use). Rejects entries older than 15 minutes."""
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        DELETE FROM robinhood_oauth_states
+                        WHERE state = %s
+                          AND created_at > CURRENT_TIMESTAMP - INTERVAL '15 minutes'
+                        RETURNING user_id, code_verifier
+                    """, (state,))
+                    row = cur.fetchone()
+                    # Opportunistic cleanup of expired states
+                    cur.execute("""
+                        DELETE FROM robinhood_oauth_states
+                        WHERE created_at <= CURRENT_TIMESTAMP - INTERVAL '15 minutes'
+                    """)
+                    return dict(row) if row else None
+        except Exception as e:
+            print(f"Error consuming Robinhood OAuth state: {e}")
+            return None

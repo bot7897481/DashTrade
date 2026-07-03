@@ -21,14 +21,24 @@ logger = logging.getLogger(__name__)
 
 ROBINHOOD_MCP_URL = "https://agent.robinhood.com/mcp/trading"
 
-# OAuth token refresh configuration.
-# ROBINHOOD_OAUTH_TOKEN_URL must be set to the token endpoint from
-# Robinhood's agentic-trading OAuth documentation (the URL below is a
-# placeholder default — verify it before relying on auto-refresh).
+# OAuth token endpoint, verified against Robinhood's authorization server
+# metadata (https://agent.robinhood.com/.well-known/oauth-authorization-server).
 ROBINHOOD_OAUTH_TOKEN_URL = os.environ.get(
-    'ROBINHOOD_OAUTH_TOKEN_URL', 'https://agent.robinhood.com/oauth/token'
+    'ROBINHOOD_OAUTH_TOKEN_URL', 'https://api.robinhood.com/oauth2/token/'
 )
 ROBINHOOD_CLIENT_ID = os.environ.get('ROBINHOOD_CLIENT_ID', '')
+
+
+def _get_client_id() -> str:
+    """Client ID from env, falling back to the dynamically registered client in DB."""
+    if ROBINHOOD_CLIENT_ID:
+        return ROBINHOOD_CLIENT_ID
+    try:
+        from bot_database import RobinhoodOAuthDB
+        client = RobinhoodOAuthDB.get_client()
+        return client['client_id'] if client else ''
+    except Exception:
+        return ''
 
 # Preferred tool names → known aliases. The Robinhood MCP server's real
 # tool names are discovered at runtime; we resolve our canonical names
@@ -55,9 +65,11 @@ def refresh_access_token(refresh_token: str) -> Optional[Dict]:
         payload = {
             'grant_type': 'refresh_token',
             'refresh_token': refresh_token,
+            'resource': ROBINHOOD_MCP_URL,
         }
-        if ROBINHOOD_CLIENT_ID:
-            payload['client_id'] = ROBINHOOD_CLIENT_ID
+        client_id = _get_client_id()
+        if client_id:
+            payload['client_id'] = client_id
 
         resp = requests.post(ROBINHOOD_OAUTH_TOKEN_URL, data=payload, timeout=15)
         if resp.status_code != 200:

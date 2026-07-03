@@ -304,6 +304,37 @@ def run_migrations():
         "UPDATE user_bot_configs SET timeframe = '4h' WHERE LOWER(timeframe) IN ('240', '4h', '4 hour', '4 hr');",
         "UPDATE user_bot_configs SET timeframe = '1d' WHERE LOWER(timeframe) IN ('d', '1d', 'daily', 'day', '1 day');",
         "UPDATE user_bot_configs SET timeframe = '1w' WHERE LOWER(timeframe) IN ('w', '1w', 'weekly', 'week', '1 week');",
+
+        # Migration 008: Robinhood MCP integration (broker support)
+        """CREATE TABLE IF NOT EXISTS user_robinhood_tokens (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+            access_token_encrypted TEXT NOT NULL,
+            refresh_token_encrypted TEXT,
+            token_type VARCHAR(50) DEFAULT 'Bearer',
+            expires_at TIMESTAMP,
+            scope TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_robinhood_tokens_user ON user_robinhood_tokens(user_id);",
+        "ALTER TABLE user_bot_configs ADD COLUMN IF NOT EXISTS broker VARCHAR(20) DEFAULT 'alpaca';",
+        "ALTER TABLE bot_trades ADD COLUMN IF NOT EXISTS broker VARCHAR(20) DEFAULT 'alpaca';",
+
+        # Migration 009: Robinhood OAuth client registration + login states
+        """CREATE TABLE IF NOT EXISTS robinhood_oauth_client (
+            id SERIAL PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            redirect_uri TEXT NOT NULL,
+            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        """CREATE TABLE IF NOT EXISTS robinhood_oauth_states (
+            state VARCHAR(128) PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            code_verifier TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
     ]
 
     try:

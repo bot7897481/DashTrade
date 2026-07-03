@@ -6,7 +6,7 @@ Runs as a separate service from the webhook server
 
 Port: 8081 (default)
 """
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, redirect
 from flask_cors import CORS
 import logging
 import os
@@ -27,8 +27,9 @@ try:
     from bot_database import (
         BotConfigDB, WebhookTokenDB, SystemStrategyDB,
         UserStrategySubscriptionDB, BotAPIKeysDB, BotTradesDB,
-        TradeMarketContextDB, RobinhoodTokenDB
+        TradeMarketContextDB, RobinhoodTokenDB, RobinhoodOAuthDB
     )
+    import robinhood_oauth
     from bot_engine import TradingEngine
     from robinhood_engine import RobinhoodTradingEngine, get_trading_engine
     from auth import UserDB
@@ -1713,6 +1714,94 @@ def api_connect_robinhood():
     except Exception as e:
         logger.error(f"Connect Robinhood error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/robinhood/authorize', methods=['GET'])
+@token_required
+def api_robinhood_authorize():
+    """
+    Start the browser-based OAuth flow. Returns the Robinhood authorization
+    URL for the frontend to redirect the user to. Registers the OAuth client
+    with Robinhood on first use (dynamic client registration, cached in DB).
+    """
+    try:
+        client = RobinhoodOAuthDB.get_client()
+        if not client:
+            client = robinhood_oauth.register_client()
+            if not client:
+                return jsonify({'error': 'Could not register with Robinhood. '
+                                         'Please try again later.'}), 502
+            RobinhoodOAuthDB.save_client(client['client_id'], client['redirect_uri'])
+
+        code_verifier, code_challenge = robinhood_oauth.generate_pkce()
+        state = robinhood_oauth.generate_state()
+
+        if not RobinhoodOAuthDB.save_state(state, g.user_id, code_verifier):
+            return jsonify({'error': 'Failed to start OAuth flow'}), 500
+
+        auth_url = robinhood_oauth.build_authorize_url(
+            client['client_id'], state, code_challenge
+        )
+        return jsonify({'authorize_url': auth_url}), 200
+
+    except Exception as e:
+        logger.error(f"Robinhood authorize error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/robinhood/callback', methods=['GET'])
+def api_robinhood_callback():
+    """
+    OAuth redirect target. No JWT here — the state parameter maps back to
+    the user who initiated the flow. Exchanges the code for tokens, stores
+    them, and redirects the browser to the frontend Settings page.
+    """
+    frontend_url = os.getenv('FRONTEND_URL', 'https://alert-to-action-bot.lovable.app')
+    settings_url = f"{frontend_url}/settings"
+
+    try:
+        error = request.args.get('error')
+        if error:
+            logger.warning(f"Robinhood OAuth denied/failed: {error}")
+            return redirect(f"{settings_url}?robinhood=error&reason={error}")
+
+        code = request.args.get('code')
+        state = request.args.get('state')
+        if not code or not state:
+            return redirect(f"{settings_url}?robinhood=error&reason=missing_params")
+
+        state_entry = RobinhoodOAuthDB.pop_state(state)
+        if not state_entry:
+            logger.warning("Robinhood OAuth: unknown or expired state")
+            return redirect(f"{settings_url}?robinhood=error&reason=expired")
+
+        client = RobinhoodOAuthDB.get_client()
+        if not client:
+            return redirect(f"{settings_url}?robinhood=error&reason=no_client")
+
+        tokens = robinhood_oauth.exchange_code(
+            client['client_id'], code, state_entry['code_verifier']
+        )
+        if not tokens:
+            return redirect(f"{settings_url}?robinhood=error&reason=exchange_failed")
+
+        success, err = RobinhoodTokenDB.save_tokens(
+            user_id=state_entry['user_id'],
+            access_token=tokens['access_token'],
+            refresh_token=tokens.get('refresh_token'),
+            expires_at=tokens.get('expires_at'),
+            scope=tokens.get('scope'),
+        )
+        if not success:
+            logger.error(f"Robinhood OAuth: failed to save tokens: {err}")
+            return redirect(f"{settings_url}?robinhood=error&reason=save_failed")
+
+        logger.info(f"Robinhood connected via OAuth for user {state_entry['user_id']}")
+        return redirect(f"{settings_url}?robinhood=connected")
+
+    except Exception as e:
+        logger.error(f"Robinhood callback error: {e}", exc_info=True)
+        return redirect(f"{settings_url}?robinhood=error&reason=server_error")
 
 
 @app.route('/api/settings/robinhood/status', methods=['GET'])
