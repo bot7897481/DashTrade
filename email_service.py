@@ -1,6 +1,7 @@
 """
 Email Notification Service for DashTrade
-Uses SMTP2GO API to send trade notifications
+Primary provider: Resend (RESEND_API_KEY)
+Fallback provider: SMTP2GO (SMTP2GO_API_KEY) — kept for backward compatibility
 """
 
 import os
@@ -14,39 +15,81 @@ from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
-# SMTP2GO API configuration
+# Resend API configuration (primary)
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+RESEND_API_URL = 'https://api.resend.com/emails'
+
+# SMTP2GO API configuration (legacy fallback)
 SMTP2GO_API_KEY = os.environ.get('SMTP2GO_API_KEY')
 SMTP2GO_API_URL = 'https://api.smtp2go.com/v3/email/send'
+
 FROM_EMAIL = os.environ.get('EMAIL_FROM', 'notifications@novalgo.org')
 FROM_NAME = os.environ.get('EMAIL_FROM_NAME', 'DashTrade')
 
 
 class EmailService:
-    """Send email notifications via SMTP2GO"""
+    """Send email notifications via Resend (or SMTP2GO fallback)"""
 
     @staticmethod
     def is_configured() -> bool:
         """Check if email service is configured"""
-        return bool(SMTP2GO_API_KEY)
+        return bool(RESEND_API_KEY or SMTP2GO_API_KEY)
 
     @staticmethod
     def send_email(to_email: str, subject: str, html_body: str, text_body: str = None) -> Dict:
         """
-        Send an email via SMTP2GO API
-
-        Args:
-            to_email: Recipient email address
-            subject: Email subject
-            html_body: HTML content of email
-            text_body: Plain text version (optional)
+        Send an email. Uses Resend when RESEND_API_KEY is set,
+        otherwise falls back to SMTP2GO.
 
         Returns:
             dict: {'success': bool, 'message': str}
         """
-        if not SMTP2GO_API_KEY:
-            logger.warning("SMTP2GO_API_KEY not configured - email not sent")
-            return {'success': False, 'message': 'Email service not configured'}
+        if RESEND_API_KEY:
+            return EmailService._send_via_resend(to_email, subject, html_body, text_body)
+        if SMTP2GO_API_KEY:
+            return EmailService._send_via_smtp2go(to_email, subject, html_body, text_body)
 
+        logger.warning("No email provider configured (RESEND_API_KEY or SMTP2GO_API_KEY) - email not sent")
+        return {'success': False, 'message': 'Email service not configured'}
+
+    @staticmethod
+    def _send_via_resend(to_email: str, subject: str, html_body: str, text_body: str = None) -> Dict:
+        """Send an email via the Resend API (https://resend.com/docs/api-reference/emails/send-email)"""
+        try:
+            payload = {
+                'from': f"{FROM_NAME} <{FROM_EMAIL}>",
+                'to': [to_email],
+                'subject': subject,
+                'html': html_body,
+            }
+            if text_body:
+                payload['text'] = text_body
+
+            response = requests.post(
+                RESEND_API_URL,
+                json=payload,
+                headers={'Authorization': f'Bearer {RESEND_API_KEY}'},
+                timeout=10,
+            )
+
+            if response.status_code == 200:
+                logger.info(f"Email sent via Resend to {to_email}: {subject}")
+                return {'success': True, 'message': 'Email sent'}
+
+            try:
+                error_msg = response.json().get('message', response.text[:200])
+            except ValueError:
+                error_msg = response.text[:200]
+            logger.error(f"Resend send failed (HTTP {response.status_code}): {error_msg}")
+            return {'success': False, 'message': error_msg}
+
+        except Exception as e:
+            logger.error(f"Resend send error: {e}")
+            return {'success': False, 'message': str(e)}
+
+    @staticmethod
+    def _send_via_smtp2go(to_email: str, subject: str, html_body: str, text_body: str = None) -> Dict:
+        """Send an email via the legacy SMTP2GO API"""
         try:
             payload = {
                 'api_key': SMTP2GO_API_KEY,
