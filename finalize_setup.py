@@ -482,6 +482,16 @@ def main():
         print("\n❌ Setup failed at migration step")
         sys.exit(1)
 
+    # Step 3b: Run incremental migrations (bot tables, Robinhood, OAuth, etc.)
+    try:
+        from run_migrations import run_migrations
+        if run_migrations():
+            print("✅ Incremental migrations applied")
+        else:
+            print("⚠️  Incremental migrations reported errors (continuing)")
+    except Exception as e:
+        print(f"⚠️  Could not run incremental migrations: {e} (continuing)")
+
     # Step 4: Create superadmin
     if not create_superadmin():
         print("\n⚠️  Setup completed but superadmin creation failed")
