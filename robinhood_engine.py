@@ -2,9 +2,13 @@
 Robinhood Trading Engine - Executes trades via Robinhood's MCP server
 Mirrors the TradingEngine interface from bot_engine.py so callers
 can swap brokers transparently.
+
+Set ROBINHOOD_DRY_RUN=true to log signals and simulate fills without
+placing real orders (Robinhood has no paper-trading mode).
 """
 import logging
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 import time
 from typing import Dict, Optional, List
 
@@ -13,7 +17,12 @@ from bot_database import (
 )
 from market_data_service import MarketDataService
 from email_service import TradeNotificationService
-from robinhood_mcp_client import RobinhoodMCPClient, run_sync
+from robinhood_mcp_client import RobinhoodMCPClient, run_sync, refresh_access_token
+
+# Refresh the access token when it expires within this window
+TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
+
+DRY_RUN = os.environ.get('ROBINHOOD_DRY_RUN', '').lower() in ('1', 'true', 'yes')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,15 +33,67 @@ class RobinhoodTradingEngine:
 
     def __init__(self, user_id: int):
         self.user_id = user_id
+        self.dry_run = DRY_RUN
 
         tokens = RobinhoodTokenDB.get_tokens(user_id)
         if not tokens:
             raise ValueError(f"No Robinhood connection found for user {user_id}")
 
+        tokens = self._ensure_fresh_tokens(tokens)
+
         self.access_token = tokens['access_token']
         self.client = RobinhoodMCPClient(self.access_token)
 
-        logger.info(f"Robinhood trading engine initialized for user {user_id}")
+        logger.info(f"Robinhood trading engine initialized for user {user_id}"
+                    f"{' [DRY RUN]' if self.dry_run else ''}")
+
+    def _ensure_fresh_tokens(self, tokens: Dict) -> Dict:
+        """
+        Refresh the access token if it is expired or about to expire.
+        On refresh failure, alert the user by email and fall back to the
+        stored token (the MCP call will fail loudly with a 401 rather
+        than silently skipping the trade).
+        """
+        expires_at = tokens.get('expires_at')
+        refresh_token = tokens.get('refresh_token')
+
+        if not expires_at or not refresh_token:
+            return tokens  # nothing to do / can't refresh
+
+        if expires_at > datetime.utcnow() + TOKEN_REFRESH_MARGIN:
+            return tokens  # still valid
+
+        logger.info(f"Robinhood token for user {self.user_id} expired/expiring — refreshing")
+        new_tokens = refresh_access_token(refresh_token)
+
+        if new_tokens:
+            success, err = RobinhoodTokenDB.save_tokens(
+                user_id=self.user_id,
+                access_token=new_tokens['access_token'],
+                refresh_token=new_tokens.get('refresh_token'),
+                expires_at=new_tokens.get('expires_at'),
+            )
+            if not success:
+                logger.error(f"Failed to persist refreshed Robinhood tokens: {err}")
+            tokens.update(new_tokens)
+            logger.info(f"Robinhood token refreshed for user {self.user_id}")
+            return tokens
+
+        # Refresh failed — alert the user so bots don't die silently
+        logger.error(f"Robinhood token refresh FAILED for user {self.user_id}")
+        try:
+            TradeNotificationService.send_trade_executed_email(
+                user_id=self.user_id,
+                trade_data={
+                    'symbol': 'N/A', 'action': 'TOKEN_REFRESH_FAILED',
+                    'status': 'Your Robinhood connection has expired. '
+                              'Please reconnect in Settings → Robinhood.',
+                    'order_id': '', 'bot_name': 'Robinhood connection', 'timeframe': '',
+                }
+            )
+        except Exception:
+            pass
+        return tokens
 
     def _call(self, coro):
         """Run an async MCP call synchronously."""
@@ -136,6 +197,10 @@ class RobinhoodTradingEngine:
     def close_position(self, symbol: str) -> Dict:
         """Close entire position by placing an opposite order."""
         logger.info(f"CLOSE POSITION REQUEST (Robinhood) for: {symbol}")
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would close Robinhood position for {symbol} — no order sent")
+            return {'status': 'success', 'message': f'[DRY RUN] Position close simulated for {symbol}',
+                    'order_id': 'DRY_RUN', 'broker': 'robinhood', 'dry_run': True}
         try:
             position = self.get_current_position(symbol)
             if not position or position.get('side') == 'FLAT':
@@ -321,6 +386,28 @@ class RobinhoodTradingEngine:
                        signal_source: str) -> Dict:
         """Execute a BUY or SELL order via Robinhood MCP."""
         trade_id = None
+
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would place Robinhood {action} ${position_size} {symbol} — no order sent")
+            trade_id = BotTradesDB.log_trade(
+                user_id=self.user_id, bot_config_id=bot_id,
+                symbol=symbol, timeframe=timeframe, action=action,
+                notional=position_size, order_id='DRY_RUN',
+                trade_details={
+                    'signal_source': signal_source,
+                    'signal_received_at': signal_received_at,
+                    'order_submitted_at': datetime.utcnow(),
+                    'order_type': 'market',
+                    'broker': 'robinhood',
+                    'dry_run': True,
+                }
+            )
+            BotConfigDB.update_bot_status(bot_id, self.user_id, 'DRY RUN', last_signal=action,
+                                          position_side=position_after)
+            return {'status': 'dry_run', 'action': action, 'symbol': symbol,
+                    'trade_id': trade_id, 'broker': 'robinhood',
+                    'message': 'Dry-run mode: signal received and logged, no order placed'}
+
         try:
             order_submitted_at = datetime.utcnow()
             BotConfigDB.update_bot_status(bot_id, self.user_id, 'ORDER SUBMITTED', last_signal=action)
