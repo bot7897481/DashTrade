@@ -1965,48 +1965,80 @@ def api_regenerate_webhook_token():
 @app.route('/api/dashboard', methods=['GET'])
 @token_required
 def api_get_dashboard():
-    """Get dashboard summary for the authenticated user"""
+    """
+    Get dashboard summary for the authenticated user.
+    Supports ?broker=alpaca|robinhood (default: alpaca).
+    """
     try:
-        # Get bots
+        broker = request.args.get('broker', 'alpaca').lower()
+        if broker not in ('alpaca', 'robinhood'):
+            return jsonify({'error': "broker must be 'alpaca' or 'robinhood'"}), 400
+
+        # Get bots (all bots, each row carries its own broker field)
         bots = BotConfigDB.get_user_bots(g.user_id)
         active_bots = sum(1 for b in bots if b.get('is_active'))
 
         # Get recent trades from database (for bot tracking)
-        db_trades = BotTradesDB.get_user_trades(g.user_id, limit=10)
+        db_trades = BotTradesDB.get_user_trades(g.user_id, limit=20)
+        # Filter DB trades to the selected broker (legacy rows without a
+        # broker column value are treated as alpaca)
+        broker_db_trades = [
+            t for t in db_trades
+            if (t.get('broker') or 'alpaca') == broker
+        ][:10]
 
-        # Try to get account info and recent trades from Alpaca (may fail if no API keys)
+        # Try to get account info / positions from the selected broker
         account = None
         positions = []
-        recent_trades_alpaca = []
+        recent_trades_broker = []
+        broker_connected = False
         try:
-            engine = TradingEngine(g.user_id)
-            account = engine.get_account_info()
-            positions = engine.get_all_positions()
-            # Get recent trades directly from Alpaca API (fixes $NaN issue)
-            recent_trades_alpaca = engine.get_recent_trades(days=7, limit=10)
-            # Format for frontend
-            for trade in recent_trades_alpaca:
-                trade['transaction_time'] = trade['transaction_time'].isoformat() if isinstance(trade['transaction_time'], datetime) else str(trade['transaction_time'])
-                trade['value'] = abs(trade['qty'] * trade['price'])
-        except:
-            pass
+            if broker == 'robinhood':
+                engine = RobinhoodTradingEngine(g.user_id)
+                account = engine.get_account_info()
+                if account.get('error'):
+                    account = None
+                else:
+                    broker_connected = True
+                positions = engine.get_all_positions()
+            else:
+                engine = TradingEngine(g.user_id)
+                account = engine.get_account_info()
+                broker_connected = account is not None
+                positions = engine.get_all_positions()
+                # Get recent trades directly from Alpaca API (fixes $NaN issue)
+                recent_trades_broker = engine.get_recent_trades(days=7, limit=10)
+                for trade in recent_trades_broker:
+                    trade['transaction_time'] = trade['transaction_time'].isoformat() if isinstance(trade['transaction_time'], datetime) else str(trade['transaction_time'])
+                    trade['value'] = abs(trade['qty'] * trade['price'])
+        except Exception as broker_err:
+            logger.warning(f"Dashboard: {broker} data unavailable for user {g.user_id}: {broker_err}")
 
-        # Calculate total P&L from all bots
-        total_pnl = sum(float(bot.get('total_pnl', 0) or 0) for bot in bots)
-        total_trades = sum(bot.get('total_trades', 0) or 0 for bot in bots)
-        
-        # Calculate realized P&L from closed trades (CLOSE orders with realized_pnl)
+        # Tag positions with the broker for the frontend
+        for p in positions:
+            p['broker'] = broker
+
+        # P&L per selected broker, from bot totals of that broker's bots
+        broker_bots = [b for b in bots if (b.get('broker') or 'alpaca') == broker]
+        total_pnl = sum(float(bot.get('total_pnl', 0) or 0) for bot in broker_bots)
+        total_trades = sum(bot.get('total_trades', 0) or 0 for bot in broker_bots)
+
+        # Realized P&L from closed trades of the selected broker
         realized_pnl = 0.0
-        for trade in db_trades:
+        for trade in broker_db_trades:
             if trade.get('action') == 'CLOSE' and trade.get('realized_pnl') is not None:
                 realized_pnl += float(trade.get('realized_pnl', 0) or 0)
 
         return jsonify(convert_decimals({
+            'broker': broker,
+            'broker_connected': broker_connected,
             'account': account,
             'positions': positions,
             'bots': {
                 'total': len(bots),
                 'active': active_bots,
+                'broker_total': len(broker_bots),
+                'broker_active': sum(1 for b in broker_bots if b.get('is_active')),
                 'total_pnl': total_pnl,
                 'total_trades': total_trades
             },
@@ -2015,8 +2047,8 @@ def api_get_dashboard():
                 'realized_pnl': realized_pnl,
                 'unrealized_pnl': sum(float(p.get('unrealized_pl', 0) or 0) for p in positions) if positions else 0.0
             },
-            'recent_trades': recent_trades_alpaca[:5] if recent_trades_alpaca else db_trades[:5],  # Prefer Alpaca, fallback to DB
-            'recent_trades_source': 'alpaca' if recent_trades_alpaca else 'database',
+            'recent_trades': recent_trades_broker[:5] if recent_trades_broker else broker_db_trades[:5],
+            'recent_trades_source': broker if recent_trades_broker else 'database',
             'api_keys_configured': account is not None
         })), 200
 
