@@ -335,6 +335,11 @@ def run_migrations():
             code_verifier TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""",
+
+        # Migration 009b (one-time): drop the original Robinhood OAuth client
+        # registration so a fresh client_id is registered on next connect.
+        # Time-scoped so it never deletes registrations created after this fix.
+        "DELETE FROM robinhood_oauth_client WHERE registered_at < TIMESTAMP '2026-07-04 08:00:00';",
     ]
 
     try:
