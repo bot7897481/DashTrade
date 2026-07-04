@@ -1740,7 +1740,8 @@ def api_robinhood_authorize():
             return jsonify({'error': 'Failed to start OAuth flow'}), 500
 
         auth_url = robinhood_oauth.build_authorize_url(
-            client['client_id'], state, code_challenge
+            client['client_id'], state, code_challenge,
+            redirect_uri=client.get('redirect_uri')
         )
         return jsonify({'authorize_url': auth_url}), 200
 
@@ -1780,7 +1781,8 @@ def api_robinhood_callback():
             return redirect(f"{settings_url}?robinhood=error&reason=no_client")
 
         tokens = robinhood_oauth.exchange_code(
-            client['client_id'], code, state_entry['code_verifier']
+            client['client_id'], code, state_entry['code_verifier'],
+            redirect_uri=client.get('redirect_uri')
         )
         if not tokens:
             return redirect(f"{settings_url}?robinhood=error&reason=exchange_failed")

@@ -95,12 +95,19 @@ def generate_state() -> str:
     return secrets.token_urlsafe(32)
 
 
-def build_authorize_url(client_id: str, state: str, code_challenge: str) -> str:
-    """Build the URL the user's browser is sent to for login/consent."""
+def build_authorize_url(client_id: str, state: str, code_challenge: str,
+                        redirect_uri: Optional[str] = None) -> str:
+    """Build the URL the user's browser is sent to for login/consent.
+
+    redirect_uri MUST be the exact value the client_id was registered with.
+    Pass the redirect_uri stored alongside the cached client so that a later
+    change to API_BASE_URL can never desync the authorize request from the
+    registration (Robinhood rejects a mismatch with a post-consent error page).
+    """
     params = {
         'client_id': client_id,
         'response_type': 'code',
-        'redirect_uri': REDIRECT_URI,
+        'redirect_uri': redirect_uri or REDIRECT_URI,
         'scope': SCOPE,
         'state': state,
         'code_challenge': code_challenge,
@@ -115,21 +122,30 @@ def build_authorize_url(client_id: str, state: str, code_challenge: str) -> str:
     return f"{AUTHORIZATION_ENDPOINT}?{urlencode(params)}"
 
 
-def exchange_code(client_id: str, code: str, code_verifier: str) -> Optional[Dict]:
+def exchange_code(client_id: str, code: str, code_verifier: str,
+                  redirect_uri: Optional[str] = None) -> Optional[Dict]:
     """
     Exchange an authorization code for tokens.
     Returns {'access_token', 'refresh_token', 'expires_at'} or None.
+
+    redirect_uri must match the value used in the authorize request (i.e. the
+    one the client_id was registered with), or the token endpoint rejects it.
     """
     try:
+        data = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': redirect_uri or REDIRECT_URI,
+            'client_id': client_id,
+            'code_verifier': code_verifier,
+        }
+        # Keep the resource indicator consistent with build_authorize_url: if it
+        # was sent at authorize time it must also be sent here, and vice versa.
+        if os.environ.get('ROBINHOOD_SEND_RESOURCE', '').lower() in ('1', 'true', 'yes'):
+            data['resource'] = MCP_RESOURCE
         resp = requests.post(
             TOKEN_ENDPOINT,
-            data={
-                'grant_type': 'authorization_code',
-                'code': code,
-                'redirect_uri': REDIRECT_URI,
-                'client_id': client_id,
-                'code_verifier': code_verifier,
-            },
+            data=data,
             timeout=15,
         )
         if resp.status_code != 200:
