@@ -105,10 +105,13 @@ def build_authorize_url(client_id: str, state: str, code_challenge: str) -> str:
         'state': state,
         'code_challenge': code_challenge,
         'code_challenge_method': 'S256',
-        # RFC 8707 resource indicator — required by the MCP auth spec so the
-        # token is bound to the trading MCP server.
-        'resource': MCP_RESOURCE,
     }
+    # Note: the RFC 8707 'resource' indicator was removed — Robinhood's
+    # authorization-server metadata does not advertise resource_indicator
+    # support, and including it coincided with a post-consent failure page.
+    # Re-add via ROBINHOOD_SEND_RESOURCE=true if their implementation changes.
+    if os.environ.get('ROBINHOOD_SEND_RESOURCE', '').lower() in ('1', 'true', 'yes'):
+        params['resource'] = MCP_RESOURCE
     return f"{AUTHORIZATION_ENDPOINT}?{urlencode(params)}"
 
 
@@ -126,7 +129,6 @@ def exchange_code(client_id: str, code: str, code_verifier: str) -> Optional[Dic
                 'redirect_uri': REDIRECT_URI,
                 'client_id': client_id,
                 'code_verifier': code_verifier,
-                'resource': MCP_RESOURCE,
             },
             timeout=15,
         )
