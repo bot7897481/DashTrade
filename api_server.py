@@ -8,6 +8,7 @@ Port: 8081 (default)
 """
 from flask import Flask, request, jsonify, g, redirect
 from flask_cors import CORS
+import json
 import logging
 import os
 import jwt
@@ -2923,6 +2924,248 @@ def not_found(error):
 def internal_error(error):
     logger.error(f"Internal error: {error}", exc_info=True)
     return jsonify({'error': 'Internal server error'}), 500
+
+
+# ============================================================================
+# MCP SERVER  — DashTrade exposes itself as a proper MCP server so that
+# Robinhood's OAuth authorization server can validate the redirect_uri domain
+# is a legitimate MCP application.
+#
+#   GET  /.well-known/mcp.json                 — server discovery (MCP spec)
+#   GET  /.well-known/oauth-protected-resource — RFC 8707 protected resource
+#   POST /mcp                                   — JSON-RPC, Streamable HTTP
+# ============================================================================
+
+_MCP_API_BASE = os.environ.get('API_BASE_URL', 'https://api.novalgo.org')
+
+_MCP_TOOLS = [
+    {
+        "name": "get_account",
+        "description": "Get trading account info (equity, buying power, cash) from the connected broker.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "broker": {"type": "string", "enum": ["alpaca", "robinhood"],
+                           "description": "Broker to query (omit to use whichever is connected)"}
+            }
+        }
+    },
+    {
+        "name": "get_positions",
+        "description": "List all open positions with market value and unrealized P&L.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "broker": {"type": "string", "enum": ["alpaca", "robinhood"]}
+            }
+        }
+    },
+    {
+        "name": "get_recent_trades",
+        "description": "Return the most recent executed trades.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Number of trades (default 20, max 100)"}
+            }
+        }
+    },
+    {
+        "name": "get_bots",
+        "description": "List all configured trading bots and their active/inactive status.",
+        "inputSchema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "place_order",
+        "description": "Place a buy or sell order through the connected broker.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "symbol":  {"type": "string", "description": "Ticker symbol, e.g. AAPL"},
+                "side":    {"type": "string", "enum": ["buy", "sell"]},
+                "notional":{"type": "number", "description": "Dollar amount (fractional shares)"},
+                "broker":  {"type": "string", "enum": ["alpaca", "robinhood"]}
+            },
+            "required": ["symbol", "side", "notional"]
+        }
+    }
+]
+
+
+def _mcp_get_user_id() -> Optional[int]:
+    """Extract and validate the DashTrade JWT from the Authorization header."""
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return None
+    token = auth[7:]
+    try:
+        secret = app.config.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+        payload = jwt.decode(token, secret, algorithms=['HS256'])
+        return payload.get('user_id')
+    except Exception:
+        return None
+
+
+def _mcp_result(msg_id, result):
+    return jsonify({"jsonrpc": "2.0", "id": msg_id, "result": result})
+
+
+def _mcp_err(msg_id, code: int, message: str):
+    return jsonify({"jsonrpc": "2.0", "id": msg_id, "error": {"code": code, "message": message}})
+
+
+def _execute_mcp_tool(tool_name: str, args: dict, user_id: int) -> dict:
+    """Run a tool call using the existing engine layer."""
+    broker_pref = args.get("broker", "")
+
+    use_rh = (broker_pref == "robinhood") or (
+        not broker_pref and DB_AVAILABLE and RobinhoodTokenDB.has_tokens(user_id)
+    )
+
+    if tool_name == "get_account":
+        try:
+            if use_rh:
+                from robinhood_engine import RobinhoodTradingEngine
+                return RobinhoodTradingEngine(user_id).get_account_info()
+            else:
+                keys = BotAPIKeysDB.get_api_keys(user_id) if DB_AVAILABLE else None
+                if not keys:
+                    return {"error": "No Alpaca keys configured"}
+                from bot_engine import TradingEngine
+                return TradingEngine(
+                    keys['api_key'], keys['secret_key'], keys.get('mode', 'paper')
+                ).get_account_info()
+        except Exception as e:
+            return {"error": str(e)}
+
+    if tool_name == "get_positions":
+        try:
+            if use_rh:
+                from robinhood_engine import RobinhoodTradingEngine
+                return {"positions": RobinhoodTradingEngine(user_id).get_all_positions()}
+            else:
+                keys = BotAPIKeysDB.get_api_keys(user_id) if DB_AVAILABLE else None
+                if not keys:
+                    return {"error": "No Alpaca keys configured"}
+                from bot_engine import TradingEngine
+                return {"positions": TradingEngine(
+                    keys['api_key'], keys['secret_key'], keys.get('mode', 'paper')
+                ).get_positions()}
+        except Exception as e:
+            return {"error": str(e)}
+
+    if tool_name == "get_recent_trades":
+        limit = min(int(args.get("limit", 20)), 100)
+        try:
+            trades = BotTradesDB.get_user_trades(user_id, limit=limit) if DB_AVAILABLE else []
+            return {"trades": trades, "count": len(trades)}
+        except Exception as e:
+            return {"error": str(e)}
+
+    if tool_name == "get_bots":
+        try:
+            bots = BotConfigDB.get_user_bots(user_id) if DB_AVAILABLE else []
+            return {"bots": bots, "count": len(bots)}
+        except Exception as e:
+            return {"error": str(e)}
+
+    if tool_name == "place_order":
+        symbol = args.get("symbol", "").upper()
+        side = args.get("side", "").lower()
+        notional = float(args.get("notional", 0))
+        if not symbol or side not in ("buy", "sell") or notional <= 0:
+            return {"error": "symbol, side (buy|sell), and notional (dollars) are required"}
+        try:
+            if use_rh:
+                from robinhood_engine import RobinhoodTradingEngine
+                engine = RobinhoodTradingEngine(user_id)
+                return engine.place_manual_order(symbol=symbol, side=side, qty=None,
+                                                  order_type='market')
+            else:
+                keys = BotAPIKeysDB.get_api_keys(user_id) if DB_AVAILABLE else None
+                if not keys:
+                    return {"error": "No Alpaca keys configured"}
+                from bot_engine import TradingEngine
+                eng = TradingEngine(keys['api_key'], keys['secret_key'], keys.get('mode', 'paper'))
+                result = eng.place_notional_order(symbol, side, notional)
+                return {"order": result}
+        except Exception as e:
+            return {"error": str(e)}
+
+    return {"error": f"Unknown tool: {tool_name}"}
+
+
+@app.route('/.well-known/mcp.json', methods=['GET'])
+def mcp_well_known():
+    """MCP server discovery — lets Robinhood (and AI agents) find our MCP endpoint."""
+    return jsonify({
+        "name": "DashTrade",
+        "version": "1.0.0",
+        "description": "Automated trading bot with Alpaca and Robinhood support",
+        "url": f"{_MCP_API_BASE}/mcp",
+    })
+
+
+@app.route('/.well-known/oauth-protected-resource', methods=['GET'])
+def oauth_protected_resource_meta():
+    """
+    RFC 8707 Protected Resource Metadata.
+    Tells Robinhood's AS that this resource server accepts tokens it issues,
+    which is required by the MCP authorization spec and may resolve the
+    'Uh oh! Something's gone wrong' error during OAuth consent.
+    """
+    return jsonify({
+        "resource": _MCP_API_BASE,
+        "authorization_servers": ["https://agent.robinhood.com"],
+        "bearer_methods_supported": ["header"],
+        "scopes_supported": ["trading", "internal"],
+    })
+
+
+@app.route('/mcp', methods=['GET', 'POST'])
+def mcp_server_endpoint():
+    """
+    DashTrade MCP Server — Streamable HTTP transport (protocol 2024-11-05).
+    Public: initialize, tools/list
+    Authenticated (DashTrade JWT required): tools/call
+    """
+    if request.method == 'GET':
+        return jsonify({"error": "Use POST for MCP JSON-RPC; SSE not supported"}), 405
+
+    body = request.get_json(silent=True) or {}
+    method = body.get("method", "")
+    msg_id = body.get("id")
+
+    if method == "initialize":
+        client_name = body.get("params", {}).get("clientInfo", {}).get("name", "unknown")
+        logger.info("MCP initialize from client: %s", client_name)
+        return _mcp_result(msg_id, {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "DashTrade", "version": "1.0.0"}
+        })
+
+    if method == "notifications/initialized":
+        return '', 204
+
+    if method == "tools/list":
+        return _mcp_result(msg_id, {"tools": _MCP_TOOLS})
+
+    if method == "tools/call":
+        user_id = _mcp_get_user_id()
+        if not user_id:
+            return _mcp_err(msg_id, -32001,
+                            "Authentication required — include your DashTrade JWT as Bearer token"), 401
+        params = body.get("params", {})
+        tool_name = params.get("name", "")
+        tool_args = params.get("arguments", {})
+        logger.info("MCP tools/call: tool=%s user=%s", tool_name, user_id)
+        result = _execute_mcp_tool(tool_name, tool_args, user_id)
+        return _mcp_result(msg_id, {
+            "content": [{"type": "text", "text": json.dumps(result, default=str)}]
+        })
+
+    return _mcp_err(msg_id, -32601, f"Method not found: {method}"), 404
 
 
 # ============================================================================
