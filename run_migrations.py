@@ -349,6 +349,11 @@ def run_migrations():
         # client is registered with correct redirect_uri + resource param on
         # next connect attempt. Covers any client registered before this deploy.
         "DELETE FROM robinhood_oauth_client WHERE registered_at < TIMESTAMP '2026-07-06 12:00:00';",
+
+        # Migration 009e (one-time): clear clients registered while resource=true
+        # was the default (before the RFC-8707 fix that flips default to false).
+        # Ensures next Connect attempt registers a clean client without resource param.
+        "DELETE FROM robinhood_oauth_client WHERE registered_at < TIMESTAMP '2026-07-07 00:00:00';",
     ]
 
     try:

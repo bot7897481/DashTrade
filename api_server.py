@@ -1778,6 +1778,7 @@ def api_robinhood_authorize():
             client['client_id'], state, code_challenge,
             redirect_uri=client.get('redirect_uri')
         )
+        logger.info("Robinhood authorize URL returned to frontend (full): %s", auth_url)
         return jsonify({'authorize_url': auth_url}), 200
 
     except Exception as e:

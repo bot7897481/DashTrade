@@ -47,12 +47,13 @@ CLIENT_NAME = "DashTrade Trading Bot"
 def should_send_resource() -> bool:
     """Whether to include the MCP resource indicator in OAuth requests.
 
-    The MCP authorization spec requires the resource parameter to bind the
-    token to the MCP server (issuer = https://agent.robinhood.com/mcp/trading).
-    Opt out only if Robinhood explicitly rejects it: ROBINHOOD_SEND_RESOURCE=false
+    RFC 8707 says the client SHOULD NOT send resource unless the AS advertises
+    resource_indicators_supported. Robinhood's AS metadata does NOT advertise
+    this field, so we default to NOT sending it. Set ROBINHOOD_SEND_RESOURCE=true
+    to opt back in if Robinhood ever starts requiring it.
     """
-    return os.environ.get('ROBINHOOD_SEND_RESOURCE', 'true').lower() not in (
-        '0', 'false', 'no', 'off'
+    return os.environ.get('ROBINHOOD_SEND_RESOURCE', 'false').lower() in (
+        '1', 'true', 'yes', 'on'
     )
 
 
@@ -86,7 +87,11 @@ def register_client() -> Optional[Dict]:
             logger.error("Robinhood client registration: no client_id in response")
             return None
 
-        logger.info(f"Registered OAuth client with Robinhood: {client_id[:8]}…")
+        logger.info(
+            "Robinhood client registration success: client_id=%s… "
+            "redirect_uri=%s response_keys=%s",
+            client_id[:8], REDIRECT_URI, sorted(data.keys())
+        )
         return {'client_id': client_id, 'redirect_uri': REDIRECT_URI}
     except Exception as e:
         logger.error(f"Robinhood client registration error: {e}")
@@ -125,11 +130,15 @@ def build_authorize_url(client_id: str, state: str, code_challenge: str,
         'code_challenge': code_challenge,
         'code_challenge_method': 'S256',
     }
-    # Robinhood's protected-resource metadata declares this MCP resource. Keep
-    # it opt-out so production follows the MCP/RFC 8707 resource flow by default.
+    # RFC 8707: only send resource if AS advertises resource_indicators_supported.
+    # Robinhood's AS does not advertise it, so we omit it by default.
     if should_send_resource():
         params['resource'] = MCP_RESOURCE
-    return f"{AUTHORIZATION_ENDPOINT}?{urlencode(params)}"
+    url = f"{AUTHORIZATION_ENDPOINT}?{urlencode(params)}"
+    logger.info("Robinhood authorize URL (state/pkce redacted): %s",
+                url.replace(params.get('state', ''), 'STATE')
+                   .replace(params.get('code_challenge', ''), 'PKCE'))
+    return url
 
 
 def exchange_code(client_id: str, code: str, code_verifier: str,
