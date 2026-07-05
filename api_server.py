@@ -15,6 +15,7 @@ import jwt
 import functools
 import traceback
 from datetime import datetime, timedelta
+from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 # Setup logging first
