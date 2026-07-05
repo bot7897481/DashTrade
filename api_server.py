@@ -341,7 +341,7 @@ def api_forgot_password():
             from email_service import EmailService
 
             # Get frontend URL from environment variable or use default
-            frontend_url = os.getenv('FRONTEND_URL', 'https://alert-to-action-bot.lovable.app')
+            frontend_url = os.getenv('FRONTEND_URL', 'https://novalgo.org')
             reset_url = f"{frontend_url}/reset-password?token={result['token']}"
 
             html_body = f"""
@@ -1726,12 +1726,33 @@ def api_robinhood_authorize():
     """
     try:
         client = RobinhoodOAuthDB.get_client()
+        expected_redirect_uri = robinhood_oauth.REDIRECT_URI
+        if client and client.get('redirect_uri') != expected_redirect_uri:
+            logger.warning(
+                "Robinhood OAuth client redirect mismatch; clearing cached client. "
+                "stored=%s expected=%s",
+                client.get('redirect_uri'), expected_redirect_uri
+            )
+            RobinhoodOAuthDB.clear_clients()
+            client = None
+
         if not client:
             client = robinhood_oauth.register_client()
             if not client:
                 return jsonify({'error': 'Could not register with Robinhood. '
                                          'Please try again later.'}), 502
             RobinhoodOAuthDB.save_client(client['client_id'], client['redirect_uri'])
+            logger.info(
+                "Robinhood OAuth registered fresh client prefix=%s redirect_uri=%s resource=%s",
+                client['client_id'][:8], client['redirect_uri'],
+                robinhood_oauth.should_send_resource()
+            )
+        else:
+            logger.info(
+                "Robinhood OAuth using cached client prefix=%s redirect_uri=%s resource=%s",
+                client['client_id'][:8], client['redirect_uri'],
+                robinhood_oauth.should_send_resource()
+            )
 
         code_verifier, code_challenge = robinhood_oauth.generate_pkce()
         state = robinhood_oauth.generate_state()
@@ -1757,7 +1778,7 @@ def api_robinhood_callback():
     the user who initiated the flow. Exchanges the code for tokens, stores
     them, and redirects the browser to the frontend Settings page.
     """
-    frontend_url = os.getenv('FRONTEND_URL', 'https://alert-to-action-bot.lovable.app')
+    frontend_url = os.getenv('FRONTEND_URL', 'https://novalgo.org')
     settings_url = f"{frontend_url}/settings"
 
     try:

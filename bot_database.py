@@ -1878,6 +1878,17 @@ class RobinhoodOAuthDB:
             return False
 
     @staticmethod
+    def clear_clients() -> bool:
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM robinhood_oauth_client")
+            return True
+        except Exception as e:
+            print(f"Error clearing Robinhood OAuth clients: {e}")
+            return False
+
+    @staticmethod
     def save_state(state: str, user_id: int, code_verifier: str) -> bool:
         try:
             with get_db_connection() as conn:

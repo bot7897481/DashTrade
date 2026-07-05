@@ -44,6 +44,13 @@ REDIRECT_URI = f"{API_BASE_URL}/api/settings/robinhood/callback"
 CLIENT_NAME = "DashTrade Trading Bot"
 
 
+def should_send_resource() -> bool:
+    """Whether to include the MCP resource indicator in OAuth requests."""
+    return os.environ.get('ROBINHOOD_SEND_RESOURCE', 'true').lower() not in (
+        '0', 'false', 'no', 'off'
+    )
+
+
 def register_client() -> Optional[Dict]:
     """
     Dynamically register DashTrade as an OAuth client with Robinhood.
@@ -113,11 +120,9 @@ def build_authorize_url(client_id: str, state: str, code_challenge: str,
         'code_challenge': code_challenge,
         'code_challenge_method': 'S256',
     }
-    # Note: the RFC 8707 'resource' indicator was removed — Robinhood's
-    # authorization-server metadata does not advertise resource_indicator
-    # support, and including it coincided with a post-consent failure page.
-    # Re-add via ROBINHOOD_SEND_RESOURCE=true if their implementation changes.
-    if os.environ.get('ROBINHOOD_SEND_RESOURCE', '').lower() in ('1', 'true', 'yes'):
+    # Robinhood's protected-resource metadata declares this MCP resource. Keep
+    # it opt-out so production follows the MCP/RFC 8707 resource flow by default.
+    if should_send_resource():
         params['resource'] = MCP_RESOURCE
     return f"{AUTHORIZATION_ENDPOINT}?{urlencode(params)}"
 
@@ -141,7 +146,7 @@ def exchange_code(client_id: str, code: str, code_verifier: str,
         }
         # Keep the resource indicator consistent with build_authorize_url: if it
         # was sent at authorize time it must also be sent here, and vice versa.
-        if os.environ.get('ROBINHOOD_SEND_RESOURCE', '').lower() in ('1', 'true', 'yes'):
+        if should_send_resource():
             data['resource'] = MCP_RESOURCE
         resp = requests.post(
             TOKEN_ENDPOINT,
