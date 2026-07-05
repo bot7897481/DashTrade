@@ -132,11 +132,24 @@ try:
 except Exception as e:
     logger.warning(f"Migration check skipped: {e}")
 
+@app.before_request
+def log_request():
+    # Skip noisy OPTIONS preflight and health checks
+    if request.method == 'OPTIONS' or request.path in ('/health', '/'):
+        return
+    logger.info("→ %s %s  ip=%s", request.method, request.path,
+                request.headers.get('X-Forwarded-For', request.remote_addr))
+
+
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    if request.method != 'OPTIONS' and request.path not in ('/health', '/'):
+        level = logging.WARNING if response.status_code >= 400 else logging.INFO
+        logger.log(level, "← %s %s  status=%d", request.method, request.path,
+                   response.status_code)
     return response
 
 # ============================================================================
