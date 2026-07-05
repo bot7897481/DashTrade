@@ -14,6 +14,7 @@ import jwt
 import functools
 import traceback
 from datetime import datetime, timedelta
+from urllib.parse import parse_qs, urlparse
 
 # Setup logging first
 logging.basicConfig(
@@ -1768,6 +1769,54 @@ def api_robinhood_authorize():
 
     except Exception as e:
         logger.error(f"Robinhood authorize error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/settings/robinhood/oauth-debug', methods=['GET'])
+@token_required
+def api_robinhood_oauth_debug():
+    """Return safe Robinhood OAuth diagnostics for production debugging."""
+    try:
+        client = RobinhoodOAuthDB.get_client()
+        _, code_challenge = robinhood_oauth.generate_pkce()
+        params = {}
+
+        if client:
+            auth_url = robinhood_oauth.build_authorize_url(
+                client['client_id'],
+                'redacted-state',
+                code_challenge,
+                redirect_uri=client.get('redirect_uri')
+            )
+            parsed = urlparse(auth_url)
+            params = {
+                key: values[0] if len(values) == 1 else values
+                for key, values in parse_qs(parsed.query).items()
+                if key not in ('state', 'code_challenge')
+            }
+
+        return jsonify({
+            'api_base_url': robinhood_oauth.API_BASE_URL,
+            'expected_redirect_uri': robinhood_oauth.REDIRECT_URI,
+            'send_resource': robinhood_oauth.should_send_resource(),
+            'mcp_resource': robinhood_oauth.MCP_RESOURCE,
+            'authorization_endpoint': robinhood_oauth.AUTHORIZATION_ENDPOINT,
+            'token_endpoint': robinhood_oauth.TOKEN_ENDPOINT,
+            'registration_endpoint': robinhood_oauth.REGISTRATION_ENDPOINT,
+            'client': {
+                'present': bool(client),
+                'client_id_prefix': client['client_id'][:8] if client else None,
+                'redirect_uri': client.get('redirect_uri') if client else None,
+                'redirect_matches_current_env': (
+                    client.get('redirect_uri') == robinhood_oauth.REDIRECT_URI
+                    if client else None
+                ),
+            },
+            'authorize_params_without_state_or_pkce': params,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Robinhood OAuth debug error: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 
