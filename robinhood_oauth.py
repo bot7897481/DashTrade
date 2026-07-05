@@ -45,9 +45,14 @@ CLIENT_NAME = "DashTrade Trading Bot"
 
 
 def should_send_resource() -> bool:
-    """Whether to include the MCP resource indicator in OAuth requests."""
-    return os.environ.get('ROBINHOOD_SEND_RESOURCE', '').lower() in (
-        '1', 'true', 'yes', 'on'
+    """Whether to include the MCP resource indicator in OAuth requests.
+
+    The MCP authorization spec requires the resource parameter to bind the
+    token to the MCP server (issuer = https://agent.robinhood.com/mcp/trading).
+    Opt out only if Robinhood explicitly rejects it: ROBINHOOD_SEND_RESOURCE=false
+    """
+    return os.environ.get('ROBINHOOD_SEND_RESOURCE', 'true').lower() not in (
+        '0', 'false', 'no', 'off'
     )
 
 

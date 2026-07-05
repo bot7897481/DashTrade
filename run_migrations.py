@@ -344,6 +344,11 @@ def run_migrations():
         # Migration 009c (one-time): clear OAuth clients created while the
         # Robinhood authorize request was still being tuned.
         "DELETE FROM robinhood_oauth_client WHERE registered_at < TIMESTAMP '2026-07-05 19:00:00';",
+
+        # Migration 009d (one-time): clear ALL cached OAuth clients so a fresh
+        # client is registered with correct redirect_uri + resource param on
+        # next connect attempt. Covers any client registered before this deploy.
+        "DELETE FROM robinhood_oauth_client WHERE registered_at < TIMESTAMP '2026-07-06 12:00:00';",
     ]
 
     try:
