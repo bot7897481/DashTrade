@@ -9,6 +9,7 @@ import asyncio
 import logging
 import json
 import os
+import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
@@ -16,8 +17,14 @@ import requests
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.sse import sse_client
 
 logger = logging.getLogger(__name__)
+
+# Transports tried in order: current standard first, legacy SSE fallback.
+# The Robinhood MCP server has been observed to accept streamable-http; SSE is
+# kept as a fallback so a server-side transport change can't break us.
+MCP_TRANSPORTS = ("streamable-http", "sse")
 
 ROBINHOOD_MCP_URL = "https://agent.robinhood.com/mcp/trading"
 
@@ -43,14 +50,19 @@ def _get_client_id() -> str:
 # Preferred tool names → known aliases. The Robinhood MCP server's real
 # tool names are discovered at runtime; we resolve our canonical names
 # against the live tool list so a server-side rename doesn't break us.
+# Real names first (verified against the live Robinhood Agentic Trading MCP:
+# get_accounts, get_portfolio, get_equity_positions, place_equity_order,
+# get_equity_orders, cancel_equity_order, get_equity_quotes). Exact matches are
+# tried before the fuzzy fallback, so resolution is deterministic and never
+# accidentally grabs the option/crypto variant (e.g. place_option_order).
 TOOL_ALIASES = {
-    "get_account": ["get_account", "account", "get_account_info", "get_account_details"],
+    "get_account": ["get_accounts", "get_portfolio", "get_account", "account", "get_account_info"],
     "get_portfolio": ["get_portfolio", "portfolio", "get_portfolio_summary"],
-    "get_positions": ["get_positions", "positions", "list_positions", "get_holdings"],
-    "place_order": ["place_order", "create_order", "submit_order", "place_trade"],
-    "get_order": ["get_order", "get_order_status", "order_status"],
-    "cancel_order": ["cancel_order", "cancel"],
-    "get_quote": ["get_quote", "quote", "get_quotes", "get_price", "get_market_data"],
+    "get_positions": ["get_equity_positions", "get_positions", "positions", "list_positions"],
+    "place_order": ["place_equity_order", "place_order", "create_order", "submit_order"],
+    "get_order": ["get_equity_orders", "get_order", "get_order_status", "order_status"],
+    "cancel_order": ["cancel_equity_order", "cancel_order", "cancel"],
+    "get_quote": ["get_equity_quotes", "get_quote", "quote", "get_quotes", "get_price"],
 }
 
 
@@ -107,9 +119,75 @@ class RobinhoodMCPClient:
         self._session: Optional[ClientSession] = None
         self._tools: Dict[str, Any] = {}
         self._tool_name_cache: Dict[str, str] = {}  # canonical name → real server name
+        self._account_number: Optional[str] = None   # cached agentic account
         self._headers = {
             "Authorization": f"Bearer {access_token}",
         }
+
+    async def _resolve_account_number(self) -> str:
+        """Resolve the account number to trade on, caching the result.
+
+        place_equity_order / get_equity_positions / get_equity_orders all REQUIRE
+        an account_number, and placing orders requires agentic_allowed=true. We
+        prefer the agentic account, then the default, then the first available.
+        """
+        if self._account_number:
+            return self._account_number
+
+        data = await self.call_tool("get_account")  # resolves to get_accounts
+        accounts = []
+        if isinstance(data, dict):
+            accounts = data.get("data", {}).get("accounts", []) or data.get("accounts", [])
+
+        chosen = (
+            next((a for a in accounts if a.get("agentic_allowed")), None)
+            or next((a for a in accounts if a.get("is_default")), None)
+            or (accounts[0] if accounts else None)
+        )
+        if not chosen or not chosen.get("account_number"):
+            raise ValueError(
+                "Could not resolve a Robinhood account_number from get_accounts "
+                f"(found {len(accounts)} accounts)"
+            )
+        self._account_number = chosen["account_number"]
+        if not chosen.get("agentic_allowed"):
+            logger.warning(
+                "Selected Robinhood account %s is not agentic_allowed — "
+                "order placement will be rejected by the server.",
+                self._account_number[-4:] if self._account_number else "?"
+            )
+        return self._account_number
+
+    async def _with_session(self, fn):
+        """Open an MCP session (trying each transport in order) and run fn(session).
+
+        MCP client contexts (anyio cancel scopes) must be entered and exited
+        within the same task, so the session is opened, used, and closed inside
+        this single coroutine — never held open across calls.
+        """
+        errors = []
+        for transport in MCP_TRANSPORTS:
+            try:
+                if transport == "streamable-http":
+                    async with streamablehttp_client(
+                        url=ROBINHOOD_MCP_URL, headers=self._headers
+                    ) as (read_stream, write_stream, _):
+                        async with ClientSession(read_stream, write_stream) as session:
+                            await session.initialize()
+                            return await fn(session)
+                else:
+                    async with sse_client(
+                        url=ROBINHOOD_MCP_URL, headers=self._headers
+                    ) as (read_stream, write_stream):
+                        async with ClientSession(read_stream, write_stream) as session:
+                            await session.initialize()
+                            return await fn(session)
+            except Exception as e:
+                errors.append(f"{transport}: {e}")
+                logger.warning(f"Robinhood MCP transport '{transport}' failed: {e}")
+        raise ConnectionError(
+            f"All Robinhood MCP transports failed: {' | '.join(errors)}"
+        )
 
     async def _resolve_tool_name(self, canonical_name: str) -> str:
         """
@@ -154,25 +232,19 @@ class RobinhoodMCPClient:
 
     async def connect(self) -> "RobinhoodMCPClient":
         """Connect to the MCP server and discover available tools."""
-        async with streamablehttp_client(
-            url=ROBINHOOD_MCP_URL,
-            headers=self._headers
-        ) as (read_stream, write_stream, _):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                self._session = session
+        async def _do(session: ClientSession):
+            # Discover available tools
+            tools_result = await session.list_tools()
+            for tool in tools_result.tools:
+                self._tools[tool.name] = {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "schema": tool.inputSchema
+                }
+            logger.info(f"Connected to Robinhood MCP. Available tools: {list(self._tools.keys())}")
+            return self
 
-                # Discover available tools
-                tools_result = await session.list_tools()
-                for tool in tools_result.tools:
-                    self._tools[tool.name] = {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "schema": tool.inputSchema
-                    }
-
-                logger.info(f"Connected to Robinhood MCP. Available tools: {list(self._tools.keys())}")
-                return self
+        return await self._with_session(_do)
 
     async def call_tool(self, tool_name: str, arguments: Dict = None) -> Any:
         """
@@ -184,46 +256,40 @@ class RobinhoodMCPClient:
         arguments = arguments or {}
         resolved_name = await self._resolve_tool_name(tool_name)
 
-        async with streamablehttp_client(
-            url=ROBINHOOD_MCP_URL,
-            headers=self._headers
-        ) as (read_stream, write_stream, _):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                result = await session.call_tool(resolved_name, arguments)
+        async def _do(session: ClientSession):
+            result = await session.call_tool(resolved_name, arguments)
 
-                # Extract text content from MCP result
-                if result.content:
-                    texts = []
-                    for block in result.content:
-                        if hasattr(block, 'text'):
-                            texts.append(block.text)
-                    combined = "\n".join(texts)
-                    # Try to parse as JSON
-                    try:
-                        return json.loads(combined)
-                    except (json.JSONDecodeError, ValueError):
-                        return combined
+            # Extract text content from MCP result
+            if result.content:
+                texts = []
+                for block in result.content:
+                    if hasattr(block, 'text'):
+                        texts.append(block.text)
+                combined = "\n".join(texts)
+                # Try to parse as JSON
+                try:
+                    return json.loads(combined)
+                except (json.JSONDecodeError, ValueError):
+                    return combined
 
-                return None
+            return None
+
+        return await self._with_session(_do)
 
     async def list_tools(self) -> List[Dict]:
         """List all available MCP tools from the server."""
-        async with streamablehttp_client(
-            url=ROBINHOOD_MCP_URL,
-            headers=self._headers
-        ) as (read_stream, write_stream, _):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                tools_result = await session.list_tools()
-                return [
-                    {
-                        "name": t.name,
-                        "description": t.description,
-                        "schema": t.inputSchema
-                    }
-                    for t in tools_result.tools
-                ]
+        async def _do(session: ClientSession):
+            tools_result = await session.list_tools()
+            return [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "schema": t.inputSchema
+                }
+                for t in tools_result.tools
+            ]
+
+        return await self._with_session(_do)
 
     # -- Convenience methods --
     # These wrap common tool calls. Tool names are discovered at runtime;
@@ -240,40 +306,71 @@ class RobinhoodMCPClient:
         return await self.call_tool("get_portfolio")
 
     async def get_positions(self) -> List[Dict]:
-        """Get all open positions."""
-        return await self.call_tool("get_positions")
+        """Get all open positions for the resolved account."""
+        account_number = await self._resolve_account_number()
+        result = await self.call_tool("get_positions", {"account_number": account_number})
+        # get_equity_positions wraps the list under data.results/positions —
+        # unwrap to a bare list so callers can iterate.
+        if isinstance(result, dict):
+            data = result.get("data", result)
+            for key in ("results", "positions"):
+                if isinstance(data.get(key), list):
+                    return data[key]
+        return result if isinstance(result, list) else []
 
     async def place_order(self, symbol: str, side: str, quantity: float = None,
                           notional: float = None, order_type: str = "market",
                           limit_price: float = None,
                           time_in_force: str = "day") -> Dict:
-        """Place an order through Robinhood."""
+        """Place an order via the real place_equity_order schema.
+
+        Maps our generic params to Robinhood's actual field names:
+          order_type -> type, notional -> dollar_amount, day -> gfd,
+          and adds the required account_number + an idempotency ref_id.
+        All numeric values must be strings.
+        """
+        account_number = await self._resolve_account_number()
+        tif = "gtc" if str(time_in_force).lower() in ("gtc", "good_till_cancelled") else "gfd"
         args = {
+            "account_number": account_number,
             "symbol": symbol.upper(),
             "side": side.lower(),
-            "order_type": order_type,
-            "time_in_force": time_in_force,
+            "type": order_type.lower(),        # real key is 'type', not 'order_type'
+            "time_in_force": tif,              # real values: gfd | gtc (never 'day')
+            "ref_id": str(uuid.uuid4()),       # idempotency key
         }
-        if quantity is not None:
-            args["quantity"] = quantity
         if notional is not None:
-            args["notional"] = notional
+            args["dollar_amount"] = f"{float(notional):.2f}"   # real key, string
+        if quantity is not None:
+            args["quantity"] = str(quantity)                    # string
         if limit_price is not None:
-            args["limit_price"] = limit_price
+            args["limit_price"] = f"{float(limit_price):.2f}"
 
         return await self.call_tool("place_order", args)
 
     async def get_order(self, order_id: str) -> Dict:
-        """Get order status by ID."""
-        return await self.call_tool("get_order", {"order_id": order_id})
+        """Get a single order by ID (get_equity_orders with order_id filter)."""
+        account_number = await self._resolve_account_number()
+        result = await self.call_tool(
+            "get_order", {"account_number": account_number, "order_id": order_id}
+        )
+        # get_equity_orders returns data.orders[] with at most one entry — unwrap.
+        if isinstance(result, dict):
+            orders = result.get("data", {}).get("orders")
+            if isinstance(orders, list):
+                return orders[0] if orders else {}
+        return result if isinstance(result, dict) else {}
 
     async def cancel_order(self, order_id: str) -> Dict:
         """Cancel an open order."""
-        return await self.call_tool("cancel_order", {"order_id": order_id})
+        account_number = await self._resolve_account_number()
+        return await self.call_tool(
+            "cancel_order", {"account_number": account_number, "order_id": order_id}
+        )
 
     async def get_quote(self, symbol: str) -> Dict:
-        """Get a price quote for a symbol."""
-        return await self.call_tool("get_quote", {"symbol": symbol.upper()})
+        """Get a price quote (get_equity_quotes takes a symbols array)."""
+        return await self.call_tool("get_quote", {"symbols": [symbol.upper()]})
 
 
 def run_sync(coro):

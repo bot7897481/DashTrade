@@ -47,14 +47,26 @@ CLIENT_NAME = "DashTrade Trading Bot"
 def should_send_resource() -> bool:
     """Whether to include the MCP resource indicator in OAuth requests.
 
-    RFC 8707 says the client SHOULD NOT send resource unless the AS advertises
-    resource_indicators_supported. Robinhood's AS metadata does NOT advertise
-    this field, so we default to NOT sending it. Set ROBINHOOD_SEND_RESOURCE=true
-    to opt back in if Robinhood ever starts requiring it.
+    Robinhood's Agentic Trading MCP REQUIRES the token to be audience-bound to
+    the MCP server (resource=https://agent.robinhood.com/mcp/trading). If the
+    resource indicator is omitted at authorize/exchange time, Robinhood issues a
+    token that is NOT scoped to the MCP server, and every subsequent MCP call is
+    rejected (401/403). A known-good client (see Robi Bot) sends it on every
+    request, so we default to sending it. Set ROBINHOOD_SEND_RESOURCE=false only
+    to deliberately reproduce the old (broken) behavior for debugging.
     """
-    return os.environ.get('ROBINHOOD_SEND_RESOURCE', 'false').lower() in (
+    return os.environ.get('ROBINHOOD_SEND_RESOURCE', 'true').lower() in (
         '1', 'true', 'yes', 'on'
     )
+
+
+# One-time startup diagnostic so the deployed flow's config is visible in logs.
+logger.info(
+    "Robinhood OAuth config: send_resource=%s resource=%s authorize=%s token=%s "
+    "registration=%s redirect_uri=%s",
+    should_send_resource(), MCP_RESOURCE, AUTHORIZATION_ENDPOINT, TOKEN_ENDPOINT,
+    REGISTRATION_ENDPOINT, REDIRECT_URI,
+)
 
 
 def register_client() -> Optional[Dict]:
